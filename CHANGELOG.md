@@ -5,6 +5,23 @@
 
 ## [Unreleased]
 
+## [0.2.0]
+
+### Added
+
+- 设置页用 Garmin Connect 邮箱和密码登录（移动端 SSO 流程 + DI OAuth2 换令牌），登录后自动同步一次；可退出登录。
+- 跑步详情：概要、逐圈分段、心率区间；首次打开从 Garmin 拉取并缓存到 `run_details`（迁移 `0002_run_details.sql`），可手动重新拉取。
+- 列表多一列活动名称，行可点开详情。
+
+### Changed
+
+- 去掉粘贴 `refresh_token` / `client_id` 的配置方式和对应的 `/api/credentials` 接口。
+- 请求 Garmin 时带上 App 的原生请求头；刷新令牌失效时提示重新登录。
+
+### Fixed
+
+- 0.1.0 依赖的 `host.secrets.*` 宿主此前没实现，token 实际保存不了；需配合 PMW 2026-11-23 起的宿主。
+
 ## [0.1.0]
 
 ### Added
