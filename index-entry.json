@@ -10,8 +10,8 @@
         "en": "Garmin Running Data"
       },
       "description": {
-        "zh": "登录 Garmin Connect 同步跑步：按周月年统计（室内/室外），单次跑步的地图、曲线、分段归类与跑步机速度校正",
-        "en": "Sync Garmin runs: weekly/monthly/yearly stats (indoor/outdoor), per-run map, charts, lap types and treadmill speed correction"
+        "zh": "Garmin 跑步与力量训练：统计、地图曲线、波动区间、AI 训练分析、训练计划与日历、比赛与影像记忆",
+        "en": "Garmin running and strength: stats, maps, charts, AI coaching, training plans and calendar, races and photo memories"
       },
       "author": "lizhao903",
       "repository": "https://github.com/lizhao903/pmw-plugin-garmin_connect",
@@ -25,6 +25,38 @@
         "running"
       ],
       "versions": [
+        {
+          "version": "0.7.1",
+          "published_at": "2026-11-23T09:35:00Z",
+          "api": ">=2.0.0 <3.0.0",
+          "pmw": ">=0.3.0 <1.0.0",
+          "permissions": [
+            "network:any",
+            "secrets:garmin_connect",
+            "schedule",
+            "agent:run"
+          ],
+          "source": {
+            "type": "github-release",
+            "repository": "lizhao903/pmw-plugin-garmin_connect",
+            "tag": "v0.7.1",
+            "commit": "32e882df7e14b34fb61381663537ca07778c646b",
+            "assets": {
+              "darwin-arm64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.7.1/garmin_connect-0.7.1-darwin-arm64.tar.gz",
+                "sha256": "75b913722bea07e0c727435324f9f913800f1b9b3c6ec1ed19325d2ca3a2001d"
+              },
+              "linux-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.7.1/garmin_connect-0.7.1-linux-amd64.tar.gz",
+                "sha256": "92c28a306cb0a6528667f6b4eb9791df856547472ca8c95edbee3f3cfca8e0de"
+              },
+              "windows-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.7.1/garmin_connect-0.7.1-windows-amd64.tar.gz",
+                "sha256": "fc71e9c1388d1f3cf5ab8900076256c9085265fff3814dacbbd3fc366e359931"
+              }
+            }
+          }
+        },
         {
           "version": "0.6.0",
           "published_at": "2026-11-23T10:30:00Z",
