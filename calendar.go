@@ -36,15 +36,18 @@ func validDate(s string) bool {
 }
 
 type calItem struct {
-	Date   string `json:"date"`
+	Date   string `json:"date,omitempty"`
 	Kind   string `json:"kind"`
 	Title  string `json:"title"`
 	Detail string `json:"detail"`
+	// Video 是这节课挂的视频链接（可空，0.8.0）
+	Video string `json:"video,omitempty"`
 }
 
 func (it *calItem) check() string {
 	it.Title = strings.TrimSpace(it.Title)
 	it.Detail = strings.TrimSpace(it.Detail)
+	it.Video = strings.TrimSpace(it.Video)
 	switch {
 	case !validDate(it.Date):
 		return "日期格式应为 YYYY-MM-DD"
@@ -56,6 +59,8 @@ func (it *calItem) check() string {
 		return "标题最多 60 个字"
 	case len([]rune(it.Detail)) > 2000:
 		return "内容最多 2000 个字"
+	case !validURL(strings.TrimSpace(it.Video)):
+		return "视频链接要是 http(s) 开头的完整地址"
 	}
 	return ""
 }
@@ -64,7 +69,7 @@ func (s *server) apiCalendar(ctx context.Context, from, to string) (int, any) {
 	if !validDate(from) || !validDate(to) || from > to {
 		return 400, map[string]any{"error": "from、to 应为 YYYY-MM-DD，且 from 不晚于 to"}
 	}
-	items, err := s.query(ctx, `SELECT id, date, kind, title, detail, plan_key, plan_name, plan_run, done, created_at, updated_at
+	items, err := s.query(ctx, `SELECT id, date, kind, title, detail, video, plan_key, plan_name, plan_run, done, created_at, updated_at
 		FROM calendar_items WHERE date >= ? AND date <= ? ORDER BY date, created_at`, from, to)
 	if err != nil {
 		return 500, map[string]any{"error": "读取日历失败：" + err.Error()}
@@ -109,9 +114,9 @@ func (s *server) apiAddCalendar(ctx context.Context, body []byte) (int, any) {
 	ids := []string{}
 	for _, it := range in.Items {
 		id := newID("cal_")
-		if err := s.exec(ctx, `INSERT INTO calendar_items(id, date, kind, title, detail, plan_key, plan_name, plan_run, done, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-			id, it.Date, it.Kind, it.Title, it.Detail, strings.TrimSpace(in.PlanKey), strings.TrimSpace(in.PlanName), planRun, now, now); err != nil {
+		if err := s.exec(ctx, `INSERT INTO calendar_items(id, date, kind, title, detail, video, plan_key, plan_name, plan_run, done, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+			id, it.Date, it.Kind, it.Title, it.Detail, it.Video, strings.TrimSpace(in.PlanKey), strings.TrimSpace(in.PlanName), planRun, now, now); err != nil {
 			return 500, map[string]any{"error": "保存失败：" + err.Error(), "saved": ids}
 		}
 		ids = append(ids, id)
@@ -123,7 +128,7 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if !strings.HasPrefix(id, "cal_") || len(id) > 40 {
 		return 400, map[string]any{"error": "日历条目 id 不合法"}
 	}
-	rows, err := s.query(ctx, "SELECT date, kind, title, detail, done FROM calendar_items WHERE id = ?", id)
+	rows, err := s.query(ctx, "SELECT date, kind, title, detail, video, done FROM calendar_items WHERE id = ?", id)
 	if err != nil || len(rows) == 0 {
 		return 404, map[string]any{"error": "找不到这条安排"}
 	}
@@ -132,12 +137,14 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	cur.Kind, _ = rows[0]["kind"].(string)
 	cur.Title, _ = rows[0]["title"].(string)
 	cur.Detail, _ = rows[0]["detail"].(string)
+	cur.Video, _ = rows[0]["video"].(string)
 	done := numField(rows[0], "done") != 0
 	var in struct {
 		Date   *string `json:"date"`
 		Kind   *string `json:"kind"`
 		Title  *string `json:"title"`
 		Detail *string `json:"detail"`
+		Video  *string `json:"video"`
 		Done   *bool   `json:"done"`
 	}
 	if err := json.Unmarshal(body, &in); err != nil {
@@ -155,6 +162,9 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if in.Detail != nil {
 		cur.Detail = *in.Detail
 	}
+	if in.Video != nil {
+		cur.Video = *in.Video
+	}
 	if in.Done != nil {
 		done = *in.Done
 	}
@@ -165,8 +175,8 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if done {
 		d = 1
 	}
-	if err := s.exec(ctx, "UPDATE calendar_items SET date=?, kind=?, title=?, detail=?, done=?, updated_at=? WHERE id=?",
-		cur.Date, cur.Kind, cur.Title, cur.Detail, d, time.Now().Format(time.RFC3339), id); err != nil {
+	if err := s.exec(ctx, "UPDATE calendar_items SET date=?, kind=?, title=?, detail=?, video=?, done=?, updated_at=? WHERE id=?",
+		cur.Date, cur.Kind, cur.Title, cur.Detail, cur.Video, d, time.Now().Format(time.RFC3339), id); err != nil {
 		return 500, map[string]any{"error": "保存失败：" + err.Error()}
 	}
 	return 200, map[string]any{"ok": true}

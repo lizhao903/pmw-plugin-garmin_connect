@@ -3,7 +3,8 @@
 package main
 
 // 比赛收录与影像记忆（0.7.0）。
-// 比赛：名称、日期、城市、类别、状态、官方成绩、号码、排名、关联的 Garmin 活动、备注。
+// 比赛：名称、日期、城市、类别、状态、枪声成绩（official_s）、净计时成绩（net_s，0.8.0）、号码、排名、关联的 Garmin 活动、备注。
+// 个人最好成绩优先用净计时，没有再用枪声成绩（前端算）。
 // 影像：成绩证书、完赛奖牌、参赛照片、视频、号码布、参赛服、参赛包、完赛包、其他；文件在插件数据目录。
 // 工作台 API 请求体上限 2 MB、插件单帧 8 MB，所以上传分块（每块 1.5 MB）、读取大文件用流式分块回传，
 // 视频按 Range 请求返回 206（浏览器边下边播、能拖动）。
@@ -84,6 +85,7 @@ type raceInput struct {
 	Category    *string  `json:"category"`
 	Status      *string  `json:"status"`
 	OfficialS   *float64 `json:"official_s"`
+	NetS        *float64 `json:"net_s"`
 	BibNo       *string  `json:"bib_no"`
 	RankOverall *string  `json:"rank_overall"`
 	RankGroup   *string  `json:"rank_group"`
@@ -93,7 +95,7 @@ type raceInput struct {
 
 type raceRow struct {
 	Name, Date, City, Category, Status, BibNo, RankOverall, RankGroup, ActivityID, Note string
-	OfficialS                                                                           any
+	OfficialS, NetS                                                                     any
 }
 
 func (r *raceRow) apply(in raceInput) string {
@@ -116,13 +118,17 @@ func (r *raceRow) apply(in raceInput) string {
 	set(&r.RankGroup, in.RankGroup, 20)
 	set(&r.ActivityID, in.ActivityID, 20)
 	set(&r.Note, in.Note, 2000)
-	if in.OfficialS != nil {
-		if *in.OfficialS <= 0 {
-			r.OfficialS = nil
-		} else {
-			r.OfficialS = *in.OfficialS
+	secs := func(dst *any, v *float64) {
+		if v != nil {
+			if *v <= 0 {
+				*dst = nil
+			} else {
+				*dst = *v
+			}
 		}
 	}
+	secs(&r.OfficialS, in.OfficialS)
+	secs(&r.NetS, in.NetS)
 	switch {
 	case r.Name == "":
 		return "比赛名称不能为空"
@@ -135,14 +141,16 @@ func (r *raceRow) apply(in raceInput) string {
 	case r.ActivityID != "" && !validActivityID(r.ActivityID):
 		return "关联活动 id 不合法"
 	}
-	if v, ok := r.OfficialS.(float64); ok && v > 7*24*3600 {
-		return "成绩不合理"
+	for _, x := range []any{r.OfficialS, r.NetS} {
+		if v, ok := x.(float64); ok && v > 7*24*3600 {
+			return "成绩不合理"
+		}
 	}
 	return ""
 }
 
 func (s *server) apiRaces(ctx context.Context) (int, any) {
-	rows, err := s.query(ctx, `SELECT r.id, r.name, r.date, r.city, r.category, r.status, r.official_s, r.bib_no, r.rank_overall,
+	rows, err := s.query(ctx, `SELECT r.id, r.name, r.date, r.city, r.category, r.status, r.official_s, r.net_s, r.bib_no, r.rank_overall,
 		r.rank_group, r.activity_id, r.note, r.created_at, r.updated_at,
 		(SELECT COUNT(*) FROM race_media m WHERE m.race_id = r.id AND m.ready = 1) AS media_count,
 		(SELECT m.id FROM race_media m WHERE m.race_id = r.id AND m.ready = 1 AND m.mime LIKE 'image/%'
@@ -190,9 +198,9 @@ func (s *server) apiCreateRace(ctx context.Context, body []byte) (int, any) {
 	}
 	id := newID("race_")
 	now := time.Now().Format(time.RFC3339)
-	if err := s.exec(ctx, `INSERT INTO races(id, name, date, city, category, status, official_s, bib_no, rank_overall, rank_group, activity_id, note, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, r.Name, r.Date, r.City, r.Category, r.Status, r.OfficialS, r.BibNo, r.RankOverall, r.RankGroup, r.ActivityID, r.Note, now, now); err != nil {
+	if err := s.exec(ctx, `INSERT INTO races(id, name, date, city, category, status, official_s, net_s, bib_no, rank_overall, rank_group, activity_id, note, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, r.Name, r.Date, r.City, r.Category, r.Status, r.OfficialS, r.NetS, r.BibNo, r.RankOverall, r.RankGroup, r.ActivityID, r.Note, now, now); err != nil {
 		return 500, map[string]any{"error": "保存失败：" + err.Error()}
 	}
 	return 200, map[string]any{"ok": true, "id": id}
@@ -208,7 +216,8 @@ func (s *server) apiUpdateRace(ctx context.Context, id string, body []byte) (int
 	}
 	g := func(k string) string { v, _ := rows[0][k].(string); return v }
 	r := raceRow{Name: g("name"), Date: g("date"), City: g("city"), Category: g("category"), Status: g("status"), BibNo: g("bib_no"),
-		RankOverall: g("rank_overall"), RankGroup: g("rank_group"), ActivityID: g("activity_id"), Note: g("note"), OfficialS: rows[0]["official_s"]}
+		RankOverall: g("rank_overall"), RankGroup: g("rank_group"), ActivityID: g("activity_id"), Note: g("note"),
+		OfficialS: rows[0]["official_s"], NetS: rows[0]["net_s"]}
 	var in raceInput
 	if err := json.Unmarshal(body, &in); err != nil {
 		return 400, map[string]any{"error": "请求不是合法 JSON"}
@@ -216,9 +225,9 @@ func (s *server) apiUpdateRace(ctx context.Context, id string, body []byte) (int
 	if msg := r.apply(in); msg != "" {
 		return 400, map[string]any{"error": msg}
 	}
-	if err := s.exec(ctx, `UPDATE races SET name=?, date=?, city=?, category=?, status=?, official_s=?, bib_no=?, rank_overall=?, rank_group=?,
+	if err := s.exec(ctx, `UPDATE races SET name=?, date=?, city=?, category=?, status=?, official_s=?, net_s=?, bib_no=?, rank_overall=?, rank_group=?,
 		activity_id=?, note=?, updated_at=? WHERE id=?`,
-		r.Name, r.Date, r.City, r.Category, r.Status, r.OfficialS, r.BibNo, r.RankOverall, r.RankGroup, r.ActivityID, r.Note,
+		r.Name, r.Date, r.City, r.Category, r.Status, r.OfficialS, r.NetS, r.BibNo, r.RankOverall, r.RankGroup, r.ActivityID, r.Note,
 		time.Now().Format(time.RFC3339), id); err != nil {
 		return 500, map[string]any{"error": "保存失败：" + err.Error()}
 	}

@@ -278,7 +278,7 @@ function ModulePage() {
   const fullRunning = Boolean(full && full.running);
   // 窄屏顶栏放不下切换标签，挪回页面里
   const narrow = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
-  const viewSeg = h(Seg, { label: "视图", value: view, onChange: setView, options: [["runs", "记录"], ["stats", "统计"], ["calendar", "日历"], ["plans", "计划"]] });
+  const viewSeg = h(Seg, { label: "视图", value: view, onChange: setView, options: [["runs", "记录"], ["stats", "统计"], ["calendar", "日历"], ["plans", "计划"], ["videos", "视频"]] });
   const total = runs.reduce(function (sum, r) { return sum + (runView(r).dist || 0); }, 0);
   const progress = fullRunning
     ? "正在同步全部历史：已翻 " + (full.pages || 0) + " 页，写入 " + (full.written || 0) + " 条…"
@@ -305,6 +305,8 @@ function ModulePage() {
       ? h(CalendarView, { key: "cal-" + calFocus, focus: calFocus, onOpen: setOpen })
       : view === "plans"
       ? h(PlansView, { onApplied: function (d) { setCalFocus(d); setView("calendar"); } })
+      : view === "videos"
+      ? h(VideosView)
       : h(RunList, { runs: runs, indoorTypes: indoorTypes, onOpen: setOpen }));
 }
 
@@ -1016,7 +1018,8 @@ function RunDetail(props) {
       await api("/races", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         name: detail.name || "比赛", date: String(detail.start_local || props.start || "").slice(0, 10),
         category: guessCategory(s.distance || 0, detail.type_key), status: "finished",
-        official_s: s.duration || 0, activity_id: detail.activity_id,
+        // 手表计时从过起点开始，更接近净计时
+        net_s: s.duration || 0, activity_id: detail.activity_id,
       }) });
       setHint("已收录到侧边栏「比赛」，可以在那里补充成绩证书、奖牌、照片等影像。");
     } catch (err) {
@@ -2187,46 +2190,232 @@ function planDates(plan, start, days) {
       if (j >= ds.length) return;
       const d = new Date(monday); d.setDate(monday.getDate() + w * 7 + ds[j] - 1);
       if (d < s) return; // 开始日期之前的课不排
-      out.push({ date: toYMD(d), kind: sess[0], title: sess[1], detail: "第 " + (w + 1) + " 周 · " + sess[2] });
+      out.push({ date: toYMD(d), kind: sess[0], title: sess[1], detail: "第 " + (w + 1) + " 周 · " + sess[2], video: sess[3] || "" });
     });
   });
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// 推荐视频库：用户收录的训练视频链接（B 站、YouTube、抖音等），带 UP 主和主页
+// ---------------------------------------------------------------------------
+
+const VIDEO_CATS = [["run", "跑步"], ["strength", "力量"], ["stretch", "拉伸放松"], ["other", "其他"]];
+const SOURCE_TYPES = [["self", "自己"], ["up", "UP 主"], ["coach", "教练"], ["book", "书籍"], ["other", "其他"]];
+
+/** 从链接认平台 */
+function videoPlatform(u) {
+  const s = String(u || "").toLowerCase();
+  if (/bilibili\.com|b23\.tv/.test(s)) return "B 站";
+  if (/youtube\.com|youtu\.be/.test(s)) return "YouTube";
+  if (/douyin\.com/.test(s)) return "抖音";
+  if (/xiaohongshu\.com|xhslink/.test(s)) return "小红书";
+  if (/ixigua\.com/.test(s)) return "西瓜视频";
+  return "链接";
+}
+
+function isHttp(u) { return /^https?:\/\/\S+$/i.test(String(u || "").trim()); }
+
+/** 外链：新窗口打开，不带来源页信息 */
+function ExtLink(props) {
+  if (!isHttp(props.href)) return h("span", { className: props.className }, props.children);
+  return h("a", { href: props.href, target: "_blank", rel: "noopener noreferrer", className: props.className || "gc-link", title: props.title || props.href }, props.children);
+}
+
+/** 来源标记：「UP 主 · 名称」，名称链到主页 */
+function SourceBadge(props) {
+  const s = props.source || {};
+  if (!s.type || s.type === "self" || !s.name) return null;
+  return h("span", { className: "gc-source gc-source-" + s.type },
+    h("span", { className: "gc-source-type" }, labelOf(SOURCE_TYPES, s.type)),
+    s.url ? h(ExtLink, { href: s.url, className: "gc-source-name", title: "打开主页" }, s.name) : h("span", { className: "gc-source-name" }, s.name));
+}
+
+function VideosView() {
+  const [list, setList] = useState(null);
+  const [cat, setCat] = useState("all");
+  const [editing, setEditing] = useState(null);
+  const [msg, setMsg] = useState("");
+
+  async function load() {
+    try { setList((await api("/videos")).videos || []); } catch (err) { setMsg("读取视频失败：" + errText(err)); }
+  }
+  useEffect(function () { load(); }, []);
+
+  async function remove(v) {
+    if (!window.confirm("从推荐视频里删掉「" + v.title + "」？")) return;
+    try { await api("/videos/" + v.id, { method: "DELETE" }); load(); } catch (err) { setMsg("删除失败：" + errText(err)); }
+  }
+
+  const all = list || [];
+  const shown = all.filter(function (v) { return cat === "all" || v.category === cat; });
+  // 按 UP 主分组显示更好找
+  const creators = {};
+  shown.forEach(function (v) { const k = v.creator || "未填 UP 主"; (creators[k] = creators[k] || { url: v.creator_url, items: [] }).items.push(v); if (!creators[k].url && v.creator_url) creators[k].url = v.creator_url; });
+
+  return h("div", { className: "gc-videos" },
+    h("div", { className: "gc-controls" },
+      h(Seg, { label: "类别", value: cat, onChange: setCat, options: [["all", "全部"]].concat(VIDEO_CATS) }),
+      h("button", { className: "pmw-plugin-button gc-primary", type: "button", onClick: function () { setEditing({ category: cat === "all" ? "run" : cat }); } }, "添加视频"),
+      h("span", { className: "pmw-plugin-hint" }, "收录你觉得有用的训练视频（B 站、YouTube、抖音等链接），可以关联到训练计划和某一节课。")),
+    editing ? h(VideoForm, { key: editing.id || "new", video: editing, onCancel: function () { setEditing(null); }, onSaved: function () { setEditing(null); load(); } }) : null,
+    msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
+    list && !all.length && !editing ? h("div", { className: "gc-empty" }, h("p", null, "还没有收录视频。"),
+      h("p", { className: "pmw-plugin-hint" }, "点「添加视频」粘贴视频链接，填上 UP 主和主页链接，以后在计划里就能直接引用。")) : null,
+    Object.keys(creators).map(function (name) {
+      const g = creators[name];
+      return h("section", { key: name, className: "gc-video-group" },
+        h("div", { className: "gc-media-head" },
+          h("strong", null, name), g.url ? h(ExtLink, { href: g.url }, "UP 主主页") : null, h("small", null, g.items.length + " 个视频")),
+        h("div", { className: "gc-video-grid" }, g.items.map(function (v) {
+          return h("div", { key: v.id, className: "gc-video-card" },
+            h("div", { className: "gc-video-top" },
+              h("span", { className: "gc-tag" }, videoPlatform(v.url)), h("span", { className: "gc-tag" }, labelOf(VIDEO_CATS, v.category))),
+            h(ExtLink, { href: v.url, className: "gc-video-title" }, v.title),
+            v.note ? h("p", { className: "gc-plan-desc" }, v.note) : null,
+            h("span", { className: "gc-detail-bar" },
+              h(ExtLink, { href: v.url }, "打开视频"),
+              h("button", { className: "gc-link", type: "button", onClick: function () { setEditing(v); } }, "编辑"),
+              h("button", { className: "gc-link", type: "button", onClick: function () { remove(v); } }, "删除")));
+        })));
+    }));
+}
+
+function VideoForm(props) {
+  const v = props.video || {};
+  const [f, setF] = useState({ title: v.title || "", url: v.url || "", creator: v.creator || "", creator_url: v.creator_url || "", category: v.category || "run", note: v.note || "" });
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = function (k, val) { const n = Object.assign({}, f); n[k] = val; setF(n); };
+  async function save(e) {
+    e.preventDefault(); setBusy(true); setMsg("");
+    try {
+      await api(v.id ? "/videos/" + v.id : "/videos", { method: v.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+      props.onSaved();
+    } catch (err) { setMsg("保存失败：" + errText(err)); } finally { setBusy(false); }
+  }
+  return h("form", { className: "gc-edit", onSubmit: save, "aria-label": "视频信息" },
+    h("label", { className: "gc-field" }, "视频链接", h("input", { value: f.url, placeholder: "https://www.bilibili.com/video/…", onChange: function (e) { set("url", e.target.value); } })),
+    h("label", { className: "gc-field" }, "标题", h("input", { value: f.title, maxLength: 100, onChange: function (e) { set("title", e.target.value); } })),
+    h("div", { className: "gc-edit-row" },
+      h("label", { className: "gc-field" }, "UP 主", h("input", { value: f.creator, maxLength: 40, onChange: function (e) { set("creator", e.target.value); } })),
+      h("label", { className: "gc-field" }, "UP 主主页链接", h("input", { value: f.creator_url, placeholder: "https://space.bilibili.com/…", onChange: function (e) { set("creator_url", e.target.value); } })),
+      h("label", { className: "gc-field" }, "类别", h("select", { value: f.category, onChange: function (e) { set("category", e.target.value); } },
+        VIDEO_CATS.map(function (c) { return h("option", { key: c[0], value: c[0] }, c[1]); })))),
+    h("label", { className: "gc-field" }, "说明", h("textarea", { rows: 2, value: f.note, maxLength: 500, placeholder: "讲了什么、适合什么时候看…", onChange: function (e) { set("note", e.target.value); } })),
+    h("div", { className: "gc-detail-bar" },
+      h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: busy || !f.title.trim() || !f.url.trim() }, busy ? "保存中…" : "保存"),
+      h("button", { className: "pmw-plugin-button", type: "button", onClick: props.onCancel }, "取消")),
+    msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null);
+}
+
+const PLAN_KINDS = [["run", "跑步"], ["strength", "力量"], ["mixed", "混合"]];
+
+/** 我的计划（后端 weeks:[[{kind,title,detail}]]）转成和预置计划一样的结构 */
+function customToPlan(c) {
+  const sessions = (c.weeks || []).map(function (w) { return (w || []).map(function (s) { return [s.kind, s.title, s.detail || "", s.video || ""]; }); });
+  const perWeek = sessions.reduce(function (m, w) { return Math.max(m, w.length); }, 0);
+  return {
+    key: "custom:" + c.id, id: c.id, custom: true, kind: c.kind, name: c.name, level: c.level || "自定义",
+    desc: c.description || "", weeks: sessions.length, perWeek: perWeek,
+    days: (c.days && c.days.length ? c.days : [1, 2, 3, 4, 5, 6, 7].slice(0, perWeek)), sessions: sessions,
+    source: c.source || {}, videos: c.videos || [],
+  };
+}
+
+/** 预置计划转成编辑器用的草稿 */
+function planToDraft(p, copy) {
+  return {
+    id: copy ? "" : (p.id || ""), name: copy ? p.name + "（我的）" : p.name, kind: p.kind === "strength" ? "strength" : p.kind === "mixed" ? "mixed" : "run",
+    level: p.level === "自定义" ? "" : (p.level || ""), description: p.desc || "", days: (p.days || []).slice(),
+    weeks: p.sessions.map(function (w) { return w.map(function (s) { return { kind: s[0], title: s[1], detail: s[2] || "", video: s[3] || "" }; }); }),
+    source: copy && !p.custom ? { type: "self", name: "", url: "", note: "复制自预置计划「" + p.name + "」" } : Object.assign({ type: "self", name: "", url: "", note: "" }, p.source || {}),
+    videos: (p.videos || []).slice(),
+  };
+}
+
 function PlansView(props) {
+  const [custom, setCustom] = useState([]);
   const [open, setOpen] = useState(null);
+  const [draft, setDraft] = useState(null);
   const [start, setStart] = useState(toYMD(nextMonday()));
   const [days, setDays] = useState([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
-  function choose(p) {
-    setOpen(p); setDays(p.days.slice()); setMsg("");
+  async function loadCustom() {
+    try { setCustom(((await api("/plans")).plans || []).map(customToPlan)); } catch (err) { setMsg("读取我的计划失败：" + errText(err)); }
   }
+  useEffect(function () { loadCustom(); }, []);
+
+  function choose(p) { setOpen(p); setDraft(null); setDays(p.days.slice()); setMsg(""); }
+  async function removeCustom(p) {
+    if (!window.confirm("删除计划「" + p.name + "」？已经排进日历的安排不受影响。")) return;
+    try { await api("/plans/" + p.id, { method: "DELETE" }); setOpen(null); await loadCustom(); } catch (err) { setMsg("删除失败：" + errText(err)); }
+  }
+
   const preview = open ? planDates(open, start, days) : [];
+  // 预置计划要选够每周次数；我的计划每周课数可以不同，训练日要不少于最多那周
+  const daysOk = open ? (open.custom ? days.length >= open.perWeek : days.length === open.perWeek) : false;
   async function apply() {
-    if (!open || days.length !== open.perWeek) return;
+    if (!open || !daysOk || !preview.length) return;
     setBusy(true); setMsg("");
     try {
       await api("/calendar", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: preview, plan_key: open.key, plan_name: open.name }) });
       setMsg("已把「" + open.name + "」的 " + preview.length + " 次训练排进日历（" + preview[0].date + " 起）。");
       props.onApplied && props.onApplied(preview[0].date);
-    } catch (err) {
-      setMsg("没排进去：" + errText(err));
-    } finally { setBusy(false); }
+    } catch (err) { setMsg("没排进去：" + errText(err)); } finally { setBusy(false); }
   }
 
-  return h("div", { className: "gc-plans" },
-    h("div", { className: "gc-plan-grid" }, PLANS.map(function (p) {
-      return h("button", { key: p.key, type: "button", className: "gc-plan-card" + (open && open.key === p.key ? " on" : ""), onClick: function () { choose(p); } },
-        h("span", { className: "gc-plan-kind gc-k-" + p.kind }, KIND_NAMES[p.kind]),
+  const card = function (p) {
+    return h("div", { key: p.key, className: "gc-plan-card" + (open && open.key === p.key ? " on" : "") },
+      h("button", { type: "button", className: "gc-plan-card-main", onClick: function () { choose(p); } },
+        h("span", { className: "gc-plan-kind gc-k-" + (p.kind === "mixed" ? "other" : p.kind) }, labelOf(PLAN_KINDS, p.kind)),
         h("strong", null, p.name),
-        h("small", null, p.level + " · " + p.weeks + " 周 · 每周 " + p.perWeek + " 次"),
-        h("span", { className: "gc-plan-desc" }, p.desc));
-    })),
+        p.videos && p.videos.length ? h("small", null, "关联 " + p.videos.length + " 个视频") : null),
+      p.source && p.source.type && p.source.type !== "self" ? h("span", { className: "gc-plan-source" }, h(SourceBadge, { source: p.source })) : null,
+      h("button", { type: "button", className: "gc-plan-card-main gc-plan-card-more", onClick: function () { choose(p); } },
+        h("small", null, p.level + " · " + p.weeks + " 周 · 每周最多 " + p.perWeek + " 次"),
+        p.desc ? h("span", { className: "gc-plan-desc" }, p.desc) : null),
+      h("span", { className: "gc-detail-bar gc-plan-actions" },
+        p.custom
+          ? [h("button", { key: "e", type: "button", className: "gc-link", onClick: function () { setOpen(null); setDraft(planToDraft(p, false)); } }, "编辑"),
+             h("button", { key: "c", type: "button", className: "gc-link", onClick: function () { setOpen(null); setDraft(planToDraft(p, true)); } }, "复制"),
+             h("button", { key: "d", type: "button", className: "gc-link", onClick: function () { removeCustom(p); } }, "删除")]
+          : h("button", { type: "button", className: "gc-link", onClick: function () { setOpen(null); setDraft(planToDraft(p, true)); } }, "复制为我的计划")));
+  };
+
+  const mine = custom.filter(function (p) { return !p.source || p.source.type !== "up"; });
+  const ups = custom.filter(function (p) { return p.source && p.source.type === "up"; });
+  return h("div", { className: "gc-plans" },
+    h("div", { className: "gc-section-head" },
+      h("h3", { className: "gc-sub" }, "我的计划" + (mine.length ? "（" + mine.length + "）" : "")),
+      h("button", { className: "pmw-plugin-button gc-primary", type: "button", onClick: function () {
+        setOpen(null);
+        setDraft({ id: "", name: "", kind: "run", level: "", description: "", days: [2, 4, 7], weeks: [[{ kind: "run", title: "轻松跑 40 分钟", detail: "心率区间 2。" }]] });
+      } }, "新建计划")),
+    mine.length
+      ? h("div", { className: "gc-plan-grid" }, mine.map(card))
+      : h("p", { className: "pmw-plugin-hint" }, "还没有自己的计划。点「新建计划」从头写，或在下面的预置计划上点「复制为我的计划」再改。"),
+    draft ? h(PlanEditor, { key: draft.id || "new-" + draft.name, draft: draft, onCancel: function () { setDraft(null); },
+      onSaved: async function (id) {
+        setDraft(null); await loadCustom(); setMsg("计划已保存。");
+        const fresh = ((await api("/plans")).plans || []).map(customToPlan).find(function (x) { return x.id === id; });
+        if (fresh) choose(fresh);
+      } }) : null,
+    h("h3", { className: "gc-sub" }, "UP 主推荐" + (ups.length ? "（" + ups.length + "）" : "")),
+    ups.length
+      ? h("div", { className: "gc-plan-grid" }, ups.map(card))
+      : h("p", { className: "pmw-plugin-hint" }, "还没有收录 UP 主的计划。新建或编辑计划时把「来源」选成 UP 主、填上名称和主页链接，就会出现在这里。"),
+    h("h3", { className: "gc-sub" }, "预置计划"),
+    h("div", { className: "gc-plan-grid" }, PLANS.map(card)),
     open ? h("section", { className: "gc-chart-box gc-plan-apply" },
       h("h3", { className: "gc-sub" }, "把「" + open.name + "」排进日历"),
+      open.source && open.source.type && open.source.type !== "self"
+        ? h("p", { className: "pmw-plugin-hint" }, "来源：", h(SourceBadge, { source: open.source }), open.source.note ? " · " + open.source.note : "") : null,
+      open.videos && open.videos.length ? h("div", { className: "gc-plan-videos" }, h("small", null, "关联视频："),
+        open.videos.map(function (v, i) { return h(ExtLink, { key: i, href: v.url }, (v.title || "视频 " + (i + 1)) + (v.creator ? "（" + v.creator + "）" : "")); })) : null,
       h("div", { className: "gc-controls" },
         h("label", { className: "gc-inline" }, "开始日期", h("input", { type: "date", className: "gc-search", value: start, onChange: function (e) { setStart(e.target.value); } })),
         h("span", { className: "gc-inline" }, "每周练",
@@ -2235,20 +2424,119 @@ function PlansView(props) {
             return h("button", { key: n, type: "button", className: "gc-chip" + (on ? " on" : ""), "aria-pressed": on,
               onClick: function () { setDays(on ? days.filter(function (x) { return x !== i + 1; }) : days.concat([i + 1])); } }, n);
           }))),
-      days.length !== open.perWeek
-        ? h("p", { className: "gc-note" }, "这个计划每周 " + open.perWeek + " 次，请选 " + open.perWeek + " 天（现在选了 " + days.length + " 天）。长距离会排在所选的最后一天。")
+      !daysOk
+        ? h("p", { className: "gc-note" }, open.custom
+            ? "这个计划每周最多 " + open.perWeek + " 节课，请至少选 " + open.perWeek + " 天（现在选了 " + days.length + " 天）。每周的课按顺序排到所选日子。"
+            : "这个计划每周 " + open.perWeek + " 次，请选 " + open.perWeek + " 天（现在选了 " + days.length + " 天）。长距离会排在所选的最后一天。")
         : h("p", { className: "pmw-plugin-hint" }, "共 " + preview.length + " 次训练，" + (preview[0] ? preview[0].date + " 至 " + preview[preview.length - 1].date : "") + "。排进去后可以在日历里逐条改。"),
       h("div", { className: "gc-plan-weeks" }, open.sessions.map(function (week, w) {
-        return h("div", { key: w, className: "gc-plan-week" }, h("strong", null, "第 " + (w + 1) + " 周"),
+        return h("div", { key: w, className: "gc-plan-week" }, h("strong", null, "第 " + (w + 1) + " 周" + (week.length ? "" : "（休息周）")),
           h("ol", null, week.map(function (s, j) {
-            return h("li", { key: j }, h("span", { className: "gc-dot gc-k-" + s[0] }), s[1], h("small", null, s[2]));
+            return h("li", { key: j }, h("span", { className: "gc-dot gc-k-" + s[0] }), s[1],
+              s[3] ? h(ExtLink, { href: s[3], className: "gc-link gc-inline-video" }, "看视频") : null, h("small", null, s[2]));
           })));
       })),
       h("div", { className: "gc-detail-bar" },
-        h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: busy || days.length !== open.perWeek || !preview.length, onClick: apply },
+        h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: busy || !daysOk || !preview.length, onClick: apply },
           busy ? "排进日历中…" : "排进日历"),
-        h("button", { className: "pmw-plugin-button", type: "button", onClick: function () { setOpen(null); } }, "收起")),
-      msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null) : null);
+        open.custom ? h("button", { className: "pmw-plugin-button", type: "button", onClick: function () { setDraft(planToDraft(open, false)); setOpen(null); } }, "编辑这个计划") : null,
+        h("button", { className: "pmw-plugin-button", type: "button", onClick: function () { setOpen(null); } }, "收起"))) : null,
+    msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
+}
+
+/** 计划编辑器：基本信息 + 按周编辑课表 */
+function PlanEditor(props) {
+  const [d, setD] = useState(function () { return JSON.parse(JSON.stringify(props.draft)); });
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const upd = function (fn) { const n = JSON.parse(JSON.stringify(d)); fn(n); setD(n); };
+
+  async function save(e) {
+    e.preventDefault();
+    setBusy(true); setMsg("");
+    try {
+      const body = JSON.stringify({ name: d.name, kind: d.kind, level: d.level, description: d.description, days: d.days.slice().sort(), weeks: d.weeks,
+        source: d.source || { type: "self" }, videos: (d.videos || []).filter(function (v) { return String(v.url || "").trim(); }) });
+      const res = d.id
+        ? await api("/plans/" + d.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: body })
+        : await api("/plans", { method: "POST", headers: { "Content-Type": "application/json" }, body: body });
+      props.onSaved(res.id || d.id);
+    } catch (err) { setMsg("保存失败：" + errText(err)); } finally { setBusy(false); }
+  }
+
+  const total = d.weeks.reduce(function (t, w) { return t + w.length; }, 0);
+  const [library, setLibrary] = useState([]);
+  useEffect(function () { api("/videos").then(function (r) { setLibrary(r.videos || []); }).catch(function () {}); }, []);
+  const src = d.source || { type: "self" };
+  const vids = d.videos || [];
+  return h("form", { className: "gc-edit gc-plan-editor", onSubmit: save, "aria-label": "编辑训练计划" },
+    h("datalist", { id: "gc-video-lib" }, library.map(function (v) { return h("option", { key: v.id, value: v.url }, v.title + (v.creator ? " · " + v.creator : "")); })),
+    h("h3", { className: "gc-sub" }, d.id ? "编辑计划" : "新建计划"),
+    h("div", { className: "gc-edit-row" },
+      h("label", { className: "gc-field" }, "计划名称", h("input", { value: d.name, maxLength: 40, placeholder: "如：春季半马备赛", onChange: function (e) { upd(function (n) { n.name = e.target.value; }); } })),
+      h("label", { className: "gc-field" }, "类型", h("select", { value: d.kind, onChange: function (e) { upd(function (n) { n.kind = e.target.value; }); } },
+        PLAN_KINDS.map(function (k) { return h("option", { key: k[0], value: k[0] }, k[1]); }))),
+      h("label", { className: "gc-field" }, "难度", h("input", { value: d.level, maxLength: 10, placeholder: "入门 / 进阶 / 高阶", onChange: function (e) { upd(function (n) { n.level = e.target.value; }); } }))),
+    h("label", { className: "gc-field" }, "说明", h("textarea", { rows: 2, value: d.description, maxLength: 500, placeholder: "目标、适合谁、注意事项…", onChange: function (e) { upd(function (n) { n.description = e.target.value; }); } })),
+    h("div", { className: "gc-edit-row" },
+      h("label", { className: "gc-field" }, "来源", h("select", { value: src.type || "self", onChange: function (e) { upd(function (n) { n.source = Object.assign({}, n.source || {}, { type: e.target.value }); }); } },
+        SOURCE_TYPES.map(function (k) { return h("option", { key: k[0], value: k[0] }, k[1]); }))),
+      src.type && src.type !== "self" ? h("label", { className: "gc-field" }, src.type === "up" ? "UP 主名称" : "来源名称",
+        h("input", { value: src.name || "", maxLength: 40, onChange: function (e) { upd(function (n) { n.source.name = e.target.value; }); } })) : null,
+      src.type && src.type !== "self" ? h("label", { className: "gc-field" }, "主页链接",
+        h("input", { value: src.url || "", placeholder: "https://space.bilibili.com/…", onChange: function (e) { upd(function (n) { n.source.url = e.target.value; }); } })) : null),
+    src.type && src.type !== "self" ? h("label", { className: "gc-field" }, "来源说明",
+      h("input", { value: src.note || "", maxLength: 200, placeholder: "如：根据某期视频整理，原视频链接见关联视频", onChange: function (e) { upd(function (n) { n.source.note = e.target.value; }); } })) : null,
+    h("div", { className: "gc-field" }, "关联视频（整个计划的讲解、热身、拉伸等；可从推荐视频里选，也可直接粘贴链接）",
+      vids.map(function (v, i) {
+        return h("div", { key: i, className: "gc-plan-edit-row gc-video-row" },
+          h("input", { list: "gc-video-lib", value: v.url || "", placeholder: "视频链接", "aria-label": "关联视频 " + (i + 1) + " 链接", onChange: function (e) {
+            const url = e.target.value; const hit = library.find(function (x) { return x.url === url; });
+            upd(function (n) { n.videos[i].url = url; if (hit) { n.videos[i].title = n.videos[i].title || hit.title; n.videos[i].creator = n.videos[i].creator || hit.creator; } });
+          } }),
+          h("input", { value: v.title || "", maxLength: 100, placeholder: "标题", "aria-label": "关联视频 " + (i + 1) + " 标题", onChange: function (e) { upd(function (n) { n.videos[i].title = e.target.value; }); } }),
+          h("input", { value: v.creator || "", maxLength: 40, placeholder: "UP 主", "aria-label": "关联视频 " + (i + 1) + " UP 主", onChange: function (e) { upd(function (n) { n.videos[i].creator = e.target.value; }); } }),
+          h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.videos.splice(i, 1); }); } }, "删除"));
+      }),
+      h("button", { type: "button", className: "gc-link", disabled: vids.length >= 30, onClick: function () { upd(function (n) { n.videos = (n.videos || []).concat([{ url: "", title: "", creator: "" }]); }); } }, "加一个关联视频")),
+    h("div", { className: "gc-field" }, "默认训练日（排进日历时预选，每周的课按顺序排到这些日子）",
+      h("span", { className: "gc-chips" }, DAY_NAMES.map(function (nm, i) {
+        const on = d.days.indexOf(i + 1) >= 0;
+        return h("button", { key: nm, type: "button", className: "gc-chip" + (on ? " on" : ""), "aria-pressed": on,
+          onClick: function () { upd(function (n) { n.days = on ? n.days.filter(function (x) { return x !== i + 1; }) : n.days.concat([i + 1]); }); } }, nm);
+      }))),
+    h("div", { className: "gc-plan-edit-weeks" }, d.weeks.map(function (week, w) {
+      return h("div", { key: w, className: "gc-plan-edit-week" },
+        h("div", { className: "gc-section-head" },
+          h("strong", null, "第 " + (w + 1) + " 周" + (week.length ? "（" + week.length + " 节）" : "（休息周）")),
+          h("span", { className: "gc-detail-bar" },
+            h("button", { type: "button", className: "gc-link", disabled: week.length >= 7, onClick: function () { upd(function (n) { n.weeks[w].push({ kind: "run", title: "", detail: "" }); }); } }, "加一节课"),
+            w > 0 ? h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks[w] = JSON.parse(JSON.stringify(n.weeks[w - 1])); }); } }, "照上一周") : null,
+            h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks.splice(w + 1, 0, JSON.parse(JSON.stringify(n.weeks[w]))); }); } }, "复制本周"),
+            d.weeks.length > 1 ? h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks.splice(w, 1); }); } }, "删除本周") : null)),
+        week.map(function (s, j) {
+          return h("div", { key: j, className: "gc-plan-edit-row" },
+            h("select", { value: s.kind, "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节类型", onChange: function (e) { upd(function (n) { n.weeks[w][j].kind = e.target.value; }); } },
+              Object.keys(KIND_NAMES).map(function (k) { return h("option", { key: k, value: k }, KIND_NAMES[k]); })),
+            h("input", { value: s.title, maxLength: 60, placeholder: "标题，如：间歇 6×800 米", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节标题",
+              onChange: function (e) { upd(function (n) { n.weeks[w][j].title = e.target.value; }); } }),
+            h("input", { value: s.detail, maxLength: 2000, placeholder: "内容：配速、心率区间、动作组数…", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节内容",
+              onChange: function (e) { upd(function (n) { n.weeks[w][j].detail = e.target.value; }); } }),
+            h("input", { list: "gc-video-lib", value: s.video || "", placeholder: "视频链接（可选）", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节视频",
+              onChange: function (e) { upd(function (n) { n.weeks[w][j].video = e.target.value; }); } }),
+            h("span", { className: "gc-detail-bar" },
+              h("button", { type: "button", className: "gc-link", disabled: j === 0, title: "上移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j - 1]; a[j - 1] = a[j]; a[j] = t; }); } }, "上移"),
+              h("button", { type: "button", className: "gc-link", disabled: j === week.length - 1, title: "下移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j + 1]; a[j + 1] = a[j]; a[j] = t; }); } }, "下移"),
+              h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks[w].splice(j, 1); }); } }, "删除")));
+        }));
+    })),
+    h("div", { className: "gc-detail-bar" },
+      h("button", { type: "button", className: "pmw-plugin-button", disabled: d.weeks.length >= 52, onClick: function () { upd(function (n) { n.weeks.push(n.weeks.length ? JSON.parse(JSON.stringify(n.weeks[n.weeks.length - 1])) : []); }); } }, "加一周（照最后一周）"),
+      h("span", { className: "pmw-plugin-hint" }, d.weeks.length + " 周，共 " + total + " 节课")),
+    h("div", { className: "gc-detail-bar" },
+      h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: busy || !d.name.trim() || !total }, busy ? "保存中…" : "保存计划"),
+      h("button", { className: "pmw-plugin-button", type: "button", onClick: props.onCancel }, "取消")),
+    msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null);
 }
 
 // ---------------------------------------------------------------------------
@@ -2357,6 +2645,7 @@ function CalendarView(props) {
             it.plan_name ? h("small", null, "来自计划「" + it.plan_name + "」") : null),
           it.detail ? h("p", { className: "gc-desc" }, it.detail) : null,
           h("div", { className: "gc-detail-bar" },
+            it.video ? h(ExtLink, { href: it.video, className: "gc-link gc-strong-link" }, "看视频（" + videoPlatform(it.video) + "）") : null,
             h("button", { className: "gc-link", type: "button", onClick: function () { save({ done: !it.done }, it.id); } }, it.done ? "取消完成" : "标为完成"),
             h("button", { className: "gc-link", type: "button", onClick: function () { setEditing(it); } }, "修改"),
             h("button", { className: "gc-link", type: "button", onClick: function () { remove(it); } }, "删除"),
@@ -2377,7 +2666,8 @@ function CalendarForm(props) {
   const [kind, setKind] = useState(it.kind || "run");
   const [title, setTitle] = useState(it.title || "");
   const [detail, setDetail] = useState(it.detail || "");
-  return h("form", { className: "gc-edit", onSubmit: function (e) { e.preventDefault(); props.onSave({ date: date, kind: kind, title: title, detail: detail }); } },
+  const [video, setVideo] = useState(it.video || "");
+  return h("form", { className: "gc-edit", onSubmit: function (e) { e.preventDefault(); props.onSave({ date: date, kind: kind, title: title, detail: detail, video: video }); } },
     !it.id ? h("div", { className: "gc-chips" }, h("small", null, "常用："), QUICK_ITEMS.map(function (q) {
       return h("button", { key: q[1], type: "button", className: "gc-chip", onClick: function () { setKind(q[0]); setTitle(q[1]); setDetail(q[2]); } }, q[1]);
     })) : null,
@@ -2387,6 +2677,7 @@ function CalendarForm(props) {
         Object.keys(KIND_NAMES).map(function (k) { return h("option", { key: k, value: k }, KIND_NAMES[k]); })))),
     h("label", { className: "gc-field" }, "标题", h("input", { value: title, maxLength: 60, placeholder: "如：轻松跑 8 公里", onChange: function (e) { setTitle(e.target.value); } })),
     h("label", { className: "gc-field" }, "内容", h("textarea", { rows: 3, value: detail, maxLength: 2000, placeholder: "配速、心率区间、动作组数…", onChange: function (e) { setDetail(e.target.value); } })),
+    h("label", { className: "gc-field" }, "视频链接（可选）", h("input", { value: video, placeholder: "https://…", onChange: function (e) { setVideo(e.target.value); } })),
     h("div", { className: "gc-detail-bar" },
       h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: !title.trim() }, "保存"),
       h("button", { className: "pmw-plugin-button", type: "button", onClick: props.onCancel }, "取消")));
@@ -2435,12 +2726,20 @@ function DurationInput(props) {
   return h("span", { className: "gc-pace-input" }, box(hh, setH, "时", 99, 0), box(mm, setM, "分", 59, 1), box(ss, setS, "秒", 59, 2));
 }
 
-/** 个人最好成绩：每个类别里已完赛、有成绩的最快一场 */
+/** 比赛的代表成绩：优先净计时，没有用枪声成绩；{s, net} */
+function raceTime(r) {
+  if (isNum(r.net_s) && r.net_s > 0) return { s: r.net_s, net: true };
+  if (isNum(r.official_s) && r.official_s > 0) return { s: r.official_s, net: false };
+  return null;
+}
+
+/** 个人最好成绩：每个类别里已完赛的最快一场，优先按净计时比 */
 function personalBests(races) {
   const best = {};
   races.forEach(function (r) {
-    if (r.status !== "finished" || !isNum(r.official_s) || r.official_s <= 0) return;
-    if (!best[r.category] || r.official_s < best[r.category].official_s) best[r.category] = r;
+    const t = raceTime(r);
+    if (r.status !== "finished" || !t) return;
+    if (!best[r.category] || t.s < raceTime(best[r.category]).s) best[r.category] = r;
   });
   return best;
 }
@@ -2493,7 +2792,7 @@ function RacesPage() {
         const r = pbs[c[0]];
         return h("button", { key: c[0], type: "button", className: "gc-stat gc-stat-btn", onClick: function () { setOpen(r.id); } },
           h("span", { className: "gc-stat-label" }, c[1]),
-          h("span", { className: "gc-stat-value" }, fmtDuration(r.official_s)),
+          h("span", { className: "gc-stat-value" }, fmtDuration(raceTime(r).s), h("small", { className: "gc-time-kind" }, raceTime(r).net ? " 净时" : " 枪时")),
           h("small", { className: "pmw-plugin-hint" }, r.name + " · " + r.date));
       }))) : null,
     races && !list.length && !adding
@@ -2515,7 +2814,7 @@ function RacesPage() {
               h("small", null, r.date + (r.city ? " · " + r.city : "") + " · " + labelOf(RACE_CATS, r.category)),
               h("span", { className: "gc-race-result" },
                 r.status === "finished"
-                  ? (isNum(r.official_s) && r.official_s > 0 ? fmtDuration(r.official_s) : "已完赛")
+                  ? (raceTime(r) ? [fmtDuration(raceTime(r).s), h("small", { key: "k", className: "gc-time-kind" }, raceTime(r).net ? "净时" : "枪时")] : "已完赛")
                   : labelOf(RACE_STATUS, r.status),
                 pb ? h("span", { className: "gc-tag gc-tag-pb" }, "个人最好") : null),
               h("small", null, (r.media_count ? r.media_count + " 个影像" : "还没有影像") + (r.activity_id ? " · 已关联活动" : ""))));
@@ -2527,7 +2826,7 @@ function RaceForm(props) {
   const r = props.race || {};
   const [f, setF] = useState({
     name: r.name || "", date: r.date || toYMD(new Date()), city: r.city || "", category: r.category || "other",
-    status: r.status || "finished", official_s: r.official_s || 0, bib_no: r.bib_no || "", rank_overall: r.rank_overall || "",
+    status: r.status || "finished", official_s: r.official_s || 0, net_s: r.net_s || 0, bib_no: r.bib_no || "", rank_overall: r.rank_overall || "",
     rank_group: r.rank_group || "", note: r.note || "", activity_id: r.activity_id || "",
   });
   const [runs, setRuns] = useState([]);
@@ -2568,7 +2867,9 @@ function RaceForm(props) {
         RACE_CATS.map(function (c) { return h("option", { key: c[0], value: c[0] }, c[1]); }))),
       h("label", { className: "gc-field" }, "状态", h("select", { value: f.status, onChange: function (e) { set("status", e.target.value); } },
         RACE_STATUS.map(function (c) { return h("option", { key: c[0], value: c[0] }, c[1]); })))),
-    h("div", { className: "gc-field" }, "官方成绩（枪声或净计时）", h(DurationInput, { value: f.official_s, onChange: function (v) { set("official_s", v); } })),
+    h("div", { className: "gc-edit-row" },
+      h("div", { className: "gc-field" }, "净计时成绩（过起点到终点，算个人最好用它）", h(DurationInput, { value: f.net_s, onChange: function (v) { set("net_s", v); } })),
+      h("div", { className: "gc-field" }, "枪声成绩（发令枪响到终点）", h(DurationInput, { value: f.official_s, onChange: function (v) { set("official_s", v); } }))),
     h("div", { className: "gc-edit-row" },
       h("label", { className: "gc-field" }, "号码", h("input", { value: f.bib_no, maxLength: 20, onChange: function (e) { set("bib_no", e.target.value); } })),
       h("label", { className: "gc-field" }, "总排名", h("input", { value: f.rank_overall, maxLength: 20, placeholder: "如 1203/30000", onChange: function (e) { set("rank_overall", e.target.value); } })),
@@ -2616,8 +2917,9 @@ function RaceDetail(props) {
     msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
     r && editing ? h(RaceForm, { race: r, onCancel: function () { setEditing(false); }, onSaved: function () { setEditing(false); load(); } }) : null,
     r && !editing ? h("div", { className: "gc-stats" },
-      [["官方成绩", isNum(r.official_s) && r.official_s > 0 ? fmtDuration(r.official_s) : "-"],
-       ["平均配速", isNum(r.official_s) && r.official_s > 0 && RACE_DIST[r.category] ? fmtPace(r.official_s / RACE_DIST[r.category]) : "-"],
+      [["净计时成绩", isNum(r.net_s) && r.net_s > 0 ? fmtDuration(r.net_s) : "-"],
+       ["枪声成绩", isNum(r.official_s) && r.official_s > 0 ? fmtDuration(r.official_s) : "-"],
+       ["平均配速", raceTime(r) && RACE_DIST[r.category] ? fmtPace(raceTime(r).s / RACE_DIST[r.category]) + (raceTime(r).net ? "" : "（按枪时）") : "-"],
        ["号码", r.bib_no || "-"], ["总排名", r.rank_overall || "-"], ["组别排名", r.rank_group || "-"],
        ["手表记录", r.act_distance_m ? fmtDistance(r.act_distance_m) + " · " + fmtDuration(r.act_duration_s) : "-"]].map(function (c) {
         return h("div", { className: "gc-stat", key: c[0] }, h("span", { className: "gc-stat-label" }, c[0]), h("span", { className: "gc-stat-value" }, c[1]));

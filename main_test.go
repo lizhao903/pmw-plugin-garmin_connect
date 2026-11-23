@@ -256,6 +256,10 @@ func TestRaceRowApply(t *testing.T) {
 	if msg := r.apply(raceInput{Name: str(" 北京马拉松 "), Date: str("2026-10-18"), Category: str("full"), OfficialS: &sec}); msg != "" || r.Name != "北京马拉松" || r.OfficialS != 12345.0 {
 		t.Fatalf("合法输入被拒：%s %+v", msg, r)
 	}
+	net := 12300.0
+	if msg := r.apply(raceInput{NetS: &net}); msg != "" || r.NetS != 12300.0 || r.OfficialS != 12345.0 {
+		t.Fatalf("净计时没存上或动了枪声成绩：%s %+v", msg, r)
+	}
 	zero := 0.0
 	r.apply(raceInput{OfficialS: &zero})
 	if r.OfficialS != nil {
@@ -283,5 +287,54 @@ func TestMediaIDs(t *testing.T) {
 	}
 	if _, err := mediaPath("race_ab", "med_../../x", "image/jpeg"); err == nil {
 		t.Fatal("越界 id 应拒绝")
+	}
+}
+
+func TestPlanInputCheck(t *testing.T) {
+	ok := planInput{Name: " 我的 10K ", Kind: "run", Days: []int{2, 4, 7},
+		Weeks: [][]calItem{{{Kind: "run", Title: "轻松跑"}, {Kind: "strength", Title: "核心"}}, {}}}
+	if msg := ok.check(); msg != "" || ok.Name != "我的 10K" || ok.Weeks[0][0].Date != "" {
+		t.Fatalf("合法计划被拒：%s %+v", msg, ok)
+	}
+	for name, p := range map[string]planInput{
+		"空名称":    {Name: " ", Kind: "run", Weeks: [][]calItem{{{Kind: "run", Title: "x"}}}},
+		"类型":     {Name: "a", Kind: "swim", Weeks: [][]calItem{{{Kind: "run", Title: "x"}}}},
+		"没有课":    {Name: "a", Kind: "run", Weeks: [][]calItem{{}}},
+		"训练日重复":  {Name: "a", Kind: "run", Days: []int{1, 1}, Weeks: [][]calItem{{{Kind: "run", Title: "x"}}}},
+		"一周 8 节": {Name: "a", Kind: "run", Weeks: [][]calItem{make([]calItem, 8)}},
+		"课类型":    {Name: "a", Kind: "run", Weeks: [][]calItem{{{Kind: "swim", Title: "x"}}}},
+	} {
+		if p.check() == "" {
+			t.Errorf("%s 应拒绝", name)
+		}
+	}
+}
+
+func TestVideoAndSourceChecks(t *testing.T) {
+	v := videoInput{Title: " 跑姿讲解 ", URL: "https://www.bilibili.com/video/BV1xx", Creator: "某 UP", CreatorURL: "https://space.bilibili.com/1"}
+	if msg := v.check(); msg != "" || v.Title != "跑姿讲解" || v.Category != "run" {
+		t.Fatalf("合法视频被拒：%s", msg)
+	}
+	for name, in := range map[string]videoInput{
+		"无链接": {Title: "a"}, "非 http": {Title: "a", URL: "javascript:alert(1)"}, "主页非 http": {Title: "a", URL: "https://x.com/v", CreatorURL: "ftp://x"},
+		"类别": {Title: "a", URL: "https://x.com/v", Category: "swim"},
+	} {
+		if in.check() == "" {
+			t.Errorf("%s 应拒绝", name)
+		}
+	}
+	p := planInput{Name: "a", Kind: "run", Source: planSource{Type: "up"}, Weeks: [][]calItem{{{Kind: "run", Title: "x"}}}}
+	if p.check() == "" {
+		t.Fatal("UP 主来源没填名称应拒绝")
+	}
+	p.Source = planSource{Type: "up", Name: "某 UP", URL: "https://space.bilibili.com/1"}
+	p.Weeks[0][0].Video = "https://www.bilibili.com/video/BV1xx"
+	p.Videos = []planVideo{{Title: "热身", URL: "https://www.bilibili.com/video/BV2"}}
+	if msg := p.check(); msg != "" {
+		t.Fatalf("合法来源和视频被拒：%s", msg)
+	}
+	p.Weeks[0][0].Video = "data:text/html,x"
+	if p.check() == "" {
+		t.Fatal("课时视频非 http 应拒绝")
 	}
 }

@@ -1921,6 +1921,22 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 		status, payload = s.apiUpdateCalendar(ctx, strings.TrimPrefix(path, "/calendar/"), body)
 	case p.Method == "DELETE" && strings.HasPrefix(path, "/calendar/"):
 		status, payload = s.apiDeleteCalendar(ctx, strings.TrimPrefix(path, "/calendar/"))
+	case p.Method == "GET" && path == "/videos":
+		status, payload = s.apiVideos(ctx)
+	case p.Method == "POST" && path == "/videos":
+		status, payload = s.saveVideo(ctx, "", body)
+	case p.Method == "PUT" && strings.HasPrefix(path, "/videos/"):
+		status, payload = s.saveVideo(ctx, strings.TrimPrefix(path, "/videos/"), body)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/videos/"):
+		status, payload = s.apiDeleteVideo(ctx, strings.TrimPrefix(path, "/videos/"))
+	case p.Method == "GET" && path == "/plans":
+		status, payload = s.apiPlans(ctx)
+	case p.Method == "POST" && path == "/plans":
+		status, payload = s.savePlan(ctx, "", body)
+	case p.Method == "PUT" && strings.HasPrefix(path, "/plans/"):
+		status, payload = s.savePlan(ctx, strings.TrimPrefix(path, "/plans/"), body)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/plans/"):
+		status, payload = s.apiDeletePlan(ctx, strings.TrimPrefix(path, "/plans/"))
 	case p.Method == "GET" && path == "/races":
 		status, payload = s.apiRaces(ctx)
 	case p.Method == "POST" && path == "/races":
