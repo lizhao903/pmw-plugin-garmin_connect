@@ -2,8 +2,8 @@
   "manifest_version": 2,
   "id": "garmin_connect",
   "name": "Garmin 跑步数据",
-  "description": "登录 Garmin Connect（中国区 / 国际区），定时同步跑步活动，查看单次跑步的分段与心率区间",
-  "version": "0.5.1",
+  "description": "登录 Garmin Connect 同步跑步与力量训练：统计、地图曲线、波动区间、AI 训练分析、训练计划与日历",
+  "version": "0.6.0",
   "api": ">=2.0.0 <3.0.0",
   "pmw": ">=0.3.0 <1.0.0",
   "license": "MIT",
@@ -14,15 +14,27 @@
   },
   "icon": "assets/icon.svg",
   "provides": {
-    "modules": ["garmin_connect"],
-    "settings": ["garmin_connect"],
-    "today_cards": ["garmin_connect_last_run"]
+    "modules": [
+      "garmin_connect"
+    ],
+    "settings": [
+      "garmin_connect"
+    ],
+    "today_cards": [
+      "garmin_connect_last_run"
+    ]
   },
-  "permissions": ["network:any", "secrets:garmin_connect", "schedule"],
+  "permissions": [
+    "network:any",
+    "secrets:garmin_connect",
+    "schedule",
+    "agent:run"
+  ],
   "permissions_reason": {
     "network:any": "Garmin 中国区 SSO 与 Connect API 域名不在预置分组内，需访问 connect.garmin.cn 等端点",
     "secrets:garmin_connect": "保存 Garmin 账号登录凭证与令牌，仅本插件可读写",
-    "schedule": "注册每日同步任务，定时拉取 Garmin 跑步活动"
+    "schedule": "注册每日同步任务，定时拉取 Garmin 跑步活动",
+    "agent:run": "用工作台配置的模型分析单次运动数据、给出后续训练建议（分析时把这次运动数据发给模型服务商）"
   },
   "migrations": "migrations",
   "runtime": {
@@ -38,7 +50,9 @@
     },
     "web": {
       "entry": "web/entry.js",
-      "styles": ["web/style.css"]
+      "styles": [
+        "web/style.css"
+      ]
     }
   }
 }

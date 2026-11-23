@@ -179,3 +179,54 @@ func TestEditPayload(t *testing.T) {
 		}
 	}
 }
+
+func TestParseSets(t *testing.T) {
+	b := []byte(`{"exerciseSets":[
+	  {"setType":"ACTIVE","repetitionCount":10,"weight":60000,"duration":45,"startTime":"t1",
+	   "exercises":[{"category":"BENCH_PRESS","name":"BARBELL_BENCH_PRESS","probability":80},{"category":"PUSH_UP","name":"PUSH_UP","probability":20}]},
+	  {"setType":"REST","duration":90,"exercises":[]}]}`)
+	sets := parseSets(b)
+	if len(sets) != 2 || sets[0]["category"] != "BENCH_PRESS" || sets[0]["name"] != "BARBELL_BENCH_PRESS" || sets[0]["reps"] != 10.0 {
+		t.Fatalf("训练组解析不对：%v", sets)
+	}
+	lines := setLines(sets)
+	if len(lines) != 2 || !strings.Contains(lines[0], "重量60.0kg") || !strings.Contains(lines[1], "休息 1:30") {
+		t.Fatalf("训练组文字不对：%v", lines)
+	}
+}
+
+func TestCalItemCheck(t *testing.T) {
+	ok := calItem{Date: "2026-11-30", Kind: "run", Title: " 轻松跑 6 公里 "}
+	if msg := ok.check(); msg != "" || ok.Title != "轻松跑 6 公里" {
+		t.Fatalf("合法条目被拒：%s", msg)
+	}
+	for name, it := range map[string]calItem{
+		"日期格式":   {Date: "2026/11/30", Kind: "run", Title: "x"},
+		"不存在的日期": {Date: "2026-02-30", Kind: "run", Title: "x"},
+		"类型":     {Date: "2026-11-30", Kind: "swim", Title: "x"},
+		"空标题":    {Date: "2026-11-30", Kind: "rest", Title: "  "},
+	} {
+		if it.check() == "" {
+			t.Errorf("%s 应拒绝", name)
+		}
+	}
+}
+
+func TestAnalysisText(t *testing.T) {
+	if got := fmtPaceSec(359.6); got != "6'00\"/km" {
+		t.Fatalf("配速进位不对：%s", got)
+	}
+	laps := []map[string]any{{"distance": 950.0, "duration": 360.0, "intensityType": "INTERVAL", "averageHR": 150.0, "maxHR": 160.0}}
+	lines := lapLines(laps, map[string]float64{"0": 10})
+	if len(lines) != 1 || !strings.Contains(lines[0], "1.00km") || !strings.Contains(lines[0], "按跑步机 10.0 km/h 校正") {
+		t.Fatalf("分段文字不对：%v", lines)
+	}
+	sum := summaryLines(map[string]any{"distance": 10000.0, "duration": 3000.0, "averageHR": 150.0, "strideLength": 105.0}, 0)
+	joined := strings.Join(sum, "\n")
+	if !strings.Contains(joined, "平均配速：5'00\"/km") || !strings.Contains(joined, "平均步幅：1.05 m") {
+		t.Fatalf("概要文字不对：%s", joined)
+	}
+	if !isTracked("strength_training") || isTracked("cycling") {
+		t.Fatal("收录范围不对")
+	}
+}

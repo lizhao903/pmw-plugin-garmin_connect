@@ -452,6 +452,8 @@ type server struct {
 	authMu     sync.Mutex
 	syncMu     sync.Mutex
 	optMu      sync.Mutex
+	anMu       sync.Mutex
+	anJobs     map[string]*analysisJob
 	runTypes   []typeOption
 	eventTypes []typeOption
 }
@@ -956,6 +958,16 @@ type garminActivity struct {
 
 // isRun：跑步类（running、treadmill_running、trail_running、track_running、indoor_running、virtual_run、ultra_run…）。
 // 列表不按 activityType=running 过滤，避免子类型（跑步机等）被漏掉，拉回来再挑。
+// isStrength：力量训练（strength_training 等）。0.6.0 起和跑步一起收录。
+func isStrength(typeKey string) bool {
+	return strings.Contains(typeKey, "strength")
+}
+
+// isTracked：插件收录的活动（跑步、力量训练）。
+func isTracked(typeKey string) bool {
+	return isRun(typeKey) || isStrength(typeKey)
+}
+
 func isRun(typeKey string) bool {
 	return strings.Contains(typeKey, "run")
 }
@@ -1068,7 +1080,7 @@ func (s *server) syncOnce(ctx context.Context, full bool, progress func(pages, w
 		}
 		seen += len(list)
 		for _, a := range list {
-			if a.ActivityID == 0 || !isRun(a.ActivityType.TypeKey) {
+			if a.ActivityID == 0 || !isTracked(a.ActivityType.TypeKey) {
 				continue
 			}
 			if err := s.upsertRun(ctx, a, now); err != nil {
@@ -1166,6 +1178,8 @@ type runDetail struct {
 	Track      [][2]float64          `json:"track,omitempty"`
 	FetchedAt  string                `json:"fetched_at"`
 	Missing    []string              `json:"missing,omitempty"`
+	// Sets 是力量训练的训练组（exerciseSets），跑步没有
+	Sets []map[string]any `json:"sets,omitempty"`
 }
 
 func scalars(m map[string]any) map[string]any {
@@ -1362,7 +1376,49 @@ func (s *server) fetchRunDetail(ctx context.Context, c *credentials, id string) 
 		d.Missing = append(d.Missing, "series")
 		s.log.Warn("拉逐点数据失败", "id", id, "err", err)
 	}
+	if isStrength(d.TypeKey) {
+		if b, err := s.connectAPI(ctx, c, base+"/exerciseSets"); err == nil {
+			d.Sets = parseSets(b)
+		} else {
+			d.Missing = append(d.Missing, "sets")
+			s.log.Warn("拉训练组失败", "id", id, "err", err)
+		}
+	}
 	return d, nil
+}
+
+// parseSets 把 exerciseSets 压成 {set_type, category, name, reps, weight, duration, start}；动作取识别概率最高的那个。
+func parseSets(b []byte) []map[string]any {
+	var raw struct {
+		Sets []struct {
+			SetType   string  `json:"setType"`
+			Reps      float64 `json:"repetitionCount"`
+			Weight    float64 `json:"weight"`
+			Duration  float64 `json:"duration"`
+			StartTime string  `json:"startTime"`
+			Exercises []struct {
+				Category    string  `json:"category"`
+				Name        string  `json:"name"`
+				Probability float64 `json:"probability"`
+			} `json:"exercises"`
+		} `json:"exerciseSets"`
+	}
+	if json.Unmarshal(b, &raw) != nil {
+		return nil
+	}
+	out := []map[string]any{}
+	for _, st := range raw.Sets {
+		m := map[string]any{"set_type": st.SetType, "reps": st.Reps, "weight": st.Weight, "duration": st.Duration, "start": st.StartTime}
+		best := -1.0
+		for _, e := range st.Exercises {
+			if e.Probability > best {
+				best = e.Probability
+				m["category"], m["name"] = e.Category, e.Name
+			}
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 func (s *server) query(ctx context.Context, sql string, args ...any) ([]map[string]any, error) {
@@ -1553,7 +1609,7 @@ func (s *server) editOptions(ctx context.Context, c *credentials) ([]typeOption,
 		if strings.Contains(strings.ToLower(t.TypeKey), "transition") {
 			continue
 		}
-		if isRun(t.TypeKey) || (runParent != 0 && t.ParentTypeID == runParent) {
+		if isTracked(t.TypeKey) || (runParent != 0 && t.ParentTypeID == runParent) {
 			runs = append(runs, t)
 		}
 	}
@@ -1722,15 +1778,18 @@ func (s *server) apiStats(ctx context.Context, q url.Values) (int, any) {
 	}
 	in := "('" + strings.Join(indoorTypes, "','") + "')"
 	var where string
+	notStrength := "COALESCE(type_key, '') NOT LIKE '%strength%'"
 	switch q.Get("kind") {
 	case "", "all":
-		where = "1=1"
+		where = notStrength
 	case "indoor":
 		where = "type_key IN " + in
 	case "outdoor":
-		where = "COALESCE(type_key, '') NOT IN " + in
+		where = "COALESCE(type_key, '') NOT IN " + in + " AND " + notStrength
+	case "strength":
+		where = "COALESCE(type_key, '') LIKE '%strength%'"
 	default:
-		return 400, map[string]any{"error": "kind 只能是 all / outdoor / indoor"}
+		return 400, map[string]any{"error": "kind 只能是 all / outdoor / indoor / strength"}
 	}
 	rows, err := s.query(ctx, `SELECT `+bucket+` AS bucket, COUNT(*) AS runs,
 		SUM(COALESCE(corrected_distance_m, distance_m)) AS distance_m,
@@ -1842,6 +1901,20 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 	switch {
 	case p.Method == "GET" && path == "/runs":
 		status, payload = s.apiRuns(ctx)
+	case p.Method == "POST" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/analysis"):
+		status, payload = s.apiStartAnalysis(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/runs/"), "/analysis"), body)
+	case p.Method == "GET" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/analysis"):
+		status, payload = s.apiGetAnalysis(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/runs/"), "/analysis"))
+	case p.Method == "GET" && path == "/calendar":
+		status, payload = s.apiCalendar(ctx, query.Get("from"), query.Get("to"))
+	case p.Method == "POST" && path == "/calendar":
+		status, payload = s.apiAddCalendar(ctx, body)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/calendar/plan/"):
+		status, payload = s.apiDeletePlanRun(ctx, strings.TrimPrefix(path, "/calendar/plan/"), query.Get("future") == "1")
+	case p.Method == "PUT" && strings.HasPrefix(path, "/calendar/"):
+		status, payload = s.apiUpdateCalendar(ctx, strings.TrimPrefix(path, "/calendar/"), body)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/calendar/"):
+		status, payload = s.apiDeleteCalendar(ctx, strings.TrimPrefix(path, "/calendar/"))
 	case p.Method == "GET" && path == "/edit-options":
 		status, payload = s.apiEditOptions(ctx)
 	case p.Method == "POST" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/edit"):
