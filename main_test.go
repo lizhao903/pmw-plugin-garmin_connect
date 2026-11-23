@@ -142,3 +142,40 @@ func TestIsRun(t *testing.T) {
 		}
 	}
 }
+
+func TestEditPayload(t *testing.T) {
+	runs := []typeOption{{TypeID: 1, TypeKey: "running", ParentTypeID: 17}, {TypeID: 18, TypeKey: "treadmill_running", ParentTypeID: 1}}
+	events := []typeOption{{TypeID: 1, TypeKey: "race"}, {TypeID: 9, TypeKey: "training"}}
+	str := func(s string) *string { return &s }
+	yes := true
+
+	p, err := editPayload("123", editRequest{Name: str("  晨跑  "), TypeKey: str("treadmill_running"), EventType: str("race"), Favorite: &yes, Description: str("")}, runs, events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p["activityId"] != "123" || p["activityName"] != "晨跑" || p["description"] != "" {
+		t.Fatalf("名称应去空格、空描述也要发（用来清空）：%v", p)
+	}
+	at := p["activityTypeDTO"].(map[string]any)
+	if at["typeId"] != 18 || at["typeKey"] != "treadmill_running" || at["parentTypeId"] != 1 {
+		t.Fatalf("活动类型应带 Garmin 的 id：%v", at)
+	}
+	if p["eventTypeDTO"].(map[string]any)["typeId"] != 1 || p["metadataDTO"].(map[string]any)["favorite"] != true {
+		t.Fatalf("类别、收藏不对：%v", p)
+	}
+	// 只改一项时只带这一项
+	p, _ = editPayload("1", editRequest{Favorite: &yes}, nil, nil)
+	if len(p) != 2 {
+		t.Fatalf("只应带 activityId 和 metadataDTO：%v", p)
+	}
+	for name, in := range map[string]editRequest{
+		"空名称":   {Name: str("  ")},
+		"未知类型":  {TypeKey: str("cycling")},
+		"未知类别":  {EventType: str("nope")},
+		"什么都没改": {},
+	} {
+		if _, err := editPayload("1", in, runs, events); err == nil {
+			t.Errorf("%s 应报错", name)
+		}
+	}
+}

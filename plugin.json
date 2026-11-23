@@ -3,7 +3,7 @@
   "id": "garmin_connect",
   "name": "Garmin 跑步数据",
   "description": "登录 Garmin Connect（中国区 / 国际区），定时同步跑步活动，查看单次跑步的分段与心率区间",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "api": ">=2.0.0 <3.0.0",
   "pmw": ">=0.3.0 <1.0.0",
   "license": "MIT",

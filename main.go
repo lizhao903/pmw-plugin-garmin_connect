@@ -440,17 +440,20 @@ func idKey(raw json.RawMessage) string {
 // ---------------------------------------------------------------------------
 
 type server struct {
-	conn      *rpcConn
-	log       *slog.Logger
-	cancel    context.CancelFunc
-	startedAt time.Time
-	bgCancel  context.CancelFunc
-	bgCtx     context.Context
-	bgMu      sync.Mutex
-	fullMu    sync.Mutex
-	full      fullSyncState
-	authMu    sync.Mutex
-	syncMu    sync.Mutex
+	conn       *rpcConn
+	log        *slog.Logger
+	cancel     context.CancelFunc
+	startedAt  time.Time
+	bgCancel   context.CancelFunc
+	bgCtx      context.Context
+	bgMu       sync.Mutex
+	fullMu     sync.Mutex
+	full       fullSyncState
+	authMu     sync.Mutex
+	syncMu     sync.Mutex
+	optMu      sync.Mutex
+	runTypes   []typeOption
+	eventTypes []typeOption
 }
 
 func (s *server) handlers() map[string]handlerFunc {
@@ -1144,7 +1147,7 @@ func (s *server) startFullSync() bool {
 // 心率区间、天气、逐点曲线（降采样）与轨迹（降采样）。
 // ---------------------------------------------------------------------------
 
-const detailVersion = 2
+const detailVersion = 3
 
 type runDetail struct {
 	V          int                   `json:"v"`
@@ -1152,6 +1155,9 @@ type runDetail struct {
 	Name       string                `json:"name"`
 	StartLocal string                `json:"start_local"`
 	TypeKey    string                `json:"type_key"`
+	EventType  string                `json:"event_type,omitempty"`
+	Desc       string                `json:"description,omitempty"`
+	Favorite   bool                  `json:"favorite,omitempty"`
 	Summary    map[string]any        `json:"summary"`
 	Laps       []map[string]any      `json:"laps"`
 	HRZones    []map[string]any      `json:"hr_zones"`
@@ -1284,16 +1290,24 @@ func (s *server) fetchRunDetail(ctx context.Context, c *credentials, id string) 
 	}
 	var act struct {
 		ActivityName string         `json:"activityName"`
+		Description  string         `json:"description"`
 		SummaryDTO   map[string]any `json:"summaryDTO"`
 		ActivityType struct {
 			TypeKey string `json:"typeKey"`
 		} `json:"activityTypeDTO"`
+		EventType struct {
+			TypeKey string `json:"typeKey"`
+		} `json:"eventTypeDTO"`
+		Metadata struct {
+			Favorite bool `json:"favorite"`
+		} `json:"metadataDTO"`
 	}
 	if err := json.Unmarshal(body, &act); err != nil {
 		return nil, fmt.Errorf("解析活动详情失败：%w", err)
 	}
 	d := &runDetail{
 		V: detailVersion, ActivityID: id, Name: act.ActivityName, TypeKey: act.ActivityType.TypeKey,
+		EventType: act.EventType.TypeKey, Desc: act.Description, Favorite: act.Metadata.Favorite,
 		Summary: scalars(act.SummaryDTO), FetchedAt: time.Now().Format(time.RFC3339),
 		Laps: []map[string]any{}, HRZones: []map[string]any{},
 	}
@@ -1502,6 +1516,190 @@ func (s *server) apiSetLapSpeeds(ctx context.Context, id string, body []byte) (i
 }
 
 // ---------------------------------------------------------------------------
+// 编辑 Garmin 上的活动：Garmin 只开放名称、描述、活动类型、活动类别（比赛/训练…）、收藏的修改
+// （PUT /activity-service/activity/{id}，同 Garmin 网页版活动编辑器）。距离、分段改不了。
+// ---------------------------------------------------------------------------
+
+type typeOption struct {
+	TypeID       int    `json:"typeId"`
+	TypeKey      string `json:"typeKey"`
+	ParentTypeID int    `json:"parentTypeId,omitempty"`
+}
+
+// editOptions 取 Garmin 的活动类型（只留跑步类）和活动类别，进程内缓存。
+func (s *server) editOptions(ctx context.Context, c *credentials) ([]typeOption, []typeOption, error) {
+	s.optMu.Lock()
+	defer s.optMu.Unlock()
+	if s.runTypes != nil && s.eventTypes != nil {
+		return s.runTypes, s.eventTypes, nil
+	}
+	b, err := s.connectAPI(ctx, c, "/activity-service/activity/activityTypes")
+	if err != nil {
+		return nil, nil, fmt.Errorf("读取活动类型失败：%w", err)
+	}
+	var all []typeOption
+	if err := json.Unmarshal(b, &all); err != nil {
+		return nil, nil, fmt.Errorf("解析活动类型失败：%w", err)
+	}
+	runParent := 0
+	for _, t := range all {
+		if t.TypeKey == "running" {
+			runParent = t.TypeID
+		}
+	}
+	var runs []typeOption
+	for _, t := range all {
+		if isRun(t.TypeKey) || (runParent != 0 && t.ParentTypeID == runParent) {
+			runs = append(runs, t)
+		}
+	}
+	b, err = s.connectAPI(ctx, c, "/activity-service/activity/eventTypes")
+	if err != nil {
+		return nil, nil, fmt.Errorf("读取活动类别失败：%w", err)
+	}
+	var events []typeOption
+	if err := json.Unmarshal(b, &events); err != nil {
+		return nil, nil, fmt.Errorf("解析活动类别失败：%w", err)
+	}
+	s.runTypes, s.eventTypes = runs, events
+	return runs, events, nil
+}
+
+func (s *server) apiEditOptions(ctx context.Context) (int, any) {
+	c, err := s.authed(ctx)
+	if err != nil {
+		return 502, map[string]any{"error": err.Error()}
+	}
+	runs, events, err := s.editOptions(ctx, c)
+	if err != nil {
+		return 502, map[string]any{"error": err.Error()}
+	}
+	return 200, map[string]any{"activity_types": runs, "event_types": events}
+}
+
+func findType(list []typeOption, key string) (typeOption, bool) {
+	for _, t := range list {
+		if t.TypeKey == key {
+			return t, true
+		}
+	}
+	return typeOption{}, false
+}
+
+type editRequest struct {
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+	TypeKey     *string `json:"type_key"`
+	EventType   *string `json:"event_type"`
+	Favorite    *bool   `json:"favorite"`
+}
+
+// editPayload 把前端的修改转成 Garmin 的部分更新；只放给了的字段。
+func editPayload(id string, in editRequest, runs, events []typeOption) (map[string]any, error) {
+	payload := map[string]any{"activityId": id}
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return nil, errors.New("名称不能为空")
+		}
+		if len([]rune(name)) > 100 {
+			return nil, errors.New("名称最多 100 个字")
+		}
+		payload["activityName"] = name
+	}
+	if in.Description != nil {
+		if len([]rune(*in.Description)) > 2000 {
+			return nil, errors.New("描述最多 2000 个字")
+		}
+		payload["description"] = *in.Description
+	}
+	if in.TypeKey != nil {
+		t, ok := findType(runs, *in.TypeKey)
+		if !ok {
+			return nil, fmt.Errorf("不认识的活动类型：%s", *in.TypeKey)
+		}
+		payload["activityTypeDTO"] = map[string]any{"typeId": t.TypeID, "typeKey": t.TypeKey, "parentTypeId": t.ParentTypeID}
+	}
+	if in.EventType != nil {
+		t, ok := findType(events, *in.EventType)
+		if !ok {
+			return nil, fmt.Errorf("不认识的活动类别：%s", *in.EventType)
+		}
+		payload["eventTypeDTO"] = map[string]any{"typeId": t.TypeID, "typeKey": t.TypeKey}
+	}
+	if in.Favorite != nil {
+		payload["metadataDTO"] = map[string]any{"favorite": *in.Favorite}
+	}
+	if len(payload) == 1 {
+		return nil, errors.New("没有要修改的内容")
+	}
+	return payload, nil
+}
+
+func (s *server) apiEditRun(ctx context.Context, id string, body []byte) (int, any) {
+	if !validActivityID(id) {
+		return 400, map[string]any{"error": "活动 id 不合法"}
+	}
+	var in editRequest
+	if err := json.Unmarshal(body, &in); err != nil {
+		return 400, map[string]any{"error": "请求不是合法 JSON"}
+	}
+	c, err := s.authed(ctx)
+	if err != nil {
+		return 502, map[string]any{"error": err.Error()}
+	}
+	var runs, events []typeOption
+	if in.TypeKey != nil || in.EventType != nil {
+		if runs, events, err = s.editOptions(ctx, c); err != nil {
+			return 502, map[string]any{"error": err.Error()}
+		}
+	}
+	payload, err := editPayload(id, in, runs, events)
+	if err != nil {
+		return 400, map[string]any{"error": err.Error()}
+	}
+	raw, _ := json.Marshal(payload)
+	res, err := s.httpRaw(ctx, "PUT", "https://connectapi."+c.domain()+"/activity-service/activity/"+id, nativeHeaders(map[string]string{
+		"Authorization": "Bearer " + c.AccessToken,
+		"Accept":        "application/json",
+		"Content-Type":  "application/json",
+	}), raw)
+	if err != nil {
+		return 502, map[string]any{"error": "保存到 Garmin 失败：" + err.Error()}
+	}
+	if res.Status < 200 || res.Status >= 300 {
+		return 502, map[string]any{"error": fmt.Sprintf("Garmin 没有接受修改（HTTP %d）：%s", res.Status, truncate(strings.TrimSpace(string(res.body)), 200))}
+	}
+	s.log.Info("已修改 Garmin 活动", "id", id, "fields", len(payload)-1)
+	// 本地跟着改：列表的名称、类型，详情缓存里的几项
+	if v, ok := payload["activityName"].(string); ok {
+		_ = s.exec(ctx, "UPDATE runs SET activity_name = ? WHERE activity_id = ?", v, id)
+	}
+	if in.TypeKey != nil {
+		_ = s.exec(ctx, "UPDATE runs SET type_key = ? WHERE activity_id = ?", *in.TypeKey, id)
+	}
+	if d := s.cachedDetail(ctx, id); d != nil {
+		if v, ok := payload["activityName"].(string); ok {
+			d.Name = v
+		}
+		if in.Description != nil {
+			d.Desc = *in.Description
+		}
+		if in.TypeKey != nil {
+			d.TypeKey = *in.TypeKey
+		}
+		if in.EventType != nil {
+			d.EventType = *in.EventType
+		}
+		if in.Favorite != nil {
+			d.Favorite = *in.Favorite
+		}
+		s.storeDetail(ctx, d)
+	}
+	return 200, map[string]any{"ok": true}
+}
+
+// ---------------------------------------------------------------------------
 // 统计：按周 / 月 / 年，汇总 / 室外 / 室内；距离用校正后的。
 // ---------------------------------------------------------------------------
 
@@ -1640,6 +1838,10 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 	switch {
 	case p.Method == "GET" && path == "/runs":
 		status, payload = s.apiRuns(ctx)
+	case p.Method == "GET" && path == "/edit-options":
+		status, payload = s.apiEditOptions(ctx)
+	case p.Method == "POST" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/edit"):
+		status, payload = s.apiEditRun(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/runs/"), "/edit"), body)
 	case p.Method == "POST" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/lap-speeds"):
 		status, payload = s.apiSetLapSpeeds(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/runs/"), "/lap-speeds"), body)
 	case p.Method == "GET" && strings.HasPrefix(path, "/runs/"):

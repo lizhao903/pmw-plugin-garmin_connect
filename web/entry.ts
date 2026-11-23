@@ -471,30 +471,290 @@ function BarChart(props) {
 // 详情
 // ---------------------------------------------------------------------------
 
-/** 概要卡片：[标题, 取值函数]，取不到不显示 */
-const SUMMARY_FIELDS = [
+/** 顶部关键指标卡片：[标题, 取值函数]，取不到不显示；完整数据在下面「详细数据」 */
+const KEY_FIELDS = [
   ["距离", function (s) { return fmtDistance(s.distance); }],
   ["用时", function (s) { return fmtDuration(s.duration); }],
-  ["移动用时", function (s) { return fmtDuration(s.movingDuration); }],
   ["平均配速", function (s) { return s._pace ? fmtPace(s._pace) : paceFromSpeed(s.averageSpeed); }],
-  ["最快配速", function (s) { return s._corrected ? null : paceFromSpeed(s.maxSpeed); }],
   ["平均心率", function (s) { return s.averageHR ? num(s.averageHR) + " bpm" : null; }],
-  ["最大心率", function (s) { return s.maxHR ? num(s.maxHR) + " bpm" : null; }],
   ["平均步频", function (s) { return s.averageRunCadence ? num(s.averageRunCadence) + " 步/分" : null; }],
-  ["最大步频", function (s) { return s.maxRunCadence ? num(s.maxRunCadence) + " 步/分" : null; }],
-  ["平均步幅", function (s) { return s.strideLength ? num(s.strideLength / 100, 2) + " m" : null; }],
-  ["触地时间", function (s) { return s.groundContactTime ? num(s.groundContactTime) + " ms" : null; }],
-  ["垂直振幅", function (s) { return s.verticalOscillation ? num(s.verticalOscillation, 1) + " cm" : null; }],
-  ["垂直步幅比", function (s) { return s.verticalRatio ? num(s.verticalRatio, 1) + " %" : null; }],
-  ["平均功率", function (s) { return s.averagePower ? num(s.averagePower) + " W" : null; }],
-  ["累计爬升", function (s) { return typeof s.elevationGain === "number" ? num(s.elevationGain) + " m" : null; }],
-  ["累计下降", function (s) { return typeof s.elevationLoss === "number" ? num(s.elevationLoss) + " m" : null; }],
-  ["有氧训练效果", function (s) { return s.trainingEffect ? num(s.trainingEffect, 1) : null; }],
-  ["无氧训练效果", function (s) { return s.anaerobicTrainingEffect ? num(s.anaerobicTrainingEffect, 1) : null; }],
   ["训练负荷", function (s) { return s.activityTrainingLoad ? num(s.activityTrainingLoad) : null; }],
+  ["累计爬升", function (s) { return typeof s.elevationGain === "number" ? num(s.elevationGain) + " m" : null; }],
   ["热量", function (s) { return s.calories ? num(s.calories) + " kcal" : null; }],
-  ["步数", function (s) { return s.steps ? num(s.steps) : null; }],
 ];
+
+// ---- 详细数据：把 Garmin 的概要字段按主题分组、换算成看得懂的写法 ----
+
+/** Garmin 训练效果代码（IMPROVING_AEROBIC_BASE_8 这种）翻成中文 */
+const TE_WORDS = [
+  ["NO_ANAEROBIC_BENEFIT", "无明显无氧效益"], ["NO_AEROBIC_BENEFIT", "无明显有氧效益"],
+  ["LACTATE_THRESHOLD", "乳酸阈值"], ["VO2MAX", "最大摄氧量"], ["ANAEROBIC_CAPACITY", "无氧能力"],
+  ["AEROBIC_BASE", "有氧基础"], ["AEROBIC_FITNESS", "有氧体能"], ["AEROBIC_ENDURANCE", "有氧耐力"],
+  ["HIGHLY_IMPROVING", "大幅提升"], ["IMPROVING", "提升"], ["MAINTAINING", "保持"], ["MINOR", "轻微"],
+  ["NO_", "无"], ["OVERREACHING", "训练过量"], ["RECOVERY", "恢复"], ["TEMPO", "节奏"], ["SPEED", "速度"],
+  ["ECONOMY", "跑步经济性"], ["POWER", "爆发力"], ["ANAEROBIC", "无氧"], ["AEROBIC", "有氧"],
+  ["BENEFIT", "效益"], ["BASE", "基础"], ["FITNESS", "体能"], ["ENDURANCE", "耐力"], ["CAPACITY", "能力"],
+];
+
+function teText(code) {
+  if (typeof code !== "string" || !code || code === "UNKNOWN") return null;
+  let t = code.replace(/_\d+$/, "");
+  TE_WORDS.forEach(function (w) { t = t.split(w[0]).join(w[1]); });
+  return t.replace(/_/g, "");
+}
+
+/** 训练效果分值 → 档位（Garmin 的 0～5 分档） */
+function teLevel(v) {
+  if (typeof v !== "number") return null;
+  const lv = v < 1 ? "无效益" : v < 2 ? "轻微" : v < 3 ? "保持" : v < 4 ? "提升" : v < 5 ? "大幅提升" : "过量";
+  return num(v, 1) + " · " + lv;
+}
+
+function feelText(v) {
+  if (typeof v !== "number") return null;
+  return v >= 88 ? "很好" : v >= 63 ? "好" : v >= 38 ? "一般" : v >= 13 ? "差" : "很差";
+}
+
+function rpeText(v) {
+  if (typeof v !== "number" || v <= 0) return null;
+  const r = Math.round(v / 10);
+  const word = r <= 2 ? "很轻松" : r <= 4 ? "轻松" : r <= 6 ? "适中" : r <= 8 ? "吃力" : r === 9 ? "很吃力" : "极限";
+  return r + "/10 · " + word;
+}
+
+/** 起点、终点之间的直线距离（不展示坐标本身，避免暴露位置） */
+function startEndText(s) {
+  if (typeof s.startLatitude !== "number" || typeof s.endLatitude !== "number") return null;
+  const R = 6371000, rad = Math.PI / 180;
+  const dLat = (s.endLatitude - s.startLatitude) * rad, dLon = (s.endLongitude - s.startLongitude) * rad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(s.startLatitude * rad) * Math.cos(s.endLatitude * rad) * Math.sin(dLon / 2) ** 2;
+  const d = 2 * R * Math.asin(Math.sqrt(a));
+  return d < 200 ? "回到起点附近（相距 " + num(d) + " m）" : "终点距起点 " + fmtDistance(d);
+}
+
+function unit(v, u, digits) { return typeof v === "number" && isFinite(v) ? num(v, digits) + (u ? " " + u : "") : null; }
+function pos(v, u, digits) { return typeof v === "number" && v > 0 ? num(v, digits) + (u ? " " + u : "") : null; }
+
+/**
+ * 分组：[组名, [[标题, 取值函数, 用到的字段...]]]。取值为 null 的行不显示，整组都空就不显示这组。
+ * s 是概要（跑步机校正后距离、配速已替换）。
+ */
+const DATA_GROUPS = [
+  ["时间", [
+    ["开始时间", function (s) { return s.startTimeLocal ? shortTime(s.startTimeLocal) : null; }, "startTimeLocal", "startTimeGMT"],
+    ["计时用时", function (s) { return pos(s.duration) && fmtDuration(s.duration); }, "duration"],
+    ["移动用时", function (s) { return pos(s.movingDuration) && fmtDuration(s.movingDuration); }, "movingDuration"],
+    ["总耗时（含暂停）", function (s) { return pos(s.elapsedDuration) && fmtDuration(s.elapsedDuration); }, "elapsedDuration"],
+    ["停下的时间", function (s) {
+      const p = (s.elapsedDuration || 0) - (s.movingDuration || 0);
+      return s.elapsedDuration && s.movingDuration && p >= 1 ? fmtDuration(p) : null;
+    }],
+    // 最短一圈多半是最后不满一公里的零头，不展示，免得误读成「最快一圈」
+    ["", function () { return null; }, "minActivityLapDuration"],
+  ]],
+  ["配速与速度", [
+    ["距离", function (s) { return pos(s.distance) && fmtDistance(s.distance) + (s._corrected ? "（已校正）" : ""); }, "distance"],
+    ["平均配速", function (s) { return s._pace ? fmtPace(s._pace) : paceFromSpeed(s.averageSpeed); }, "averageSpeed"],
+    ["移动配速", function (s) {
+      return s._corrected ? (s.movingDuration && s.distance ? fmtPace(s.movingDuration / (s.distance / 1000)) : null) : paceFromSpeed(s.averageMovingSpeed);
+    }, "averageMovingSpeed"],
+    ["坡度调整配速", function (s) { return s._corrected ? null : paceFromSpeed(s.avgGradeAdjustedSpeed); }, "avgGradeAdjustedSpeed"],
+    ["最快配速", function (s) { return s._corrected ? null : paceFromSpeed(s.maxSpeed); }, "maxSpeed"],
+    ["平均速度", function (s) {
+      const v = s._corrected ? (s.duration ? s.distance / s.duration : 0) : s.averageSpeed;
+      return v > 0 ? num(v * 3.6, 1) + " km/h" : null;
+    }],
+  ]],
+  ["心率", [
+    ["平均心率", function (s) { return pos(s.averageHR, "bpm"); }, "averageHR"],
+    ["最大心率", function (s) { return pos(s.maxHR, "bpm"); }, "maxHR"],
+    ["最低心率", function (s) { return pos(s.minHR, "bpm"); }, "minHR"],
+    ["心率恢复（停下后 2 分钟下降）", function (s) { return pos(s.recoveryHeartRate, "bpm"); }, "recoveryHeartRate"],
+  ]],
+  ["跑步动态", [
+    ["平均步频", function (s) { return pos(s.averageRunCadence, "步/分"); }, "averageRunCadence"],
+    ["最大步频", function (s) { return pos(s.maxRunCadence, "步/分"); }, "maxRunCadence", "maxDoubleCadence"],
+    ["平均步幅", function (s) { return pos(s.strideLength) ? num(s.strideLength / 100, 2) + " m" : null; }, "strideLength"],
+    ["触地时间", function (s) { return pos(s.groundContactTime, "ms"); }, "groundContactTime"],
+    ["垂直振幅", function (s) { return pos(s.verticalOscillation, "cm", 1); }, "verticalOscillation"],
+    ["垂直步幅比", function (s) { return pos(s.verticalRatio, "%", 1); }, "verticalRatio"],
+    ["步数", function (s) { return pos(s.steps, "步"); }, "steps"],
+  ]],
+  ["功率", [
+    ["平均功率", function (s) { return pos(s.averagePower, "W"); }, "averagePower"],
+    ["最大功率", function (s) { return pos(s.maxPower, "W"); }, "maxPower", "minPower"],
+    ["标准化功率", function (s) { return pos(s.normalizedPower, "W"); }, "normalizedPower"],
+    ["总做功", function (s) { return pos(s.totalWork, "kJ"); }, "totalWork"],
+  ]],
+  ["海拔与地形", [
+    ["累计爬升", function (s) { return unit(s.elevationGain, "m"); }, "elevationGain"],
+    ["累计下降", function (s) { return unit(s.elevationLoss, "m"); }, "elevationLoss"],
+    ["最高海拔", function (s) { return unit(s.maxElevation, "m"); }, "maxElevation"],
+    ["最低海拔", function (s) { return unit(s.minElevation, "m"); }, "minElevation"],
+    ["平均海拔", function (s) { return unit(s.avgElevation, "m"); }, "avgElevation"],
+    ["最快爬升速度", function (s) { return pos(s.maxVerticalSpeed) ? num(s.maxVerticalSpeed * 60) + " m/分" : null; }, "maxVerticalSpeed"],
+    ["起终点", startEndText, "startLatitude", "startLongitude", "endLatitude", "endLongitude"],
+  ]],
+  ["训练效果", [
+    ["主要训练效益", function (s) { return teText(s.trainingEffectLabel); }, "trainingEffectLabel"],
+    ["有氧训练效果", function (s) { return teLevel(s.trainingEffect); }, "trainingEffect"],
+    ["有氧效果说明", function (s) { return teText(s.aerobicTrainingEffectMessage); }, "aerobicTrainingEffectMessage"],
+    ["无氧训练效果", function (s) { return teLevel(s.anaerobicTrainingEffect); }, "anaerobicTrainingEffect"],
+    ["无氧效果说明", function (s) { return teText(s.anaerobicTrainingEffectMessage); }, "anaerobicTrainingEffectMessage"],
+    ["训练负荷", function (s) { return pos(s.activityTrainingLoad); }, "activityTrainingLoad"],
+    ["强度分钟数", function (s) {
+      if (typeof s.moderateIntensityMinutes !== "number" && typeof s.vigorousIntensityMinutes !== "number") return null;
+      return "中等强度 " + num(s.moderateIntensityMinutes || 0) + " 分钟 · 高强度 " + num(s.vigorousIntensityMinutes || 0) + " 分钟";
+    }, "moderateIntensityMinutes", "vigorousIntensityMinutes"],
+  ]],
+  ["身体与消耗", [
+    ["运动消耗", function (s) { return pos(s.calories, "kcal"); }, "calories"],
+    ["其中基础代谢", function (s) { return pos(s.bmrCalories, "kcal"); }, "bmrCalories"],
+    ["估算出汗量", function (s) { return pos(s.waterEstimated, "ml"); }, "waterEstimated"],
+    ["身体电量变化", function (s) {
+      return typeof s.differenceBodyBattery === "number" ? (s.differenceBodyBattery > 0 ? "+" : "") + num(s.differenceBodyBattery) : null;
+    }, "differenceBodyBattery"],
+    ["开始时体能", function (s) { return unit(s.beginPotentialStamina, "%"); }, "beginPotentialStamina"],
+    ["结束时体能", function (s) { return unit(s.endPotentialStamina, "%"); }, "endPotentialStamina"],
+    ["最低可用体能", function (s) { return unit(s.minAvailableStamina, "%"); }, "minAvailableStamina"],
+  ]],
+  ["主观感受与课表", [
+    ["跑后感受", function (s) { return feelText(s.directWorkoutFeel); }, "directWorkoutFeel"],
+    ["主观用力程度", function (s) { return rpeText(s.directWorkoutRpe); }, "directWorkoutRpe"],
+    ["课表完成度", function (s) { return unit(s.directWorkoutComplianceScore, "%"); }, "directWorkoutComplianceScore"],
+  ]],
+  ["手表测得温度", [
+    ["平均", function (s) { return unit(s.averageTemperature, "°C"); }, "averageTemperature"],
+    ["最高", function (s) { return unit(s.maxTemperature, "°C"); }, "maxTemperature"],
+    ["最低", function (s) { return unit(s.minTemperature, "°C"); }, "minTemperature"],
+  ]],
+];
+
+/** 已经分进组的字段（其余的收进「其他数据」） */
+const GROUPED_KEYS = {};
+DATA_GROUPS.forEach(function (g) { g[1].forEach(function (row) { row.slice(2).forEach(function (k) { GROUPED_KEYS[k] = true; }); }); });
+
+/** camelCase 字段名 → 空格分词，至少不是一串连着的代码 */
+function humanKey(k) {
+  return String(k).replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, function (c) { return c.toUpperCase(); });
+}
+
+function otherValue(v) {
+  if (typeof v === "number") return Math.abs(v) >= 100 || Number.isInteger(v) ? num(v) : num(v, 2);
+  if (typeof v === "boolean") return v ? "是" : "否";
+  return String(v);
+}
+
+function DataGroups(props) {
+  const s = props.summary;
+  const groups = DATA_GROUPS.map(function (g) {
+    return [g[0], g[1].map(function (row) { return [row[0], row[1](s)]; }).filter(function (r) { return r[1]; })];
+  }).filter(function (g) { return g[1].length; });
+  const others = Object.keys(props.raw || {}).filter(function (k) { return !GROUPED_KEYS[k]; }).sort();
+  return h("section", null,
+    h("h3", { className: "gc-sub" }, "详细数据"),
+    h("div", { className: "gc-groups" }, groups.map(function (g) {
+      return h("div", { className: "gc-group", key: g[0] },
+        h("h4", { className: "gc-group-title" }, g[0]),
+        h("dl", { className: "gc-dl" }, g[1].map(function (r) {
+          return h("div", { className: "gc-dl-row", key: r[0] }, h("dt", null, r[0]), h("dd", null, r[1]));
+        })));
+    })),
+    others.length
+      ? h("details", { className: "gc-all" },
+          h("summary", null, "其他数据（" + others.length + " 项，Garmin 未说明含义）"),
+          h("dl", { className: "gc-dl gc-dl-others" }, others.map(function (k) {
+            return h("div", { className: "gc-dl-row", key: k }, h("dt", null, humanKey(k)), h("dd", null, otherValue(props.raw[k])));
+          })))
+      : null);
+}
+
+// ---- 编辑 Garmin 上的活动 ----
+
+const TYPE_NAMES = {
+  running: "跑步", street_running: "路跑", treadmill_running: "跑步机", track_running: "操场跑",
+  trail_running: "越野跑", indoor_running: "室内跑", virtual_run: "虚拟跑", ultra_run: "超级马拉松",
+  obstacle_run: "障碍跑", indoor_track: "室内跑道",
+};
+const EVENT_NAMES = {
+  race: "比赛", training: "训练", recreation: "休闲", transportation: "通勤", specialEvent: "特别活动",
+  fitness: "健身", touring: "旅行", geocaching: "地理寻宝", uncategorized: "未分类",
+};
+
+function typeName(k) { return TYPE_NAMES[k] || k || "-"; }
+function eventName(k) { return EVENT_NAMES[k] || k || ""; }
+
+function EditPanel(props) {
+  const d = props.detail;
+  const init = props.preset || {};
+  const [name, setName] = useState(d.name || "");
+  const [desc, setDesc] = useState(init.description != null ? init.description : (d.description || ""));
+  const [typeKey, setTypeKey] = useState(init.type_key || d.type_key || "");
+  const [eventType, setEventType] = useState(d.event_type || "");
+  const [fav, setFav] = useState(Boolean(d.favorite));
+  const [opts, setOpts] = useState(null);
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(function () {
+    let alive = true;
+    api("/edit-options")
+      .then(function (o) { if (alive) setOpts(o); })
+      .catch(function (err) { if (alive) setMsg("读取可选的类型失败（类型和类别暂不能改）：" + errText(err)); });
+    return function () { alive = false; };
+  }, []);
+
+  async function save(e) {
+    e.preventDefault();
+    const body = {};
+    if (name.trim() !== (d.name || "")) body.name = name.trim();
+    if (desc !== (d.description || "")) body.description = desc;
+    if (typeKey && typeKey !== d.type_key) body.type_key = typeKey;
+    if (eventType && eventType !== (d.event_type || "")) body.event_type = eventType;
+    if (fav !== Boolean(d.favorite)) body.favorite = fav;
+    if (!Object.keys(body).length) { setMsg("没有改动"); return; }
+    setSaving(true);
+    setMsg("正在保存到 Garmin…");
+    try {
+      await api("/runs/" + encodeURIComponent(d.activity_id) + "/edit", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      props.onSaved(body);
+    } catch (err) {
+      setMsg("保存失败：" + errText(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const types = (opts && opts.activity_types) || [];
+  const events = (opts && opts.event_types) || [];
+  return h("form", { className: "gc-edit", onSubmit: save, "aria-label": "编辑活动" },
+    h("p", { className: "gc-note" }, "保存后会同步修改 Garmin Connect 上的这条活动（手表 App 里也会变）。Garmin 只允许改下面这几项，距离和分段改不了。"),
+    h("label", { className: "gc-field" }, "名称",
+      h("input", { value: name, maxLength: 100, disabled: saving, onChange: function (e) { setName(e.target.value); } })),
+    h("div", { className: "gc-edit-row" },
+      h("label", { className: "gc-field" }, "活动类型",
+        h("select", { value: typeKey, disabled: saving || !types.length, onChange: function (e) { setTypeKey(e.target.value); } },
+          (types.some(function (t) { return t.typeKey === typeKey; }) ? [] : [h("option", { key: "cur", value: typeKey }, typeName(typeKey))])
+            .concat(types.map(function (t) { return h("option", { key: t.typeKey, value: t.typeKey }, typeName(t.typeKey)); })))),
+      h("label", { className: "gc-field" }, "活动类别",
+        h("select", { value: eventType, disabled: saving || !events.length, onChange: function (e) { setEventType(e.target.value); } },
+          (eventType
+            ? (events.some(function (t) { return t.typeKey === eventType; }) ? [] : [h("option", { key: "cur", value: eventType }, eventName(eventType))])
+            : [h("option", { key: "none", value: "" }, "未设置")])
+            .concat(events.map(function (t) { return h("option", { key: t.typeKey, value: t.typeKey }, eventName(t.typeKey)); }))))),
+    h("label", { className: "gc-field" }, "描述",
+      h("textarea", { value: desc, rows: 4, maxLength: 2000, disabled: saving, placeholder: "写点这次跑步的感受、课表…",
+        onChange: function (e) { setDesc(e.target.value); } })),
+    h("label", { className: "pmw-plugin-check" },
+      h("input", { type: "checkbox", checked: fav, disabled: saving, onChange: function (e) { setFav(e.target.checked); } }),
+      " 收藏"),
+    h("div", { className: "gc-detail-bar" },
+      h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: saving }, saving ? "保存中…" : "保存到 Garmin"),
+      h("button", { className: "pmw-plugin-button", type: "button", disabled: saving, onClick: props.onCancel }, "取消")),
+    msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
+}
 
 /** Garmin 分段 intensityType → 中文归类（按这个顺序分组） */
 const INTENSITY = [
@@ -526,6 +786,7 @@ function RunDetail(props) {
   const [edit, setEdit] = useState(null);
   const [allSpeed, setAllSpeed] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   async function load(refresh) {
     setBusy(true);
@@ -558,7 +819,7 @@ function RunDetail(props) {
     s._corrected = true;
     s._pace = dist > 0 && s.duration ? s.duration / (dist / 1000) : 0;
   }
-  const cards = SUMMARY_FIELDS
+  const cards = KEY_FIELDS
     .map(function (f) { return [f[0], f[1](s)]; })
     .filter(function (f) { return f[1] && f[1] !== "-"; });
 
@@ -602,20 +863,52 @@ function RunDetail(props) {
     setEdit(m);
   }
 
+  function onSaved(body) {
+    const d = Object.assign({}, detail);
+    if (body.name != null) d.name = body.name;
+    if (body.description != null) d.description = body.description;
+    if (body.type_key) d.type_key = body.type_key;
+    if (body.event_type) d.event_type = body.event_type;
+    if (body.favorite != null) d.favorite = body.favorite;
+    setResp(Object.assign({}, resp, { detail: d }));
+    setEditing(null);
+    setHint("已保存到 Garmin。");
+  }
+
+  /** 把跑步机校正结果写进 Garmin：类型改成跑步机，描述末尾追加校正后的距离和配速 */
+  function presetCorrection() {
+    const line = "跑步机校正：" + fmtDistance(s.distance) + "，平均配速 " + fmtPace(s._pace) + "（按跑步机速度逐段校正，Garmin 原始 " + fmtDistance(s._origDistance) + "）";
+    const old = detail.description || "";
+    const kept = old.split("\n").filter(function (l) { return l.indexOf("跑步机校正：") !== 0; }).join("\n").trim();
+    setEditing({ description: (kept ? kept + "\n" : "") + line, type_key: indoor ? detail.type_key : "treadmill_running" });
+  }
+
+  const metaBits = detail ? [
+    shortTime(detail.start_local || props.start),
+    typeName(detail.type_key),
+    eventName(detail.event_type),
+    detail.favorite ? "已收藏" : "",
+  ].filter(Boolean).join(" · ") : shortTime(props.start);
+
   return h("div", { className: "pmw-plugin pmw-plugin-module gc-detail" },
     h(TitleBar, {
       parent: PLUGIN_NAME,
       title: (detail && detail.name) || props.title || "跑步详情",
-      desc: shortTime((detail && detail.start_local) || props.start) + (indoor ? " · 室内" : ""),
+      desc: metaBits,
       actions: [
         { label: "返回列表", onClick: props.onBack },
+        detail ? { label: "编辑", disabled: Boolean(editing), onClick: function () { setEditing({}); } } : null,
         { label: busy ? "读取中…" : "从 Garmin 重新拉取", disabled: busy, onClick: function () { load(true); } },
       ],
     }),
     hint ? h("p", { className: "pmw-plugin-hint", role: "status" }, hint) : null,
+    editing && detail ? h(EditPanel, { key: JSON.stringify(editing), detail: detail, preset: editing, onSaved: onSaved, onCancel: function () { setEditing(null); } }) : null,
+    detail && detail.description && !editing ? h("p", { className: "gc-desc" }, detail.description) : null,
     corrected
-      ? h("p", { className: "gc-note" },
-          "已按跑步机速度校正：距离 " + fmtDistance(s.distance) + "（Garmin 原始 " + fmtDistance(s._origDistance) + "），配速随之重算。")
+      ? h("div", { className: "gc-note gc-note-row" },
+          h("span", null, "已按跑步机速度校正：距离 " + fmtDistance(s.distance) + "（Garmin 原始 " + fmtDistance(s._origDistance) + "），配速随之重算。这只改本地，Garmin 上还是原始数据。"),
+          h("button", { className: "pmw-plugin-button", type: "button", onClick: presetCorrection,
+            title: "Garmin 不允许改距离；可以把校正结果写进描述，并把类型改成跑步机" }, "写入 Garmin 描述"))
       : null,
     detail ? h("div", { className: "gc-stats" },
       cards.map(function (c) {
@@ -637,7 +930,7 @@ function RunDetail(props) {
       clear: function () { saveSpeeds({ clear: true }); },
     }) : null,
     detail ? h(ZonesSection, { zones: detail.hr_zones || [] }) : null,
-    detail ? h(AllFields, { summary: (detail && detail.summary) || {}, weather: detail.weather }) : null,
+    detail ? h(DataGroups, { summary: s, raw: (detail && detail.summary) || {} }) : null,
     detail && detail.fetched_at
       ? h("p", { className: "pmw-plugin-hint" }, "数据取自 Garmin：" + shortTime(detail.fetched_at) +
           (detail.missing && detail.missing.length ? "；这次活动没有：" + detail.missing.map(missingName).join("、") : ""))
@@ -742,12 +1035,25 @@ function ZonesSection(props) {
       : h("p", { className: "pmw-plugin-hint" }, "这次活动没有心率区间数据"));
 }
 
+const WEATHER_NAMES = {
+  "clear": "晴", "sunny": "晴", "mostly clear": "大致晴朗", "mostly sunny": "大致晴朗", "partly cloudy": "局部多云",
+  "mostly cloudy": "多云", "cloudy": "阴", "overcast": "阴", "fog": "雾", "haze": "霾", "smoke": "烟霾",
+  "drizzle": "毛毛雨", "light rain": "小雨", "rain": "雨", "heavy rain": "大雨", "showers": "阵雨",
+  "rain showers": "阵雨", "thunderstorm": "雷雨", "thunderstorms": "雷雨", "snow": "雪", "light snow": "小雪",
+  "sleet": "雨夹雪", "windy": "有风", "hail": "冰雹",
+};
+
+function weatherName(desc) {
+  if (!desc) return null;
+  return WEATHER_NAMES[String(desc).trim().toLowerCase()] || desc;
+}
+
 /** Garmin 天气接口温度是华氏度、风速是英里/时，这里换算 */
 function WeatherCard(props) {
   const w = props.w;
   const c = function (f) { return typeof f === "number" ? num((f - 32) * 5 / 9) + " °C" : null; };
   const items = [
-    ["天气", w.weatherDesc || null],
+    ["天气", weatherName(w.weatherDesc)],
     ["气温", c(w.temp)],
     ["体感", c(w.apparentTemp)],
     ["湿度", typeof w.relativeHumidity === "number" ? num(w.relativeHumidity) + " %" : null],
@@ -760,44 +1066,6 @@ function WeatherCard(props) {
       return h("div", { className: "gc-stat", key: x[0] },
         h("span", { className: "gc-stat-label" }, x[0]), h("span", { className: "gc-stat-value" }, x[1]));
     })));
-}
-
-/** Garmin 返回的全部概要字段，原样列出（带中文名的在前） */
-const FIELD_NAMES = {
-  distance: "距离（米）", duration: "用时（秒）", movingDuration: "移动用时（秒）", elapsedDuration: "总耗时（秒）",
-  averageSpeed: "平均速度（米/秒）", maxSpeed: "最大速度（米/秒）", averageMovingSpeed: "平均移动速度（米/秒）",
-  averageHR: "平均心率", maxHR: "最大心率", minHR: "最低心率", averageRunCadence: "平均步频", maxRunCadence: "最大步频",
-  strideLength: "步幅（厘米）", groundContactTime: "触地时间（毫秒）", verticalOscillation: "垂直振幅（厘米）",
-  verticalRatio: "垂直步幅比（%）", averagePower: "平均功率", maxPower: "最大功率", normalizedPower: "标准化功率",
-  elevationGain: "累计爬升（米）", elevationLoss: "累计下降（米）", minElevation: "最低海拔", maxElevation: "最高海拔",
-  calories: "热量", bmrCalories: "基础代谢热量", steps: "步数", trainingEffect: "有氧训练效果",
-  anaerobicTrainingEffect: "无氧训练效果", activityTrainingLoad: "训练负荷", aerobicTrainingEffectMessage: "有氧效果说明",
-  anaerobicTrainingEffectMessage: "无氧效果说明", trainingEffectLabel: "训练效果标签", startTimeLocal: "开始时间（当地）",
-  startTimeGMT: "开始时间（UTC）", startLatitude: "起点纬度", startLongitude: "起点经度", endLatitude: "终点纬度",
-  endLongitude: "终点经度", moderateIntensityMinutes: "中强度分钟", vigorousIntensityMinutes: "高强度分钟",
-  waterEstimated: "估算出汗量（毫升）", beginPotentialStamina: "开始体能", endPotentialStamina: "结束体能",
-  minAvailableStamina: "最低可用体能", directWorkoutFeel: "主观感受", directWorkoutRpe: "主观用力",
-  avgGradeAdjustedSpeed: "坡度调整速度（米/秒）", maxDoubleCadence: "最大双脚步频", maxVerticalSpeed: "最大垂直速度",
-  differenceBodyBattery: "身体电量变化", recoveryHeartRate: "恢复心率",
-};
-
-function AllFields(props) {
-  const s = props.summary || {};
-  const keys = Object.keys(s).sort(function (a, b) {
-    const na = FIELD_NAMES[a] ? 0 : 1, nb = FIELD_NAMES[b] ? 0 : 1;
-    return na - nb || a.localeCompare(b);
-  });
-  const wkeys = Object.keys(props.weather || {}).sort();
-  return h("details", { className: "gc-all" },
-    h("summary", null, "Garmin 返回的全部字段（" + (keys.length + wkeys.length) + " 项）"),
-    h("div", { className: "gc-scroll" }, h("table", { className: "gc-table gc-kv" },
-      h("tbody", null,
-        keys.map(function (k) {
-          return h("tr", { key: k }, h("th", null, FIELD_NAMES[k] || k), h("td", null, h("code", null, k)), h("td", null, String(s[k])));
-        }),
-        wkeys.map(function (k) {
-          return h("tr", { key: "w-" + k }, h("th", null, "天气 · " + k), h("td", null, h("code", null, k)), h("td", null, String(props.weather[k])));
-        })))));
 }
 
 // ---------------------------------------------------------------------------
