@@ -10,8 +10,8 @@
         "en": "Garmin Running Data"
       },
       "description": {
-        "zh": "直连 Garmin Connect，定时同步跑步活动，在模块页和今日卡片展示距离、配速与心率",
-        "en": "Sync Garmin Connect runs on a schedule and show distance, pace and heart rate"
+        "zh": "登录 Garmin Connect，定时同步跑步活动，查看单次跑步的分段配速与心率区间",
+        "en": "Sign in to Garmin Connect, sync runs on a schedule, view splits and heart-rate zones"
       },
       "author": "lizhao903",
       "repository": "https://github.com/lizhao903/pmw-plugin-garmin_connect",
@@ -25,6 +25,37 @@
         "running"
       ],
       "versions": [
+        {
+          "version": "0.2.0",
+          "published_at": "2026-11-23T07:27:00Z",
+          "api": ">=2.0.0 <3.0.0",
+          "pmw": ">=0.3.0 <1.0.0",
+          "permissions": [
+            "network:any",
+            "secrets:garmin_connect",
+            "schedule"
+          ],
+          "source": {
+            "type": "github-release",
+            "repository": "lizhao903/pmw-plugin-garmin_connect",
+            "tag": "v0.2.0",
+            "commit": "2fc4cb9f2b5674065d3034932e889d97b8d9b987",
+            "assets": {
+              "darwin-arm64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.2.0/garmin_connect-0.2.0-darwin-arm64.tar.gz",
+                "sha256": "1217abea7fc96a0c25a3f18ae63492598a41741367fb39531d4fbb15aaca96f3"
+              },
+              "linux-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.2.0/garmin_connect-0.2.0-linux-amd64.tar.gz",
+                "sha256": "df8b4f2a0c325d473545ddfffd7f69610c0b659466c67e21c76c6fe1c3b2db55"
+              },
+              "windows-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.2.0/garmin_connect-0.2.0-windows-amd64.tar.gz",
+                "sha256": "4522faea28b8f74611ef0c3f812690e063172e666853bf35d5912a29f95b09d6"
+              }
+            }
+          }
+        },
         {
           "version": "0.1.0",
           "published_at": "2026-11-23T00:00:00Z",
