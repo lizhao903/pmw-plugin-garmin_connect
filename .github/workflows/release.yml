@@ -5,6 +5,7 @@
 # 需要仓库 secret PLUGIN_SIGNING_KEY（ed25519 私钥，PEM）时才签名；没有就按 community 未签名发布。
 #
 # 注意：tag 的版本必须和 plugin.json 的 version 一致；CI 会在预检步骤里校验。
+# 打包会校验清单里全部平台的入口都存在，所以三个平台在同一个任务里先编完再校验、打包（不用矩阵）。
 
 name: release
 
@@ -17,19 +18,9 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: 构建 ${{ matrix.goos }}-${{ matrix.goarch }}
+  release:
+    name: 构建并发布
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - goos: darwin
-            goarch: arm64
-          - goos: linux
-            goarch: amd64
-          - goos: windows
-            goarch: amd64
     steps:
       - name: 检出（带 tag 历史）
         uses: actions/checkout@v4
@@ -42,12 +33,8 @@ jobs:
           go-version: "1.22.x"
           cache: false
 
-      - name: 生成前端入口
-        run: make web
-
-      - name: 校验清单（tag 与 version 一致）
+      - name: tag 与 version 一致
         run: |
-          python3 scripts/pmw_plugin.py validate .
           tag_version="${GITHUB_REF_NAME#v}"
           manifest_version="$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")"
           if [ "$tag_version" != "$manifest_version" ]; then
@@ -55,43 +42,17 @@ jobs:
             exit 1
           fi
 
-      - name: 构建二进制
-        run: |
-          mkdir -p bin
-          ext=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
-          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-            go build -trimpath -ldflags "-s -w" \
-            -o "bin/garmin_connect-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" .
+      - name: 构建三平台二进制与前端入口
+        run: make build-all
+
+      - name: 校验清单
+        run: python3 scripts/pmw_plugin.py validate .
 
       - name: 打包（含 SHA256SUMS）
-        run: python3 scripts/pmw_plugin.py pack . --os ${{ matrix.goos }} --arch ${{ matrix.goarch }}
-
-      - name: 上传平台产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: garmin_connect-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
-          if-no-files-found: error
-
-  release:
-    name: 创建 Release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: 收集产物
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - name: 汇总 SHA256SUMS
         run: |
+          python3 scripts/pmw_plugin.py pack . --os darwin --arch arm64
+          python3 scripts/pmw_plugin.py pack . --os linux --arch amd64
+          python3 scripts/pmw_plugin.py pack . --os windows --arch amd64
           cd dist
           sha256sum *.tar.gz | sort -k2 > SHA256SUMS
           cat SHA256SUMS
