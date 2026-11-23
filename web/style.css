@@ -326,3 +326,22 @@
 [data-pmw-plugin="garmin_connect"] .gc-card-r { align-items: flex-end; flex: none; }
 [data-pmw-plugin="garmin_connect"] .gc-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 [data-pmw-plugin="garmin_connect"] .gc-card-row small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* 0.5.1：平均线、分段悬停与最快最慢、配速分秒输入 */
+[data-pmw-plugin="garmin_connect"] .gc-avgline { stroke: var(--pmw-text, #111); stroke-width: 1; stroke-dasharray: 5 4; opacity: 0.6; }
+[data-pmw-plugin="garmin_connect"] .gc-avgtext { font-weight: 600; }
+[data-pmw-plugin="garmin_connect"] .gc-lapbar.dim { opacity: 0.45; }
+[data-pmw-plugin="garmin_connect"] .gc-lapbar.on { stroke: var(--pmw-text, #111); stroke-width: 1.5; }
+[data-pmw-plugin="garmin_connect"] .gc-lap-tag { font-weight: 600; fill: var(--pmw-text, #111); }
+[data-pmw-plugin="garmin_connect"] .gc-lap-summary { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; padding: 4px 2px; }
+[data-pmw-plugin="garmin_connect"] .gc-lap-summary em {
+  font-style: normal; font-size: 12px; margin-right: 6px; padding: 0 6px; border-radius: 4px;
+  background: var(--pmw-panel-hover, #eef0f3); color: var(--pmw-text-secondary, #4b5563);
+}
+[data-pmw-plugin="garmin_connect"] .gc-overlay-avg { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-weight: 500; }
+[data-pmw-plugin="garmin_connect"] .gc-pace-input { display: inline-flex; align-items: center; gap: 3px; }
+[data-pmw-plugin="garmin_connect"] .gc-pace-input input {
+  width: 46px; padding: 3px 4px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px; font: inherit; text-align: center;
+}
+[data-pmw-plugin="garmin_connect"] .gc-pace-input small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }
+[data-pmw-plugin="garmin_connect"] .gc-link { border: 0; background: none; color: var(--pmw-accent, #2563eb); font: inherit; font-size: 13px; cursor: pointer; padding: 0 4px; }

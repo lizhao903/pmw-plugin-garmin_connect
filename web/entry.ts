@@ -993,7 +993,7 @@ function RunDetail(props) {
     detail.favorite ? "已收藏" : "",
   ].filter(Boolean).join(" · ") : shortTime(props.start);
 
-  const tabs = [["overview", "概览"], ["charts", "图表"], ["laps", "分段"], ["data", "详细数据"]];
+  const tabs = [["overview", "概览"], ["charts", "图表"], ["laps", "分段"]];
   const narrow = isNarrow();
   const fetched = detail && detail.fetched_at
     ? h("p", { className: "pmw-plugin-hint" }, "数据取自 Garmin：" + shortTime(detail.fetched_at) +
@@ -1022,6 +1022,7 @@ function RunDetail(props) {
         })),
       detail.weather ? h(WeatherCard, { w: detail.weather }) : null,
       detail.description ? h("section", null, h("h3", { className: "gc-sub" }, "描述"), h("p", { className: "gc-desc" }, detail.description)) : null,
+      h(DataGroups, { summary: s, raw: detail.summary || {} }),
       fetched);
   } else if (detail && tab === "charts") {
     body = h("div", { className: "gc-tab-body" },
@@ -1036,8 +1037,6 @@ function RunDetail(props) {
         setEdit: setEdit, startEdit: startEdit, submitEdit: submitEdit,
         clear: function () { saveSpeeds({ clear: true }); },
       }));
-  } else if (detail && tab === "data") {
-    body = h("div", { className: "gc-tab-body" }, h(DataGroups, { summary: s, raw: detail.summary || {} }), fetched);
   }
 
   return h("div", { className: "pmw-plugin pmw-plugin-module gc-detail" },
@@ -1338,7 +1337,10 @@ function prepareChart(series, opts) {
       fixed = r.fixed;
     }
     const vals = d.pace ? raw.map(function (v) { return isNum(v) && v > 0 ? 1000 / v : null; }) : raw;
-    metrics.push({ def: d, vals: vals, fixed: fixed });
+    // 平均：配速按平均速度换算（不是配速的算术平均），其余取算术平均
+    const ok = raw.filter(isNum);
+    const avg = !ok.length ? NaN : d.pace ? 1000 / (ok.reduce(function (t, v) { return t + v; }, 0) / ok.length) : ok.reduce(function (t, v) { return t + v; }, 0) / ok.length;
+    metrics.push({ def: d, vals: vals, fixed: fixed, avg: avg });
   });
   const br = findBreaks(series, n);
   return { x: xRaw, n: n, axis: opts.axis, metrics: metrics, pauses: br.pauses, stops: br.stops };
@@ -1435,6 +1437,14 @@ function ChartSvg(props) {
       const v = ranges[0][k];
       return h("text", { key: "y" + k, x: padL - 6, y: scales[0](v) + 4, className: "gc-axis", textAnchor: "end" }, fmtMetric(ms[0].def, v));
     }) : null,
+    // 平均线（虚线，颜色同指标）；分开显示时在右端标数值
+    ms.map(function (m, j) {
+      if (!isNum(m.avg)) return null;
+      const y = scales[j](m.avg);
+      return h("g", { key: "avg-" + m.def.key, pointerEvents: "none" },
+        h("line", { x1: padL, x2: W - padR, y1: y, y2: y, stroke: m.def.color, strokeWidth: 1, strokeDasharray: "5 4", opacity: 0.85 }),
+        !props.overlay ? h("text", { x: W - padR - 2, y: y - 4, className: "gc-axis gc-avgtext", textAnchor: "end", fill: m.def.color }, "平均 " + fmtMetric(m.def, m.avg)) : null);
+    }),
     h("g", { clipPath: "url(#" + clipId + ")" }, ms.map(function (m, j) {
       return h("path", { key: m.def.key, d: pathFor(prep, m.vals, sx, scales[j]), fill: "none", stroke: m.def.color, strokeWidth: 1.6, strokeLinejoin: "round" });
     })),
@@ -1457,19 +1467,16 @@ function ChartsTab(props) {
   const [mode, setMode] = useState(prefs0.mode || "split");
   const [axis, setAxis] = useState(props.indoor || !hasDist ? "time" : (prefs0.axis || "distance"));
   const [clean, setClean] = useState(prefs0.clean !== false);
-  const [fast, setFast] = useState(prefs0.fast || "");
-  const [slow, setSlow] = useState(prefs0.slow || "");
+  // 配速范围存成秒/公里（0 表示不限）；旧版本存过 "4'30" 文本的，忽略
+  const [fast, setFast] = useState(typeof prefs0.fastSec === "number" ? prefs0.fastSec : 0);
+  const [slow, setSlow] = useState(typeof prefs0.slowSec === "number" ? prefs0.slowSec : 0);
   const [hover, setHover] = useState(null);
 
   useEffect(function () {
-    savePrefs({ sel: sel, mode: mode, axis: props.indoor ? prefs0.axis : axis, clean: clean, fast: fast, slow: slow });
+    savePrefs({ sel: sel, mode: mode, axis: props.indoor ? prefs0.axis : axis, clean: clean, fastSec: fast, slowSec: slow });
   }, [sel, mode, axis, clean, fast, slow]);
 
-  const parsePace = function (t) {
-    const m = /^\s*(\d{1,2})\s*['′:：]?\s*(\d{1,2})?\s*$/.exec(String(t || ""));
-    return m ? (+m[1]) * 60 + (+(m[2] || 0)) : 0;
-  };
-  const prep = prepareChart(series, { axis: axis, clean: clean, fast: parsePace(fast) || 150, slow: parsePace(slow) || 0 });
+  const prep = prepareChart(series, { axis: axis, clean: clean, fast: fast || 150, slow: slow || 0 });
   if (!prep || !prep.metrics.length) return h("p", { className: "pmw-plugin-hint" }, "这次活动没有逐点数据，画不了曲线。");
 
   const avail = prep.metrics.map(function (m) { return m.def.key; });
@@ -1499,11 +1506,10 @@ function ChartsTab(props) {
         h("input", { type: "checkbox", checked: clean, onChange: function (e) { setClean(e.target.checked); } }), " 去除异常值"),
       clean && avail.indexOf("pace") >= 0 ? h("span", { className: "gc-inline" },
         "配速范围",
-        h("input", { className: "gc-speed", placeholder: "最快 2'30", value: fast, "aria-label": "最快配速，如 3'30",
-          onChange: function (e) { setFast(e.target.value); } }),
+        h(PaceInput, { label: "最快", value: fast, onChange: setFast, placeholder: "2 分 30 秒" }),
         "～",
-        h("input", { className: "gc-speed", placeholder: "最慢 不限", value: slow, "aria-label": "最慢配速，如 9'00",
-          onChange: function (e) { setSlow(e.target.value); } })) : null),
+        h(PaceInput, { label: "最慢", value: slow, onChange: setSlow, placeholder: "不限" }),
+        fast || slow ? h("button", { type: "button", className: "gc-link", onClick: function () { setFast(0); setSlow(0); } }, "清空") : null) : null),
     // 读数条：悬停时显示这一点各指标的值
     h("div", { className: "gc-readout", "aria-live": "polite" },
       hover != null
@@ -1514,11 +1520,16 @@ function ChartsTab(props) {
         : h("span", { className: "pmw-plugin-hint" }, isNarrow() ? "点图上任意位置看那一点的数值" : "把鼠标移到图上看每个点的数值")),
     mode === "overlay"
       ? h("div", { className: "gc-chart-box" },
+          h("div", { className: "gc-chart-title gc-overlay-avg" }, shown.map(function (m) {
+            return h("span", { key: m.def.key }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
+              m.def.label + " 平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? "/km" : " " + m.def.unit));
+          }), h("small", null, "虚线为平均值，各指标各用各的刻度")),
           h(ChartSvg, { prep: prep, metrics: shown, overlay: true, height: 300, narrowHeight: 240, hover: hover, setHover: setHover }))
       : shown.map(function (m) {
           return h("div", { className: "gc-chart-box", key: m.def.key },
             h("div", { className: "gc-chart-title" }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
-              m.def.label, h("small", null, m.def.pace ? "（越靠上越快）" : "（" + m.def.unit + "）")),
+              m.def.label + "  平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? "/km" : " " + m.def.unit),
+              h("small", null, m.def.pace ? "（越靠上越快）" : "")),
             h(ChartSvg, { prep: prep, metrics: [m], overlay: false, height: 140, narrowHeight: 150, hover: hover, setHover: setHover }));
         }),
     h("p", { className: "pmw-plugin-hint gc-legend" },
@@ -1528,6 +1539,30 @@ function ChartsTab(props) {
       prep.axis === "distance" && (prep.pauses.length || prep.stops.length) ? h("span", null, "按距离看时暂停是一条竖线，切到按时间看能看到时长") : null),
     h(MetricTable, { metrics: shown, clean: clean }),
     h(ZonesSection, { zones: props.zones || [] }));
+}
+
+/** 配速输入：分、秒两个数字框，值是秒/公里，0 表示不限 */
+function PaceInput(props) {
+  const v = props.value || 0;
+  const [m, setM] = useState(v ? String(Math.floor(v / 60)) : "");
+  const [s, setS] = useState(v ? String(v % 60) : "");
+  useEffect(function () {
+    // 外部清空时同步
+    if (!props.value) { setM(""); setS(""); }
+  }, [props.value]);
+  const push = function (mm, ss) {
+    const mi = parseInt(mm, 10), se = parseInt(ss, 10);
+    const total = (isNaN(mi) ? 0 : mi) * 60 + (isNaN(se) ? 0 : Math.min(59, se));
+    props.onChange(total > 0 ? total : 0);
+  };
+  return h("span", { className: "gc-pace-input", title: props.label + "配速，" + props.placeholder },
+    h("small", null, props.label),
+    h("input", { type: "number", min: "1", max: "30", inputMode: "numeric", value: m, placeholder: props.label === "最快" ? "2" : "",
+      "aria-label": props.label + "配速的分钟", onChange: function (e) { setM(e.target.value); push(e.target.value, s); } }),
+    h("small", null, "分"),
+    h("input", { type: "number", min: "0", max: "59", inputMode: "numeric", value: s, placeholder: props.label === "最快" ? "30" : "",
+      "aria-label": props.label + "配速的秒", onChange: function (e) { setS(e.target.value); push(m, e.target.value); } }),
+    h("small", null, "秒"));
 }
 
 /** 各指标的最低 / 平均 / 最高（用去毛刺后的值） */
@@ -1550,36 +1585,86 @@ function MetricTable(props) {
     }))));
 }
 
-/** 分段配速柱状图：宽度按用时、高度按速度（越高越快），颜色按 Garmin 的分段类型 */
+/** 分段配速柱状图：宽度按用时、高度按速度（越高越快），颜色按 Garmin 的分段类型；悬停看这一段，标最快、最慢，虚线为平均 */
 function LapBars(props) {
   const views = props.lapViews, laps = props.laps;
+  const [hv, setHv] = useState(null);
   if (!views.length) return null;
-  const W = 760, H = 170, padL = 8, padR = 8, padT = 16, padB = 22;
+  const narrow = isNarrow();
+  const W = narrow ? 380 : 760, H = 190, padL = 8, padR = 8, padT = 22, padB = 22;
   const total = views.reduce(function (t, v) { return t + (v.dur || 0); }, 0) || 1;
   const speeds = views.map(function (v) { return v.pace > 0 ? 1000 / v.pace : 0; });
-  const max = Math.max.apply(null, speeds) || 1;
-  const min = Math.min.apply(null, speeds.filter(function (v) { return v > 0; })) || 0;
-  const base = Math.max(0, min - (max - min) * 0.6);
+  // 最快 / 最慢：不算不满 200 米的零头段和休息段
+  const eligible = views.map(function (v, i) {
+    return v.dist >= 200 && speeds[i] > 0 && intensityLabel(laps[i].intensityType) !== "休息";
+  });
+  let fast = -1, slow = -1;
+  speeds.forEach(function (sp, i) {
+    if (!eligible[i]) return;
+    if (fast < 0 || sp > speeds[fast]) fast = i;
+    if (slow < 0 || sp < speeds[slow]) slow = i;
+  });
+  const totDist = views.reduce(function (t, v) { return t + (v.dist || 0); }, 0);
+  const avgPace = totDist > 0 ? total / (totDist / 1000) : 0;
+  const avgSpeed = avgPace > 0 ? 1000 / avgPace : 0;
+  const max = Math.max.apply(null, speeds.concat([avgSpeed])) || 1;
+  const pos = speeds.filter(function (v) { return v > 0; });
+  const min = pos.length ? Math.min.apply(null, pos) : 0;
+  // 纵轴起点：各段速度差很小时（如跑步机全部校正成同一速度）从最快的 60% 起，不然柱子全是 0 高
+  const span = max - min;
+  const base = span < max * 0.05 ? max * 0.6 : Math.max(0, min - span * 0.6);
+  const yOf = function (sp) { return H - padB - (sp > 0 ? ((sp - base) / (max - base || 1)) * (H - padT - padB) : 0); };
+  const bars = [];
   let x = padL;
+  views.forEach(function (v, i) {
+    const w = Math.max(3, ((v.dur || 0) / total) * (W - padL - padR) - 2);
+    bars.push({ i: i, x: x, w: w });
+    x += w + 2;
+  });
+  const lap = hv != null ? laps[hv] : null, lv = hv != null ? views[hv] : null;
+  const tag = function (i) { return i === fast ? "最快" : i === slow ? "最慢" : ""; };
+
   return h("figure", { className: "gc-chart-box" },
-    h("div", { className: "gc-chart-title" }, "每段配速", h("small", null, "（宽度按用时，越高越快）")),
-    h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-chart-svg", role: "img", "aria-label": "每段配速" },
-      views.map(function (v, i) {
-        const w = Math.max(3, ((v.dur || 0) / total) * (W - padL - padR) - 2);
-        const hgt = speeds[i] > 0 ? ((speeds[i] - base) / (max - base || 1)) * (H - padT - padB) : 0;
-        const cls = "gc-lapbar gc-int-" + intensityClass(laps[i].intensityType);
-        const g = h("g", { key: i },
-          h("rect", { x: x, y: H - padB - hgt, width: w, height: hgt, rx: 2, className: cls },
-            h("title", null, "第 " + (i + 1) + " 段 · " + intensityLabel(laps[i].intensityType) + " · " + fmtPace(v.pace) + " · " + fmtDistance(v.dist))),
-          w > 34 ? h("text", { x: x + w / 2, y: H - padB - hgt - 4, className: "gc-axis", textAnchor: "middle" }, fmtPace(v.pace).replace("/km", "")) : null,
-          w > 14 ? h("text", { x: x + w / 2, y: H - 6, className: "gc-axis", textAnchor: "middle" }, String(i + 1)) : null);
-        x += w + 2;
-        return g;
-      })),
+    h("div", { className: "gc-chart-title" }, "每段配速", h("small", null, "（宽度按用时，越高越快；虚线是平均配速）")),
+    h("div", { className: "gc-readout", "aria-live": "polite" },
+      lv
+        ? [
+            h("strong", { key: "n" }, "第 " + (hv + 1) + " 段" + (tag(hv) ? "（" + tag(hv) + "）" : "")),
+            h("span", { key: "t" }, intensityLabel(lap.intensityType)),
+            h("span", { key: "d" }, "距离 " + fmtDistance(lv.dist)),
+            h("span", { key: "u" }, "用时 " + fmtDuration(lv.dur)),
+            h("span", { key: "p" }, "配速 " + fmtPace(lv.pace)),
+            h("span", { key: "s" }, "速度 " + (lv.pace > 0 ? num(3600 / lv.pace, 1) + " km/h" : "-")),
+            lap.averageHR ? h("span", { key: "h" }, "心率 " + num(lap.averageHR) + (lap.maxHR ? " / 最大 " + num(lap.maxHR) : "") + " bpm") : null,
+            lap.averageRunCadence ? h("span", { key: "c" }, "步频 " + num(lap.averageRunCadence)) : null,
+          ]
+        : h("span", { className: "pmw-plugin-hint" }, narrow ? "点柱子看这一段的数据" : "把鼠标移到柱子上看这一段的数据")),
+    h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-chart-svg", role: "img", "aria-label": "每段配速",
+      onMouseLeave: function () { setHv(null); } },
+      bars.map(function (b) {
+        const i = b.i, v = views[i];
+        const y = yOf(speeds[i]);
+        const cls = "gc-lapbar gc-int-" + intensityClass(laps[i].intensityType) + (hv === i ? " on" : "") + (hv != null && hv !== i ? " dim" : "");
+        return h("g", { key: i },
+          // 整列都能触发悬停，矮柱子也好指
+          h("rect", { x: b.x, y: padT, width: b.w + 2, height: H - padT - padB, fill: "transparent",
+            onMouseEnter: function () { setHv(i); }, onClick: function () { setHv(i); } }),
+          h("rect", { x: b.x, y: y, width: b.w, height: H - padB - y, rx: 2, className: cls, pointerEvents: "none" }),
+          tag(i) ? h("text", { x: b.x + b.w / 2, y: y - 5, className: "gc-axis gc-lap-tag", textAnchor: "middle" }, tag(i)) : null,
+          b.w > 14 ? h("text", { x: b.x + b.w / 2, y: H - 6, className: "gc-axis", textAnchor: "middle" }, String(i + 1)) : null);
+      }),
+      avgSpeed > 0 ? h("g", { pointerEvents: "none" },
+        h("line", { x1: padL, x2: W - padR, y1: yOf(avgSpeed), y2: yOf(avgSpeed), className: "gc-avgline" }),
+        h("text", { x: W - padR, y: yOf(avgSpeed) - 4, className: "gc-axis gc-avgtext", textAnchor: "end" }, "平均 " + fmtPace(avgPace))) : null),
+    h("div", { className: "gc-lap-summary" },
+      fast >= 0 ? h("span", null, h("em", null, "最快"), "第 " + (fast + 1) + " 段 " + fmtPace(views[fast].pace) + "（" + num(3600 / views[fast].pace, 1) + " km/h）") : null,
+      slow >= 0 && slow !== fast ? h("span", null, h("em", null, "最慢"), "第 " + (slow + 1) + " 段 " + fmtPace(views[slow].pace) + "（" + num(3600 / views[slow].pace, 1) + " km/h）") : null,
+      avgPace > 0 ? h("span", null, h("em", null, "平均"), fmtPace(avgPace) + "，平均速度 " + num(avgSpeed * 3.6, 1) + " km/h") : null),
     h("p", { className: "pmw-plugin-hint gc-legend" },
       INTENSITY_ORDER.filter(function (g) { return laps.some(function (l) { return intensityLabel(l.intensityType) === g; }); }).map(function (g) {
         return h("span", { key: g }, h("i", { className: "gc-swatch gc-lapbar gc-int-" + intensityClassByLabel(g) }), g);
-      })));
+      }),
+      h("span", null, "最快、最慢不算不满 200 米的零头段和休息段")));
 }
 
 function intensityClass(t) { return intensityClassByLabel(intensityLabel(t)); }
