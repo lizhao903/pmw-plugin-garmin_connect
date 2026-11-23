@@ -1,0 +1,44 @@
+{
+  "manifest_version": 2,
+  "id": "garmin_connect",
+  "name": "Garmin 跑步数据",
+  "description": "直连 Garmin Connect 中国区，定时同步跑步活动，在模块页与今日卡片展示",
+  "version": "0.1.0",
+  "api": ">=2.0.0 <3.0.0",
+  "pmw": ">=0.3.0 <1.0.0",
+  "license": "MIT",
+  "homepage": "https://github.com/lizhao903/pmw-plugin-garmin_connect",
+  "repository": "https://github.com/lizhao903/pmw-plugin-garmin_connect",
+  "publisher": {
+    "id": "github:lizhao903"
+  },
+  "icon": "assets/icon.svg",
+  "provides": {
+    "modules": ["garmin_connect"],
+    "settings": ["garmin_connect"],
+    "today_cards": ["garmin_connect_last_run"]
+  },
+  "permissions": ["network:any", "secrets:garmin_connect", "schedule"],
+  "permissions_reason": {
+    "network:any": "Garmin 中国区 SSO 与 Connect API 域名不在预置分组内，需访问 connect.garmin.cn 等端点",
+    "secrets:garmin_connect": "保存 Garmin 账号登录凭证与令牌，仅本插件可读写",
+    "schedule": "注册每日同步任务，定时拉取 Garmin 跑步活动"
+  },
+  "migrations": "migrations",
+  "runtime": {
+    "backend": {
+      "kind": "process",
+      "protocol": "pmw-plugin-rpc/1",
+      "entry": {
+        "darwin-arm64": "bin/garmin_connect-darwin-arm64",
+        "linux-amd64": "bin/garmin_connect-linux-amd64",
+        "windows-amd64": "bin/garmin_connect-windows-amd64.exe"
+      },
+      "health_timeout_ms": 10000
+    },
+    "web": {
+      "entry": "web/entry.js",
+      "styles": ["web/style.css"]
+    }
+  }
+}

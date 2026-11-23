@@ -1,0 +1,19 @@
+# 构建产物：源码仓库不提交二进制和发布包，由 CI 构建（见 .github/workflows/release.yml）。
+/bin/
+/dist/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+.vscode/
+
+# 本机代理 / 工具目录与环境变量：不进仓库
+.claude/
+.codex/
+.cursor/
+.env
+.env.*

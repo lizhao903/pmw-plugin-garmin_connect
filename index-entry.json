@@ -1,0 +1,62 @@
+{
+  "index_version": 1,
+  "title": "PMW 社区插件",
+  "description": "待提交到 pmw-plugins-index 的单条目样例；发布 Release 后把本条目并入索引 plugins 数组",
+  "plugins": [
+    {
+      "id": "garmin_connect",
+      "title": {
+        "zh": "Garmin 跑步数据",
+        "en": "Garmin Running Data"
+      },
+      "description": {
+        "zh": "直连 Garmin Connect，定时同步跑步活动，在模块页和今日卡片展示距离、配速与心率",
+        "en": "Sync Garmin Connect runs on a schedule and show distance, pace and heart rate"
+      },
+      "author": "lizhao903",
+      "repository": "https://github.com/lizhao903/pmw-plugin-garmin_connect",
+      "categories": [
+        "fitness",
+        "data"
+      ],
+      "labels": [
+        "community",
+        "garmin",
+        "running"
+      ],
+      "versions": [
+        {
+          "version": "0.1.0",
+          "published_at": "2026-11-23T00:00:00Z",
+          "api": ">=2.0.0 <3.0.0",
+          "pmw": ">=0.3.0 <1.0.0",
+          "permissions": [
+            "network:any",
+            "secrets:garmin_connect",
+            "schedule"
+          ],
+          "source": {
+            "type": "github-release",
+            "repository": "lizhao903/pmw-plugin-garmin_connect",
+            "tag": "v0.1.0",
+            "commit": "0000000000000000000000000000000000000000",
+            "assets": {
+              "darwin-arm64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.1.0/garmin_connect-0.1.0-darwin-arm64.tar.gz",
+                "sha256": "57867f4c7a9ee6be173833e683917a2577df4945f9a382225067d7543650b6e9"
+              },
+              "linux-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.1.0/garmin_connect-0.1.0-linux-amd64.tar.gz",
+                "sha256": "40db504e1fcdba5e00994c0ca13afca168839dfb3075bf99abb6a4a1dd19f8c9"
+              },
+              "windows-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.1.0/garmin_connect-0.1.0-windows-amd64.tar.gz",
+                "sha256": "53905e6cc8cdeddecf5f4415799f941613852e3ec9805a5cf764297b19ec2c4d"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
