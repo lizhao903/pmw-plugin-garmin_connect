@@ -674,7 +674,7 @@ function DataGroups(props) {
 const TYPE_NAMES = {
   running: "跑步", street_running: "路跑", treadmill_running: "跑步机", track_running: "操场跑",
   trail_running: "越野跑", indoor_running: "室内跑", virtual_run: "虚拟跑", ultra_run: "超级马拉松",
-  obstacle_run: "障碍跑", indoor_track: "室内跑道",
+  obstacle_run: "障碍跑", indoor_track: "室内跑道", wheelchair_push_run: "轮椅跑", canicross: "携犬跑",
 };
 const EVENT_NAMES = {
   race: "比赛", training: "训练", recreation: "休闲", transportation: "通勤", specialEvent: "特别活动",

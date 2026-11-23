@@ -1549,6 +1549,10 @@ func (s *server) editOptions(ctx context.Context, c *credentials) ([]typeOption,
 	}
 	var runs []typeOption
 	for _, t := range all {
+		// 铁三的换项（runToBikeTransition…）不是跑步，不给选
+		if strings.Contains(strings.ToLower(t.TypeKey), "transition") {
+			continue
+		}
 		if isRun(t.TypeKey) || (runParent != 0 && t.ParentTypeID == runParent) {
 			runs = append(runs, t)
 		}
