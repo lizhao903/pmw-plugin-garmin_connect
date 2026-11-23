@@ -27,6 +27,11 @@ async function api(path, init) {
   return data;
 }
 
+/** 窄屏（手机）：标题按钮缩短、图表按手机宽度画、列表改卡片 */
+function isNarrow() {
+  return typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
+}
+
 function errText(err) {
   return String((err && err.message) || err);
 }
@@ -290,31 +295,128 @@ function ModulePage() {
     hint ? h("p", { className: "pmw-plugin-hint" }, hint) : null,
     view === "stats"
       ? h(StatsView, { key: statsKey })
-      : h(RunTable, { runs: runs, indoorTypes: indoorTypes, onOpen: setOpen }));
+      : h(RunList, { runs: runs, indoorTypes: indoorTypes, onOpen: setOpen }));
 }
 
-function RunTable(props) {
-  return h("div", { className: "gc-scroll" }, h("table", { className: "gc-table" },
-    h("thead", null,
-      h("tr", null,
-        h("th", null, "日期"), h("th", null, "名称"), h("th", null, "类型"), h("th", null, "距离"),
-        h("th", null, "时长"), h("th", null, "配速"), h("th", null, "均心率"))),
-    h("tbody", null,
-      props.runs.map(function (r) {
-        const v = runView(r);
-        return h("tr", {
-          key: runKey(r), className: "gc-row", tabIndex: 0, role: "button",
-          onClick: function () { props.onOpen(r); },
-          onKeyDown: function (e) { if (e.key === "Enter") props.onOpen(r); },
-        },
-          h("td", null, String(r.start_time || "").slice(0, 10)),
-          h("td", null, r.activity_name || "-"),
-          h("td", null, isIndoor(r.type_key, props.indoorTypes) ? h("span", { className: "gc-tag" }, "室内") : (r.type_key ? "室外" : "-")),
-          h("td", null, fmtDistance(v.dist), v.corrected ? h("span", { className: "gc-mark", title: "已按跑步机速度校正" }, " 校") : null),
-          h("td", null, fmtDuration(r.duration_s)),
-          h("td", null, fmtPace(v.pace)),
-          h("td", null, r.avg_hr ? String(Math.round(r.avg_hr)) : "-"));
-      }))));
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+function parseLocal(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ""));
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
+}
+
+/** 本周（周一起）、本月的跑量，从列表算；今年用统计接口（列表最多 200 条） */
+function periodTotals(runs) {
+  const now = new Date();
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const t = { week: { n: 0, d: 0 }, month: { n: 0, d: 0 } };
+  runs.forEach(function (r) {
+    const d = parseLocal(r.start_time);
+    if (!d) return;
+    const dist = runView(r).dist || 0;
+    if (d >= monday) { t.week.n++; t.week.d += dist; }
+    if (d >= monthStart) { t.month.n++; t.month.d += dist; }
+  });
+  return t;
+}
+
+function RunList(props) {
+  const [kind, setKind] = useState("all");
+  const [q, setQ] = useState("");
+  const [year, setYear] = useState(null);
+
+  useEffect(function () {
+    let alive = true;
+    api("/stats?period=year&kind=all").then(function (d) {
+      if (!alive) return;
+      const y = String(new Date().getFullYear());
+      const b = (d.buckets || []).find(function (x) { return x.bucket === y; });
+      setYear(b || { runs: 0, distance_m: 0 });
+    }).catch(function () {});
+    return function () { alive = false; };
+  }, [props.runs.length]);
+
+  const totals = periodTotals(props.runs);
+  const word = q.trim().toLowerCase();
+  const list = props.runs.filter(function (r) {
+    const indoor = isIndoor(r.type_key, props.indoorTypes);
+    if (kind === "indoor" && !indoor) return false;
+    if (kind === "outdoor" && indoor) return false;
+    return !word || String(r.activity_name || "").toLowerCase().indexOf(word) >= 0;
+  });
+  // 按月分组，组头带小计
+  const groups = [];
+  list.forEach(function (r) {
+    const m = String(r.start_time || "").slice(0, 7);
+    let g = groups[groups.length - 1];
+    if (!g || g.month !== m) { g = { month: m, runs: [], dist: 0 }; groups.push(g); }
+    g.runs.push(r);
+    g.dist += runView(r).dist || 0;
+  });
+
+  return h("div", { className: "gc-list" },
+    h("div", { className: "gc-stats gc-stats-3" },
+      [["本周", totals.week.n, totals.week.d], ["本月", totals.month.n, totals.month.d],
+       ["今年", year ? year.runs : null, year ? year.distance_m : null]].map(function (c) {
+        return h("div", { className: "gc-stat", key: c[0] },
+          h("span", { className: "gc-stat-label" }, c[0] + (c[1] != null ? " · " + c[1] + " 次" : "")),
+          h("span", { className: "gc-stat-value" }, c[2] != null ? fmtDistance(c[2]) : "-"));
+      })),
+    h("div", { className: "gc-controls" },
+      h(Seg, { label: "类型", value: kind, onChange: setKind, options: [["all", "全部"], ["outdoor", "室外"], ["indoor", "室内"]] }),
+      h("input", { className: "gc-search", type: "search", placeholder: "按名称搜索", value: q, "aria-label": "按名称搜索",
+        onChange: function (e) { setQ(e.target.value); } }),
+      h("span", { className: "pmw-plugin-hint" }, list.length + " 次" + (props.runs.length >= 200 ? "（列表显示最近 200 次）" : ""))),
+    list.length && isNarrow()
+      ? h("div", { className: "gc-cards" }, groups.map(function (g) {
+          return h("section", { key: g.month },
+            h("div", { className: "gc-month-head" }, h("strong", null, g.month.replace("-", " 年 ") + " 月"),
+              h("span", null, g.runs.length + " 次 · " + fmtDistance(g.dist))),
+            g.runs.map(function (r) {
+              const v = runView(r);
+              const d = parseLocal(r.start_time);
+              return h("button", { key: runKey(r), type: "button", className: "gc-card-row", onClick: function () { props.onOpen(r); } },
+                h("span", { className: "gc-card-l" },
+                  h("span", { className: "gc-card-name" }, r.activity_name || "-"),
+                  h("small", null, String(r.start_time || "").slice(5, 10) + (d ? " " + WEEKDAYS[d.getDay()] : "") + " · " + typeName(r.type_key))),
+                h("span", { className: "gc-card-r" },
+                  h("strong", null, fmtDistance(v.dist), v.corrected ? h("span", { className: "gc-mark" }, " 校") : null),
+                  h("small", null, fmtPace(v.pace) + (r.avg_hr ? " · " + Math.round(r.avg_hr) + " bpm" : ""))));
+            }));
+        }))
+      : list.length
+      ? h("div", { className: "gc-scroll" }, h("table", { className: "gc-table gc-runs" },
+          h("thead", null, h("tr", null,
+            h("th", null, "日期"), h("th", null, "名称"), h("th", null, "类型"), h("th", { className: "num" }, "距离"),
+            h("th", { className: "num" }, "时长"), h("th", { className: "num" }, "配速"), h("th", { className: "num" }, "均心率"))),
+          groups.map(function (g) {
+            return h("tbody", { key: g.month },
+              h("tr", { className: "gc-month" },
+                h("td", { colSpan: 7 },
+                  h("strong", null, g.month.replace("-", " 年 ") + " 月"),
+                  h("span", null, g.runs.length + " 次 · " + fmtDistance(g.dist)))),
+              g.runs.map(function (r) {
+                const v = runView(r);
+                const d = parseLocal(r.start_time);
+                return h("tr", {
+                  key: runKey(r), className: "gc-row", tabIndex: 0, role: "button",
+                  onClick: function () { props.onOpen(r); },
+                  onKeyDown: function (e) { if (e.key === "Enter") props.onOpen(r); },
+                },
+                  h("td", { className: "gc-date" }, d
+                    ? h("span", null, String(r.start_time).slice(5, 10), h("small", null, " " + WEEKDAYS[d.getDay()] + " " + String(r.start_time).slice(11, 16)))
+                    : "-"),
+                  h("td", { className: "gc-name" }, r.activity_name || "-"),
+                  h("td", null, h("span", { className: "gc-tag" + (isIndoor(r.type_key, props.indoorTypes) ? " gc-tag-in" : "") }, typeName(r.type_key))),
+                  h("td", { className: "num" }, h("strong", null, fmtDistance(v.dist)),
+                    v.corrected ? h("span", { className: "gc-mark", title: "已按跑步机速度校正" }, " 校") : null),
+                  h("td", { className: "num" }, fmtDuration(r.duration_s)),
+                  h("td", { className: "num" }, fmtPace(v.pace)),
+                  h("td", { className: "num" }, r.avg_hr ? String(Math.round(r.avg_hr)) : "-"));
+              }));
+          })))
+      : h("p", { className: "pmw-plugin-hint" }, props.runs.length ? "没有符合条件的跑步" : ""));
 }
 
 // ---------------------------------------------------------------------------
@@ -787,6 +889,7 @@ function RunDetail(props) {
   const [allSpeed, setAllSpeed] = useState("");
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [tab, setTab] = useState("overview");
 
   async function load(refresh) {
     setBusy(true);
@@ -890,51 +993,74 @@ function RunDetail(props) {
     detail.favorite ? "已收藏" : "",
   ].filter(Boolean).join(" · ") : shortTime(props.start);
 
+  const tabs = [["overview", "概览"], ["charts", "图表"], ["laps", "分段"], ["data", "详细数据"]];
+  const narrow = isNarrow();
+  const fetched = detail && detail.fetched_at
+    ? h("p", { className: "pmw-plugin-hint" }, "数据取自 Garmin：" + shortTime(detail.fetched_at) +
+        (detail.missing && detail.missing.length ? "；这次活动没有：" + detail.missing.map(missingName).join("、") : ""))
+    : null;
+  const correctionNote = corrected
+    ? h("div", { className: "gc-note gc-note-row" },
+        h("span", null, "已按跑步机速度校正：距离 " + fmtDistance(s.distance) + "（Garmin 原始 " + fmtDistance(s._origDistance) + "），配速随之重算。这只改本地，Garmin 上还是原始数据。"),
+        h("button", { className: "pmw-plugin-button", type: "button", onClick: presetCorrection,
+          title: "Garmin 不允许改距离；可以把校正结果写进描述，并把类型改成跑步机" }, "写入 Garmin 描述"))
+    : null;
+
+  let body = null;
+  if (detail && tab === "overview") {
+    // 先图（路线），后数据（关键指标、天气、描述）
+    body = h("div", { className: "gc-tab-body" },
+      detail.track && detail.track.length > 1
+        ? h(RouteMap, { track: detail.track, source: resp.map_source || "amap" })
+        : h("p", { className: "gc-note" }, indoor ? "室内跑步没有路线。" : "这次活动没有 GPS 轨迹。"),
+      correctionNote,
+      h("div", { className: "gc-stats" },
+        cards.map(function (c) {
+          return h("div", { className: "gc-stat", key: c[0] },
+            h("span", { className: "gc-stat-label" }, c[0]),
+            h("span", { className: "gc-stat-value" }, c[1]));
+        })),
+      detail.weather ? h(WeatherCard, { w: detail.weather }) : null,
+      detail.description ? h("section", null, h("h3", { className: "gc-sub" }, "描述"), h("p", { className: "gc-desc" }, detail.description)) : null,
+      fetched);
+  } else if (detail && tab === "charts") {
+    body = h("div", { className: "gc-tab-body" },
+      h(ChartsTab, { key: detail.activity_id, series: detail.series, indoor: indoor || corrected, zones: detail.hr_zones || [] }));
+  } else if (detail && tab === "laps") {
+    body = h("div", { className: "gc-tab-body" },
+      h(LapBars, { laps: laps, lapViews: lapViews }),
+      correctionNote,
+      h(LapsSection, {
+        laps: laps, lapViews: lapViews, indoor: indoor, edit: edit, saving: saving, corrected: corrected,
+        allSpeed: allSpeed, setAllSpeed: setAllSpeed, applyAll: applyAll,
+        setEdit: setEdit, startEdit: startEdit, submitEdit: submitEdit,
+        clear: function () { saveSpeeds({ clear: true }); },
+      }));
+  } else if (detail && tab === "data") {
+    body = h("div", { className: "gc-tab-body" }, h(DataGroups, { summary: s, raw: detail.summary || {} }), fetched);
+  }
+
   return h("div", { className: "pmw-plugin pmw-plugin-module gc-detail" },
     h(TitleBar, {
       parent: PLUGIN_NAME,
       title: (detail && detail.name) || props.title || "跑步详情",
       desc: metaBits,
       actions: [
-        { label: "返回列表", onClick: props.onBack },
+        { label: narrow ? "返回" : "返回列表", onClick: props.onBack },
         detail ? { label: "编辑", disabled: Boolean(editing), onClick: function () { setEditing({}); } } : null,
-        { label: busy ? "读取中…" : "从 Garmin 重新拉取", disabled: busy, onClick: function () { load(true); } },
+        { label: busy ? "读取中…" : (narrow ? "重新拉取" : "从 Garmin 重新拉取"), disabled: busy, onClick: function () { load(true); } },
       ],
     }),
     hint ? h("p", { className: "pmw-plugin-hint", role: "status" }, hint) : null,
     editing && detail ? h(EditPanel, { key: JSON.stringify(editing), detail: detail, preset: editing, onSaved: onSaved, onCancel: function () { setEditing(null); } }) : null,
-    detail && detail.description && !editing ? h("p", { className: "gc-desc" }, detail.description) : null,
-    corrected
-      ? h("div", { className: "gc-note gc-note-row" },
-          h("span", null, "已按跑步机速度校正：距离 " + fmtDistance(s.distance) + "（Garmin 原始 " + fmtDistance(s._origDistance) + "），配速随之重算。这只改本地，Garmin 上还是原始数据。"),
-          h("button", { className: "pmw-plugin-button", type: "button", onClick: presetCorrection,
-            title: "Garmin 不允许改距离；可以把校正结果写进描述，并把类型改成跑步机" }, "写入 Garmin 描述"))
-      : null,
-    detail ? h("div", { className: "gc-stats" },
-      cards.map(function (c) {
-        return h("div", { className: "gc-stat", key: c[0] },
-          h("span", { className: "gc-stat-label" }, c[0]),
-          h("span", { className: "gc-stat-value" }, c[1]));
+    detail ? h("div", { className: "gc-tabs", role: "tablist", "aria-label": "详情分组" },
+      tabs.map(function (t) {
+        return h("button", {
+          key: t[0], type: "button", role: "tab", "aria-selected": tab === t[0],
+          className: "gc-tab" + (tab === t[0] ? " on" : ""), onClick: function () { setTab(t[0]); },
+        }, t[1]);
       })) : null,
-    detail && detail.weather ? h(WeatherCard, { w: detail.weather }) : null,
-    detail && detail.track && detail.track.length > 1
-      ? h("section", null,
-          h("h3", { className: "gc-sub" }, "路线"),
-          h(RouteMap, { track: detail.track, source: resp.map_source || "amap" }))
-      : null,
-    detail && detail.series ? h(SeriesCharts, { series: detail.series, indoor: indoor || corrected }) : null,
-    detail ? h(LapsSection, {
-      laps: laps, lapViews: lapViews, indoor: indoor, edit: edit, saving: saving, corrected: corrected,
-      allSpeed: allSpeed, setAllSpeed: setAllSpeed, applyAll: applyAll,
-      setEdit: setEdit, startEdit: startEdit, submitEdit: submitEdit,
-      clear: function () { saveSpeeds({ clear: true }); },
-    }) : null,
-    detail ? h(ZonesSection, { zones: detail.hr_zones || [] }) : null,
-    detail ? h(DataGroups, { summary: s, raw: (detail && detail.summary) || {} }) : null,
-    detail && detail.fetched_at
-      ? h("p", { className: "pmw-plugin-hint" }, "数据取自 Garmin：" + shortTime(detail.fetched_at) +
-          (detail.missing && detail.missing.length ? "；这次活动没有：" + detail.missing.map(missingName).join("、") : ""))
-      : null);
+    body);
 }
 
 function missingName(k) {
@@ -1069,73 +1195,396 @@ function WeatherCard(props) {
 }
 
 // ---------------------------------------------------------------------------
-// 曲线：心率、配速、海拔、步频、功率…（横轴距离；室内或校正过时用时间，手表估的距离不准）
+// 曲线：可选指标、分开 / 叠加、横轴距离 / 时间、去毛刺、暂停与停下标记、同步悬停读数
 // ---------------------------------------------------------------------------
 
-const SERIES_DEFS = [
-  { key: "directHeartRate", label: "心率", unit: "bpm", fmt: function (v) { return num(v); } },
-  { key: "directSpeed", label: "配速", unit: "/km", pace: true, fmt: function (v) { return paceFromSpeed(v).replace("/km", ""); } },
-  { key: "directElevation", label: "海拔", unit: "m", fmt: function (v) { return num(v); } },
-  { key: "directDoubleCadence", label: "步频", unit: "步/分", fmt: function (v) { return num(v); } },
-  { key: "directRunCadence", label: "步频（单脚）", unit: "步/分", skipIf: "directDoubleCadence", fmt: function (v) { return num(v); } },
-  { key: "directPower", label: "功率", unit: "W", fmt: function (v) { return num(v); } },
-  { key: "directGroundContactTime", label: "触地时间", unit: "ms", fmt: function (v) { return num(v); } },
-  { key: "directVerticalOscillation", label: "垂直振幅", unit: "cm", fmt: function (v) { return num(v, 1); } },
+/**
+ * 指标定义。src 是 Garmin 逐点字段；lo/hi 是合理范围（超出算毛刺）；minDev 是判定毛刺的最小偏差（避免平稳数据被误判）；
+ * moving 表示人停下时这个指标没意义（停下的点画成断开）。
+ */
+const METRIC_DEFS = [
+  { key: "pace", src: "directSpeed", label: "配速", unit: "/km", color: "#2563eb", pace: true, minDev: 0.35 },
+  { key: "hr", src: "directHeartRate", label: "心率", unit: "bpm", color: "#dc2626", lo: 35, hi: 230, minDev: 8 },
+  { key: "ele", src: "directElevation", label: "海拔", unit: "m", color: "#059669", lo: -500, hi: 9000, minDev: 4 },
+  { key: "cad", src: "directDoubleCadence", alt: "directRunCadence", label: "步频", unit: "步/分", color: "#7c3aed", lo: 100, hi: 260, minDev: 8, moving: true },
+  { key: "pow", src: "directPower", label: "功率", unit: "W", color: "#ea580c", lo: 1, hi: 1500, minDev: 40, moving: true },
+  { key: "gct", src: "directGroundContactTime", label: "触地时间", unit: "ms", color: "#0891b2", lo: 100, hi: 500, minDev: 25, moving: true },
+  { key: "vo", src: "directVerticalOscillation", label: "垂直振幅", unit: "cm", color: "#db2777", lo: 2, hi: 20, minDev: 1, moving: true, digits: 1 },
+  { key: "stride", src: "directStrideLength", label: "步幅", unit: "m", color: "#65a30d", lo: 0.3, hi: 2.5, minDev: 0.12, moving: true, scale: 0.01, digits: 2 },
 ];
 
-function SeriesCharts(props) {
-  const s = props.series || {};
-  const useTime = props.indoor || !s.sumDistance;
-  const xs = useTime ? (s.sumDuration || s.sumElapsedDuration) : s.sumDistance;
-  if (!xs) return null;
-  const defs = SERIES_DEFS.filter(function (d) {
-    return s[d.key] && !(d.skipIf && s[d.skipIf]) && s[d.key].some(function (v) { return typeof v === "number" && v > 0; });
-  });
-  if (!defs.length) return null;
-  return h("section", null,
-    h("h3", { className: "gc-sub" }, "曲线（横轴：" + (useTime ? "时间" : "距离") + "）"),
-    h("div", { className: "gc-charts" }, defs.map(function (d) {
-      return h(LineChart, { key: d.key, def: d, xs: xs, ys: s[d.key], useTime: useTime });
-    })));
+const STOP_SPEED = 0.6; // m/s，低于这个算停下（约 28'/km）
+const PREF_KEY = "gc-chart-prefs";
+
+function loadPrefs() {
+  try { return JSON.parse(window.localStorage.getItem(PREF_KEY) || "{}") || {}; } catch (e) { return {}; }
+}
+function savePrefs(p) {
+  try { window.localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) { /* 存不了就算了 */ }
 }
 
-function LineChart(props) {
-  const d = props.def;
-  const W = 360, H = 120, padL = 40, padB = 18, padT = 8;
-  const pts = [];
-  props.xs.forEach(function (x, i) {
-    const y = props.ys[i];
-    // 配速曲线去掉近乎停住的点（< 0.5 m/s），不然尺度被拉爆
-    if (typeof x === "number" && typeof y === "number" && y > 0 && (!d.pace || y >= 0.5)) pts.push([x, d.pace ? 1000 / y : y]);
+function median(a) {
+  if (!a.length) return NaN;
+  const b = a.slice().sort(function (x, y) { return x - y; });
+  const m = b.length >> 1;
+  return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+}
+
+function isNum(v) { return typeof v === "number" && isFinite(v); }
+
+/** 邻近有效值的中位数（不含自己） */
+function localMedian(vals, i, win) {
+  const w = [];
+  for (let j = Math.max(0, i - win); j <= Math.min(vals.length - 1, i + win); j++) {
+    if (j !== i && isNum(vals[j])) w.push(vals[j]);
+  }
+  return w.length >= 3 ? median(w) : NaN;
+}
+
+/**
+ * 去毛刺：1) 超出合理范围的点；2) Hampel：和邻近中位数偏差超过 3 倍 MAD 且超过 minDev 的点。都用邻近中位数替换。
+ * 返回 { vals, fixed }。
+ */
+function despike(raw, lo, hi, minDev) {
+  const vals = raw.slice();
+  let fixed = 0;
+  const win = 5;
+  for (let i = 0; i < vals.length; i++) {
+    const v = vals[i];
+    if (!isNum(v)) continue;
+    const out = (isNum(lo) && v < lo) || (isNum(hi) && v > hi);
+    const med = localMedian(raw, i, win);
+    let spike = out;
+    if (!spike && isNum(med)) {
+      const w = [];
+      for (let j = Math.max(0, i - win); j <= Math.min(raw.length - 1, i + win); j++) if (isNum(raw[j])) w.push(Math.abs(raw[j] - med));
+      const mad = median(w) * 1.4826;
+      const dev = Math.abs(v - med);
+      spike = dev > Math.max(3 * mad, minDev || 0);
+    }
+    if (spike) {
+      vals[i] = isNum(med) && !(isNum(lo) && med < lo) && !(isNum(hi) && med > hi) ? med : null;
+      fixed++;
+    }
+  }
+  return { vals: vals, fixed: fixed };
+}
+
+/** 暂停（计时停了：总耗时涨、计时不涨）和停下（计时在走、速度近零 ≥ 10 秒） */
+function findBreaks(series, n) {
+  const E = series.sumElapsedDuration, T = series.sumDuration, V = series.directSpeed;
+  const pauses = [], stops = [];
+  if (E && T) {
+    for (let i = 1; i < n; i++) {
+      if (!isNum(E[i]) || !isNum(E[i - 1]) || !isNum(T[i]) || !isNum(T[i - 1])) continue;
+      const gap = (E[i] - E[i - 1]) - (T[i] - T[i - 1]);
+      if (gap > 3) {
+        const last = pauses[pauses.length - 1];
+        if (last && last.i1 === i - 1) { last.i1 = i; last.dur += gap; } else pauses.push({ i0: i - 1, i1: i, dur: gap });
+      }
+    }
+  }
+  const clock = T || E;
+  if (V && clock) {
+    let s = -1;
+    for (let i = 0; i <= n; i++) {
+      const stopped = i < n && isNum(V[i]) && V[i] < STOP_SPEED;
+      if (stopped && s < 0) s = i;
+      if (!stopped && s >= 0) {
+        const e = i - 1;
+        const dur = (clock[Math.min(n - 1, e + 1)] || 0) - (clock[Math.max(0, s - 1)] || 0);
+        // 开头结尾的零速是开表、停表前后，不算
+        if (dur >= 10 && s > 0 && e < n - 1) stops.push({ i0: Math.max(0, s - 1), i1: Math.min(n - 1, e + 1), dur: dur });
+        s = -1;
+      }
+    }
+  }
+  return { pauses: pauses, stops: stops };
+}
+
+/** 准备图表数据：横轴、各指标（去毛刺后、显示单位）、暂停与停下 */
+function prepareChart(series, opts) {
+  const xRaw = opts.axis === "time" ? (series.sumElapsedDuration || series.sumDuration) : series.sumDistance;
+  if (!xRaw) return null;
+  const n = xRaw.length;
+  const speedRaw = series.directSpeed || null;
+  const moving = function (i) { return !speedRaw || !isNum(speedRaw[i]) || speedRaw[i] >= STOP_SPEED; };
+  const metrics = [];
+  METRIC_DEFS.forEach(function (d) {
+    let src = series[d.src];
+    let factor = d.scale || 1;
+    if (!src && d.alt && series[d.alt]) {
+      src = series[d.alt];
+      const med = median(src.filter(isNum));
+      if (d.key === "cad" && med < 120) factor = 2; // 单脚步频换成双脚
+    }
+    if (!src || !src.some(function (v) { return isNum(v) && v > 0; })) return;
+    let raw = src.map(function (v, i) {
+      if (!isNum(v)) return null;
+      if (d.pace) return v >= STOP_SPEED ? v : null; // 停下的点不画配速
+      if (d.moving && !moving(i)) return null;
+      return v * factor;
+    });
+    let fixed = 0;
+    if (opts.clean) {
+      let lo = d.lo, hi = d.hi;
+      if (d.pace) {
+        // 配速按速度处理：最快不超过 opts.fast（秒/公里），最慢不慢于 opts.slow
+        hi = 1000 / (opts.fast || 150);
+        lo = opts.slow ? 1000 / opts.slow : STOP_SPEED;
+      }
+      const r = despike(raw, lo, hi, d.minDev);
+      raw = r.vals;
+      fixed = r.fixed;
+    }
+    const vals = d.pace ? raw.map(function (v) { return isNum(v) && v > 0 ? 1000 / v : null; }) : raw;
+    metrics.push({ def: d, vals: vals, fixed: fixed });
   });
-  if (pts.length < 2) return null;
-  const xmin = pts[0][0], xmax = pts[pts.length - 1][0] || 1;
-  const yvals = pts.map(function (p) { return p[1]; }).sort(function (a, b) { return a - b; });
-  // 用 2%～98% 分位做纵轴，去掉尖刺
-  const ylo = yvals[Math.floor(yvals.length * 0.02)], yhi = yvals[Math.ceil(yvals.length * 0.98) - 1];
-  const span = (yhi - ylo) || 1;
-  const sx = function (x) { return padL + ((x - xmin) / ((xmax - xmin) || 1)) * (W - padL - 4); };
-  // 配速：越快越高（值小在上）
-  const sy = function (y) {
-    const t = Math.min(1, Math.max(0, (y - ylo) / span));
-    return d.pace ? padT + t * (H - padT - padB) : H - padB - t * (H - padT - padB);
+  const br = findBreaks(series, n);
+  return { x: xRaw, n: n, axis: opts.axis, metrics: metrics, pauses: br.pauses, stops: br.stops };
+}
+
+function fmtMetric(d, v) {
+  if (!isNum(v)) return "-";
+  if (d.pace) return fmtPace(v).replace("/km", "");
+  return num(v, d.digits);
+}
+
+function xText(axis, v) {
+  if (!isNum(v)) return "-";
+  return axis === "time" ? fmtDuration(v) : (v / 1000).toFixed(2) + " km";
+}
+
+/** 纵轴范围：1%～99% 分位，上下留 6% */
+function yRange(vals) {
+  const a = vals.filter(isNum).sort(function (x, y) { return x - y; });
+  if (!a.length) return [0, 1];
+  let lo = a[Math.floor(a.length * 0.01)], hi = a[Math.min(a.length - 1, Math.ceil(a.length * 0.99) - 1)];
+  if (hi - lo < 1e-6) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.06;
+  return [lo - pad, hi + pad];
+}
+
+function pathFor(prep, vals, sx, sy) {
+  let d = "", pen = false;
+  for (let i = 0; i < prep.n; i++) {
+    const x = prep.x[i], v = vals[i];
+    if (!isNum(x) || !isNum(v)) { pen = false; continue; }
+    d += (pen ? "L" : "M") + sx(x).toFixed(1) + "," + sy(v).toFixed(1);
+    pen = true;
+  }
+  return d;
+}
+
+/** 一张图：metrics 里一个（分开）或多个（叠加，各自归一化） */
+function ChartSvg(props) {
+  const prep = props.prep, ms = props.metrics;
+  const W = isNarrow() ? 380 : 760, H = props.narrowHeight && isNarrow() ? props.narrowHeight : props.height;
+  const padL = props.overlay ? 10 : 46, padR = 10, padT = 10, padB = 22;
+  const xs = prep.x.filter(isNum);
+  const xmin = xs[0], xmax = xs[xs.length - 1] || 1;
+  const sx = function (x) { return padL + ((x - xmin) / ((xmax - xmin) || 1)) * (W - padL - padR); };
+  const scales = ms.map(function (m) {
+    const r = yRange(m.vals);
+    // 配速越快（数值小）越靠上
+    return function (v) {
+      const t = (v - r[0]) / (r[1] - r[0]);
+      return m.def.pace ? padT + t * (H - padT - padB) : H - padB - t * (H - padT - padB);
+    };
+  });
+  const ranges = ms.map(function (m) { return yRange(m.vals); });
+  const ref = useRef(null);
+  // 纵轴按 1%～99% 分位定范围，极端值（如补给站慢走）会超出：线裁在绘图区内
+  const clipRef = useRef("gc-clip-" + Math.random().toString(36).slice(2, 9));
+  const clipId = clipRef.current;
+
+  function onMove(e) {
+    const el = ref.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    const fx = ((e.clientX - box.left) / box.width) * W;
+    const xv = xmin + ((fx - padL) / (W - padL - padR)) * (xmax - xmin);
+    // x 单调递增，二分找最近点
+    let lo = 0, hi = prep.n - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (!isNum(prep.x[mid]) || prep.x[mid] < xv) lo = mid; else hi = mid;
+    }
+    props.setHover(Math.abs((prep.x[hi] || 0) - xv) < Math.abs((prep.x[lo] || 0) - xv) ? hi : lo);
+  }
+
+  const hv = props.hover;
+  const band = function (b, cls) {
+    const x0 = sx(prep.x[b.i0]), x1 = sx(prep.x[b.i1]);
+    const w = Math.max(2, x1 - x0);
+    return h("rect", { key: cls + b.i0, x: x1 - x0 < 2 ? x0 - 1 : x0, y: padT, width: w, height: H - padT - padB, className: cls },
+      h("title", null, (cls === "gc-pause" ? "暂停 " : "停下 ") + fmtDuration(b.dur)));
   };
-  const avg = pts.reduce(function (a, p) { return a + p[1]; }, 0) / pts.length;
-  const show = function (v) { return d.pace ? fmtPace(v).replace("/km", "") : d.fmt(v); };
-  const xlabel = function (x) { return props.useTime ? fmtDuration(x) : (x / 1000).toFixed(1) + " km"; };
-  return h("figure", { className: "gc-chart gc-line" },
-    h("figcaption", null, h("strong", null, d.label), " 平均 " + show(avg) + " " + (d.pace ? "/km" : d.unit)),
-    h("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": d.label + "曲线" },
-      h("line", { x1: padL, x2: W - 4, y1: sy(d.pace ? ylo : yhi), y2: sy(d.pace ? ylo : yhi), className: "gc-grid" }),
-      h("line", { x1: padL, x2: W - 4, y1: sy(d.pace ? yhi : ylo), y2: sy(d.pace ? yhi : ylo), className: "gc-grid" }),
-      h("text", { x: padL - 4, y: sy(d.pace ? ylo : yhi) + 4, className: "gc-axis", textAnchor: "end" }, show(d.pace ? ylo : yhi)),
-      h("text", { x: padL - 4, y: sy(d.pace ? yhi : ylo) + 4, className: "gc-axis", textAnchor: "end" }, show(d.pace ? yhi : ylo)),
-      h("polyline", {
-        className: "gc-linepath", fill: "none",
-        points: pts.map(function (p) { return sx(p[0]).toFixed(1) + "," + sy(p[1]).toFixed(1); }).join(" "),
-      }),
-      h("text", { x: padL, y: H - 4, className: "gc-axis" }, xlabel(xmin)),
-      h("text", { x: W - 4, y: H - 4, className: "gc-axis", textAnchor: "end" }, xlabel(xmax))));
+  return h("svg", {
+    ref: ref, viewBox: "0 0 " + W + " " + H, className: "gc-chart-svg", role: "img",
+    "aria-label": ms.map(function (m) { return m.def.label; }).join("、") + "曲线",
+    onMouseMove: onMove, onMouseLeave: function () { props.setHover(null); },
+    onTouchStart: function (e) { if (e.touches[0]) onMove(e.touches[0]); },
+    onTouchMove: function (e) { if (e.touches[0]) onMove(e.touches[0]); },
+  },
+    h("defs", null, h("clipPath", { id: clipId }, h("rect", { x: padL, y: padT - 2, width: W - padL - padR, height: H - padT - padB + 4 }))),
+    prep.pauses.map(function (b) { return band(b, "gc-pause"); }),
+    prep.stops.map(function (b) { return band(b, "gc-stop"); }),
+    h("line", { x1: padL, x2: W - padR, y1: H - padB, y2: H - padB, className: "gc-grid" }),
+    !props.overlay ? [0, 1].map(function (k) {
+      const v = ranges[0][k];
+      return h("text", { key: "y" + k, x: padL - 6, y: scales[0](v) + 4, className: "gc-axis", textAnchor: "end" }, fmtMetric(ms[0].def, v));
+    }) : null,
+    h("g", { clipPath: "url(#" + clipId + ")" }, ms.map(function (m, j) {
+      return h("path", { key: m.def.key, d: pathFor(prep, m.vals, sx, scales[j]), fill: "none", stroke: m.def.color, strokeWidth: 1.6, strokeLinejoin: "round" });
+    })),
+    hv != null && isNum(prep.x[hv]) ? h("g", null,
+      h("line", { x1: sx(prep.x[hv]), x2: sx(prep.x[hv]), y1: padT, y2: H - padB, className: "gc-cross" }),
+      ms.map(function (m, j) {
+        const v = m.vals[hv];
+        return isNum(v) ? h("circle", { key: m.def.key, cx: sx(prep.x[hv]), cy: scales[j](v), r: 3.5, fill: m.def.color, stroke: "#fff", strokeWidth: 1.5 }) : null;
+      })) : null,
+    h("text", { x: padL, y: H - 6, className: "gc-axis" }, xText(prep.axis, xmin)),
+    h("text", { x: (padL + W - padR) / 2, y: H - 6, className: "gc-axis", textAnchor: "middle" }, xText(prep.axis, (xmin + xmax) / 2)),
+    h("text", { x: W - padR, y: H - 6, className: "gc-axis", textAnchor: "end" }, xText(prep.axis, xmax)));
+}
+
+function ChartsTab(props) {
+  const series = props.series || {};
+  const hasDist = Boolean(series.sumDistance);
+  const prefs0 = loadPrefs();
+  const [sel, setSel] = useState(prefs0.sel || ["pace", "hr", "ele"]);
+  const [mode, setMode] = useState(prefs0.mode || "split");
+  const [axis, setAxis] = useState(props.indoor || !hasDist ? "time" : (prefs0.axis || "distance"));
+  const [clean, setClean] = useState(prefs0.clean !== false);
+  const [fast, setFast] = useState(prefs0.fast || "");
+  const [slow, setSlow] = useState(prefs0.slow || "");
+  const [hover, setHover] = useState(null);
+
+  useEffect(function () {
+    savePrefs({ sel: sel, mode: mode, axis: props.indoor ? prefs0.axis : axis, clean: clean, fast: fast, slow: slow });
+  }, [sel, mode, axis, clean, fast, slow]);
+
+  const parsePace = function (t) {
+    const m = /^\s*(\d{1,2})\s*['′:：]?\s*(\d{1,2})?\s*$/.exec(String(t || ""));
+    return m ? (+m[1]) * 60 + (+(m[2] || 0)) : 0;
+  };
+  const prep = prepareChart(series, { axis: axis, clean: clean, fast: parsePace(fast) || 150, slow: parsePace(slow) || 0 });
+  if (!prep || !prep.metrics.length) return h("p", { className: "pmw-plugin-hint" }, "这次活动没有逐点数据，画不了曲线。");
+
+  const avail = prep.metrics.map(function (m) { return m.def.key; });
+  const chosen = prep.metrics.filter(function (m) { return sel.indexOf(m.def.key) >= 0; });
+  const shown = chosen.length ? chosen : prep.metrics.slice(0, 1);
+  const toggle = function (k) {
+    setSel(sel.indexOf(k) >= 0 ? sel.filter(function (x) { return x !== k; }) : sel.concat([k]));
+  };
+  const pauseTotal = prep.pauses.reduce(function (t, b) { return t + b.dur; }, 0);
+  const stopTotal = prep.stops.reduce(function (t, b) { return t + b.dur; }, 0);
+  const fixedTotal = shown.reduce(function (t, m) { return t + m.fixed; }, 0);
+
+  return h("div", { className: "gc-charts-tab" },
+    h("div", { className: "gc-chips", role: "group", "aria-label": "选择指标" },
+      prep.metrics.map(function (m) {
+        const on = sel.indexOf(m.def.key) >= 0;
+        return h("button", {
+          key: m.def.key, type: "button", className: "gc-chip" + (on ? " on" : ""), "aria-pressed": on,
+          style: on ? { borderColor: m.def.color, color: m.def.color } : null,
+          onClick: function () { toggle(m.def.key); },
+        }, h("span", { className: "gc-dot", style: { background: m.def.color } }), m.def.label);
+      })),
+    h("div", { className: "gc-controls" },
+      h(Seg, { label: "显示方式", value: mode, onChange: setMode, options: [["split", "分开"], ["overlay", "叠加"]] }),
+      hasDist ? h(Seg, { label: "横轴", value: axis, onChange: setAxis, options: [["distance", "按距离"], ["time", "按时间"]] }) : null,
+      h("label", { className: "pmw-plugin-check gc-inline" },
+        h("input", { type: "checkbox", checked: clean, onChange: function (e) { setClean(e.target.checked); } }), " 去除异常值"),
+      clean && avail.indexOf("pace") >= 0 ? h("span", { className: "gc-inline" },
+        "配速范围",
+        h("input", { className: "gc-speed", placeholder: "最快 2'30", value: fast, "aria-label": "最快配速，如 3'30",
+          onChange: function (e) { setFast(e.target.value); } }),
+        "～",
+        h("input", { className: "gc-speed", placeholder: "最慢 不限", value: slow, "aria-label": "最慢配速，如 9'00",
+          onChange: function (e) { setSlow(e.target.value); } })) : null),
+    // 读数条：悬停时显示这一点各指标的值
+    h("div", { className: "gc-readout", "aria-live": "polite" },
+      hover != null
+        ? [h("strong", { key: "x" }, xText(prep.axis, prep.x[hover]))].concat(shown.map(function (m) {
+            return h("span", { key: m.def.key }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
+              m.def.label + " " + fmtMetric(m.def, m.vals[hover]) + (m.def.pace ? "/km" : " " + m.def.unit));
+          }))
+        : h("span", { className: "pmw-plugin-hint" }, isNarrow() ? "点图上任意位置看那一点的数值" : "把鼠标移到图上看每个点的数值")),
+    mode === "overlay"
+      ? h("div", { className: "gc-chart-box" },
+          h(ChartSvg, { prep: prep, metrics: shown, overlay: true, height: 300, narrowHeight: 240, hover: hover, setHover: setHover }))
+      : shown.map(function (m) {
+          return h("div", { className: "gc-chart-box", key: m.def.key },
+            h("div", { className: "gc-chart-title" }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
+              m.def.label, h("small", null, m.def.pace ? "（越靠上越快）" : "（" + m.def.unit + "）")),
+            h(ChartSvg, { prep: prep, metrics: [m], overlay: false, height: 140, narrowHeight: 150, hover: hover, setHover: setHover }));
+        }),
+    h("p", { className: "pmw-plugin-hint gc-legend" },
+      h("span", null, h("i", { className: "gc-swatch gc-pause" }), "暂停 " + prep.pauses.length + " 次" + (pauseTotal ? "，共 " + fmtDuration(pauseTotal) : "")),
+      h("span", null, h("i", { className: "gc-swatch gc-stop" }), "停下（计时未停） " + prep.stops.length + " 次" + (stopTotal ? "，共 " + fmtDuration(stopTotal) : "")),
+      clean ? h("span", null, "已修正异常点 " + fixedTotal + " 个") : h("span", null, "显示原始数据"),
+      prep.axis === "distance" && (prep.pauses.length || prep.stops.length) ? h("span", null, "按距离看时暂停是一条竖线，切到按时间看能看到时长") : null),
+    h(MetricTable, { metrics: shown, clean: clean }),
+    h(ZonesSection, { zones: props.zones || [] }));
+}
+
+/** 各指标的最低 / 平均 / 最高（用去毛刺后的值） */
+function MetricTable(props) {
+  return h("div", { className: "gc-scroll" }, h("table", { className: "gc-table" },
+    h("thead", null, h("tr", null, h("th", null, "指标"), h("th", { className: "num" }, "最小"), h("th", { className: "num" }, "平均"),
+      h("th", { className: "num" }, "最大"), props.clean ? h("th", { className: "num" }, "修正点") : null)),
+    h("tbody", null, props.metrics.map(function (m) {
+      const a = m.vals.filter(isNum);
+      const avg = a.length ? (m.def.pace ? 1000 / (a.reduce(function (t, v) { return t + 1000 / v; }, 0) / a.length) : a.reduce(function (t, v) { return t + v; }, 0) / a.length) : NaN;
+      const lo = a.length ? Math.min.apply(null, a) : NaN, hi = a.length ? Math.max.apply(null, a) : NaN;
+      const u = m.def.pace ? "/km" : " " + m.def.unit;
+      return h("tr", { key: m.def.key },
+        h("td", null, h("span", { className: "gc-dot", style: { background: m.def.color } }), m.def.label),
+        // 配速的数值是秒/公里，最小即最快
+        h("td", { className: "num" }, fmtMetric(m.def, lo) + u + (m.def.pace ? "（最快）" : "")),
+        h("td", { className: "num" }, fmtMetric(m.def, avg) + u),
+        h("td", { className: "num" }, fmtMetric(m.def, hi) + u + (m.def.pace ? "（最慢）" : "")),
+        props.clean ? h("td", { className: "num" }, String(m.fixed)) : null);
+    }))));
+}
+
+/** 分段配速柱状图：宽度按用时、高度按速度（越高越快），颜色按 Garmin 的分段类型 */
+function LapBars(props) {
+  const views = props.lapViews, laps = props.laps;
+  if (!views.length) return null;
+  const W = 760, H = 170, padL = 8, padR = 8, padT = 16, padB = 22;
+  const total = views.reduce(function (t, v) { return t + (v.dur || 0); }, 0) || 1;
+  const speeds = views.map(function (v) { return v.pace > 0 ? 1000 / v.pace : 0; });
+  const max = Math.max.apply(null, speeds) || 1;
+  const min = Math.min.apply(null, speeds.filter(function (v) { return v > 0; })) || 0;
+  const base = Math.max(0, min - (max - min) * 0.6);
+  let x = padL;
+  return h("figure", { className: "gc-chart-box" },
+    h("div", { className: "gc-chart-title" }, "每段配速", h("small", null, "（宽度按用时，越高越快）")),
+    h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-chart-svg", role: "img", "aria-label": "每段配速" },
+      views.map(function (v, i) {
+        const w = Math.max(3, ((v.dur || 0) / total) * (W - padL - padR) - 2);
+        const hgt = speeds[i] > 0 ? ((speeds[i] - base) / (max - base || 1)) * (H - padT - padB) : 0;
+        const cls = "gc-lapbar gc-int-" + intensityClass(laps[i].intensityType);
+        const g = h("g", { key: i },
+          h("rect", { x: x, y: H - padB - hgt, width: w, height: hgt, rx: 2, className: cls },
+            h("title", null, "第 " + (i + 1) + " 段 · " + intensityLabel(laps[i].intensityType) + " · " + fmtPace(v.pace) + " · " + fmtDistance(v.dist))),
+          w > 34 ? h("text", { x: x + w / 2, y: H - padB - hgt - 4, className: "gc-axis", textAnchor: "middle" }, fmtPace(v.pace).replace("/km", "")) : null,
+          w > 14 ? h("text", { x: x + w / 2, y: H - 6, className: "gc-axis", textAnchor: "middle" }, String(i + 1)) : null);
+        x += w + 2;
+        return g;
+      })),
+    h("p", { className: "pmw-plugin-hint gc-legend" },
+      INTENSITY_ORDER.filter(function (g) { return laps.some(function (l) { return intensityLabel(l.intensityType) === g; }); }).map(function (g) {
+        return h("span", { key: g }, h("i", { className: "gc-swatch gc-lapbar gc-int-" + intensityClassByLabel(g) }), g);
+      })));
+}
+
+function intensityClass(t) { return intensityClassByLabel(intensityLabel(t)); }
+function intensityClassByLabel(l) {
+  return { "热身": "warm", "训练": "work", "恢复": "rec", "休息": "rest", "舒缓": "cool" }[l] || "none";
 }
 
 // ---------------------------------------------------------------------------
@@ -1217,6 +1666,8 @@ function RouteMap(props) {
       const wx = ((tx % n) + n) % n;
       tiles.push(h("img", {
         key: z + "/" + tx + "/" + ty, alt: "", draggable: false, className: "gc-tile",
+        // 取不到的瓦片隐藏，不显示破图标
+        onError: function (e) { e.currentTarget.style.visibility = "hidden"; },
         src: API_BASE + "/tiles/" + src + "/" + z + "/" + wx + "/" + ty,
         style: { left: (tx * 256 - left) + "px", top: (ty * 256 - top) + "px" },
       }));

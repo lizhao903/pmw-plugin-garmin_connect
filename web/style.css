@@ -245,3 +245,84 @@
 [data-pmw-plugin="garmin_connect"] .gc-primary { font-weight: 600; }
 [data-pmw-plugin="garmin_connect"] .gc-desc { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
 [data-pmw-plugin="garmin_connect"] .gc-note-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* 0.5.0：列表、详情 tab、图表（指标切换、叠加、读数、暂停与停下）、分段柱 */
+[data-pmw-plugin="garmin_connect"] .gc-list { display: flex; flex-direction: column; gap: 10px; }
+[data-pmw-plugin="garmin_connect"] .gc-stats-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+[data-pmw-plugin="garmin_connect"] .gc-search {
+  padding: 4px 8px; min-width: 160px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: var(--pmw-radius, 6px);
+  background: var(--pmw-panel, #fff); color: inherit; font: inherit; font-size: 13px;
+}
+[data-pmw-plugin="garmin_connect"] .gc-controls { align-items: center; }
+[data-pmw-plugin="garmin_connect"] .gc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+[data-pmw-plugin="garmin_connect"] .gc-runs td { vertical-align: middle; }
+[data-pmw-plugin="garmin_connect"] .gc-runs .gc-date small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }
+[data-pmw-plugin="garmin_connect"] .gc-runs .gc-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-pmw-plugin="garmin_connect"] .gc-month td {
+  padding-top: 14px; border-bottom: 1px solid var(--pmw-border, #e5e7eb); background: transparent; cursor: default;
+}
+[data-pmw-plugin="garmin_connect"] .gc-month strong { margin-right: 10px; font-size: 13px; }
+[data-pmw-plugin="garmin_connect"] .gc-month span { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }
+[data-pmw-plugin="garmin_connect"] .gc-tag-in { background: #e0e7ff; color: #3730a3; }
+
+[data-pmw-plugin="garmin_connect"] .gc-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--pmw-border, #e5e7eb); overflow-x: auto; }
+[data-pmw-plugin="garmin_connect"] .gc-tab {
+  padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  background: transparent; color: var(--pmw-text-secondary, #6b7280); font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;
+}
+[data-pmw-plugin="garmin_connect"] .gc-tab.on { color: var(--pmw-text, #111); border-bottom-color: var(--pmw-accent, #2563eb); font-weight: 600; }
+[data-pmw-plugin="garmin_connect"] .gc-tab-body { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+
+[data-pmw-plugin="garmin_connect"] .gc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-pmw-plugin="garmin_connect"] .gc-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--pmw-border, #d1d5db);
+  border-radius: 999px; background: var(--pmw-panel, #fff); color: var(--pmw-text-secondary, #6b7280); font: inherit; font-size: 13px; cursor: pointer;
+}
+[data-pmw-plugin="garmin_connect"] .gc-chip.on { font-weight: 600; background: var(--pmw-panel, #fff); }
+[data-pmw-plugin="garmin_connect"] .gc-chip:not(.on) .gc-dot { opacity: 0.35; }
+[data-pmw-plugin="garmin_connect"] .gc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+[data-pmw-plugin="garmin_connect"] .gc-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+[data-pmw-plugin="garmin_connect"] .gc-readout {
+  display: flex; flex-wrap: wrap; gap: 6px 16px; min-height: 30px; align-items: center; padding: 4px 10px;
+  border-radius: var(--pmw-radius, 6px); background: var(--pmw-panel, #f9fafb); font-size: 13px; font-variant-numeric: tabular-nums;
+}
+[data-pmw-plugin="garmin_connect"] .gc-chart-box {
+  margin: 0; padding: 8px 10px 4px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);
+}
+[data-pmw-plugin="garmin_connect"] .gc-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+[data-pmw-plugin="garmin_connect"] .gc-chart-title small { font-weight: 400; color: var(--pmw-text-secondary, #6b7280); margin-left: 4px; }
+[data-pmw-plugin="garmin_connect"] .gc-chart-svg { width: 100%; height: auto; display: block; cursor: crosshair; }
+[data-pmw-plugin="garmin_connect"] .gc-cross { stroke: var(--pmw-text-secondary, #6b7280); stroke-width: 1; stroke-dasharray: 3 3; }
+[data-pmw-plugin="garmin_connect"] .gc-pause { fill: #f59e0b; opacity: 0.22; }
+[data-pmw-plugin="garmin_connect"] .gc-stop { fill: #94a3b8; opacity: 0.28; }
+[data-pmw-plugin="garmin_connect"] .gc-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+[data-pmw-plugin="garmin_connect"] .gc-swatch { display: inline-block; width: 12px; height: 10px; margin-right: 4px; vertical-align: middle; border-radius: 2px; }
+[data-pmw-plugin="garmin_connect"] i.gc-swatch.gc-pause { opacity: 0.6; background: #f59e0b; }
+[data-pmw-plugin="garmin_connect"] i.gc-swatch.gc-stop { opacity: 0.7; background: #94a3b8; }
+
+[data-pmw-plugin="garmin_connect"] .gc-lapbar { fill: #64748b; }
+[data-pmw-plugin="garmin_connect"] .gc-int-warm { fill: #f59e0b; background: #f59e0b; }
+[data-pmw-plugin="garmin_connect"] .gc-int-work { fill: #2563eb; background: #2563eb; }
+[data-pmw-plugin="garmin_connect"] .gc-int-rec { fill: #10b981; background: #10b981; }
+[data-pmw-plugin="garmin_connect"] .gc-int-rest { fill: #94a3b8; background: #94a3b8; }
+[data-pmw-plugin="garmin_connect"] .gc-int-cool { fill: #8b5cf6; background: #8b5cf6; }
+[data-pmw-plugin="garmin_connect"] .gc-int-none { fill: #64748b; background: #64748b; }
+
+@media (max-width: 640px) {
+  [data-pmw-plugin="garmin_connect"] .gc-stats-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  [data-pmw-plugin="garmin_connect"] .gc-stats-3 .gc-stat-value { font-size: 14px; }
+  [data-pmw-plugin="garmin_connect"] .gc-search { min-width: 0; flex: 1 1 120px; }
+}
+
+/* 窄屏卡片列表 */
+[data-pmw-plugin="garmin_connect"] .gc-cards { display: flex; flex-direction: column; gap: 12px; }
+[data-pmw-plugin="garmin_connect"] .gc-month-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 2px; font-size: 13px; }
+[data-pmw-plugin="garmin_connect"] .gc-month-head span { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }
+[data-pmw-plugin="garmin_connect"] .gc-card-row {
+  display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 2px;
+  border: 0; border-bottom: 1px solid var(--pmw-border, #eceef1); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+[data-pmw-plugin="garmin_connect"] .gc-card-l, [data-pmw-plugin="garmin_connect"] .gc-card-r { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+[data-pmw-plugin="garmin_connect"] .gc-card-r { align-items: flex-end; flex: none; }
+[data-pmw-plugin="garmin_connect"] .gc-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+[data-pmw-plugin="garmin_connect"] .gc-card-row small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; font-variant-numeric: tabular-nums; }
