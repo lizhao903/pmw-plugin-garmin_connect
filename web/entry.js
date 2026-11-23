@@ -920,6 +920,7 @@ function RunDetail(props) {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null);
   const [tab, setTab] = useState("overview");
+  const [marking, setMarking] = useState(false);
 
   async function load(refresh) {
     setBusy(true);
@@ -1008,6 +1009,21 @@ function RunDetail(props) {
     setHint("已保存到 Garmin。");
   }
 
+  /** 收录为比赛：名称、日期、类别（按距离猜）、成绩（计时用时）从这次活动带出，影像到「比赛」里补 */
+  async function markRace() {
+    setMarking(true);
+    try {
+      await api("/races", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        name: detail.name || "比赛", date: String(detail.start_local || props.start || "").slice(0, 10),
+        category: guessCategory(s.distance || 0, detail.type_key), status: "finished",
+        official_s: s.duration || 0, activity_id: detail.activity_id,
+      }) });
+      setHint("已收录到侧边栏「比赛」，可以在那里补充成绩证书、奖牌、照片等影像。");
+    } catch (err) {
+      setHint("收录失败：" + errText(err));
+    } finally { setMarking(false); }
+  }
+
   /** 把跑步机校正结果写进 Garmin：类型改成跑步机，描述末尾追加校正后的距离和配速 */
   function presetCorrection() {
     const line = "跑步机校正：" + fmtDistance(s.distance) + "，平均配速 " + fmtPace(s._pace) + "（按跑步机速度逐段校正，Garmin 原始 " + fmtDistance(s._origDistance) + "）";
@@ -1092,6 +1108,7 @@ function RunDetail(props) {
       actions: [
         { label: narrow ? "返回" : "返回列表", onClick: props.onBack },
         detail ? { label: "编辑", disabled: Boolean(editing), onClick: function () { setEditing({}); } } : null,
+        detail && !strength ? { label: "标记为比赛", disabled: marking, onClick: markRace, title: "收录到「比赛」菜单，带出名称、日期、类别和成绩" } : null,
         { label: busy ? "读取中…" : (narrow ? "重新拉取" : "从 Garmin 重新拉取"), disabled: busy, onClick: function () { load(true); } },
       ],
     }),
@@ -2371,6 +2388,372 @@ function CalendarForm(props) {
 }
 
 // ---------------------------------------------------------------------------
+// 比赛（独立菜单）：比赛信息、成绩、关联活动、影像记忆
+// ---------------------------------------------------------------------------
+
+const RACE_CATS = [["full", "全程马拉松"], ["half", "半程马拉松"], ["10k", "10 公里"], ["5k", "5 公里"], ["trail", "越野"], ["other", "其他"]];
+const RACE_STATUS = [["finished", "已完赛"], ["registered", "已报名"], ["dnf", "未完赛"], ["dns", "未参赛"]];
+const MEDIA_KINDS = [
+  ["certificate", "成绩证书"], ["medal", "完赛奖牌"], ["photo", "参赛照片"], ["video", "视频记录"], ["bib", "号码布"],
+  ["shirt", "参赛服"], ["race_pack", "参赛包"], ["finisher_pack", "完赛包"], ["other", "其他"],
+];
+const MEDIA_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/heic,video/mp4,video/quicktime,video/webm,application/pdf";
+
+function labelOf(list, k) { const x = list.find(function (o) { return o[0] === k; }); return x ? x[1] : k; }
+function mediaURL(id) { return API_BASE + "/media/" + encodeURIComponent(id) + "/file"; }
+
+/** 按距离、类型猜比赛类别 */
+function guessCategory(distM, typeKey) {
+  if (String(typeKey || "").indexOf("trail") >= 0) return "trail";
+  if (distM >= 40000) return "full";
+  if (distM >= 20000 && distM <= 22500) return "half";
+  if (distM >= 9500 && distM <= 11000) return "10k";
+  if (distM >= 4800 && distM <= 5600) return "5k";
+  return "other";
+}
+
+/** 成绩输入：时、分、秒三个数字框，值是秒（0 表示没填） */
+function DurationInput(props) {
+  const v = props.value || 0;
+  const [hh, setH] = useState(v ? String(Math.floor(v / 3600)) : "");
+  const [mm, setM] = useState(v ? String(Math.floor((v % 3600) / 60)) : "");
+  const [ss, setS] = useState(v ? String(Math.round(v % 60)) : "");
+  const push = function (a, b, c) {
+    const t = (parseInt(a, 10) || 0) * 3600 + Math.min(59, parseInt(b, 10) || 0) * 60 + Math.min(59, parseInt(c, 10) || 0);
+    props.onChange(t);
+  };
+  const box = function (val, set, label, max, idx) {
+    return [h("input", { key: "i" + idx, type: "number", min: "0", max: String(max), inputMode: "numeric", value: val, "aria-label": "成绩的" + label,
+      onChange: function (e) { set(e.target.value); const vals = [hh, mm, ss]; vals[idx] = e.target.value; push(vals[0], vals[1], vals[2]); } }),
+      h("small", { key: "l" + idx }, label)];
+  };
+  return h("span", { className: "gc-pace-input" }, box(hh, setH, "时", 99, 0), box(mm, setM, "分", 59, 1), box(ss, setS, "秒", 59, 2));
+}
+
+/** 个人最好成绩：每个类别里已完赛、有成绩的最快一场 */
+function personalBests(races) {
+  const best = {};
+  races.forEach(function (r) {
+    if (r.status !== "finished" || !isNum(r.official_s) || r.official_s <= 0) return;
+    if (!best[r.category] || r.official_s < best[r.category].official_s) best[r.category] = r;
+  });
+  return best;
+}
+
+function RacesPage() {
+  const [races, setRaces] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [activity, setActivity] = useState(null);
+
+  async function load() {
+    try { setRaces((await api("/races")).races || []); } catch (err) { setMsg("读取比赛失败：" + errText(err)); }
+  }
+  useEffect(function () { load(); }, []);
+
+  if (activity) {
+    return h(RunDetail, { id: activity.id, title: activity.title, start: activity.start, onBack: function () { setActivity(null); } });
+  }
+  if (open) {
+    return h(RaceDetail, { id: open, onBack: function () { setOpen(null); load(); },
+      onOpenActivity: function (a) { setActivity(a); } });
+  }
+  const list = races || [];
+  const pbs = personalBests(list);
+  const finished = list.filter(function (r) { return r.status === "finished"; });
+  const years = [];
+  list.forEach(function (r) {
+    const y = String(r.date).slice(0, 4);
+    let g = years[years.length - 1];
+    if (!g || g.year !== y) { g = { year: y, races: [] }; years.push(g); }
+    g.races.push(r);
+  });
+
+  return h("div", { className: "pmw-plugin pmw-plugin-module gc-races" },
+    h(TitleBar, {
+      title: "比赛",
+      desc: list.length ? "完赛 " + finished.length + " 场 · 共收录 " + list.length + " 场" : "",
+      actions: [{ label: "添加比赛", primary: true, onClick: function () { setAdding(true); } }],
+    }),
+    msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
+    adding ? h(RaceForm, {
+      race: { date: toYMD(new Date()), category: "half", status: "finished" },
+      onCancel: function () { setAdding(false); },
+      onSaved: function (id) { setAdding(false); load(); setOpen(id); },
+    }) : null,
+    Object.keys(pbs).length ? h("section", null,
+      h("h3", { className: "gc-sub" }, "个人最好成绩"),
+      h("div", { className: "gc-stats" }, RACE_CATS.filter(function (c) { return pbs[c[0]]; }).map(function (c) {
+        const r = pbs[c[0]];
+        return h("button", { key: c[0], type: "button", className: "gc-stat gc-stat-btn", onClick: function () { setOpen(r.id); } },
+          h("span", { className: "gc-stat-label" }, c[1]),
+          h("span", { className: "gc-stat-value" }, fmtDuration(r.official_s)),
+          h("small", { className: "pmw-plugin-hint" }, r.name + " · " + r.date));
+      }))) : null,
+    races && !list.length && !adding
+      ? h("div", { className: "gc-empty" },
+          h("p", null, "还没有收录比赛。"),
+          h("p", { className: "pmw-plugin-hint" }, "点右上角「添加比赛」手动收录，或在「Garmin 跑步数据」里打开一次比赛的活动，点「标记为比赛」自动带出成绩。"))
+      : null,
+    years.map(function (g) {
+      return h("section", { key: g.year },
+        h("h3", { className: "gc-sub" }, g.year + " 年 · " + g.races.length + " 场"),
+        h("div", { className: "gc-race-grid" }, g.races.map(function (r) {
+          const pb = pbs[r.category] && pbs[r.category].id === r.id;
+          return h("button", { key: r.id, type: "button", className: "gc-race-card", onClick: function () { setOpen(r.id); } },
+            h("span", { className: "gc-race-cover" },
+              r.cover_id ? h("img", { src: mediaURL(r.cover_id), alt: "", loading: "lazy", onError: function (e) { e.currentTarget.style.visibility = "hidden"; } })
+                : h("span", { className: "gc-race-cover-empty" }, labelOf(RACE_CATS, r.category))),
+            h("span", { className: "gc-race-body" },
+              h("strong", null, r.name),
+              h("small", null, r.date + (r.city ? " · " + r.city : "") + " · " + labelOf(RACE_CATS, r.category)),
+              h("span", { className: "gc-race-result" },
+                r.status === "finished"
+                  ? (isNum(r.official_s) && r.official_s > 0 ? fmtDuration(r.official_s) : "已完赛")
+                  : labelOf(RACE_STATUS, r.status),
+                pb ? h("span", { className: "gc-tag gc-tag-pb" }, "个人最好") : null),
+              h("small", null, (r.media_count ? r.media_count + " 个影像" : "还没有影像") + (r.activity_id ? " · 已关联活动" : ""))));
+        })));
+    }));
+}
+
+function RaceForm(props) {
+  const r = props.race || {};
+  const [f, setF] = useState({
+    name: r.name || "", date: r.date || toYMD(new Date()), city: r.city || "", category: r.category || "other",
+    status: r.status || "finished", official_s: r.official_s || 0, bib_no: r.bib_no || "", rank_overall: r.rank_overall || "",
+    rank_group: r.rank_group || "", note: r.note || "", activity_id: r.activity_id || "",
+  });
+  const [runs, setRuns] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = function (k, v) { const n = Object.assign({}, f); n[k] = v; setF(n); };
+
+  useEffect(function () {
+    api("/runs").then(function (d) { setRuns((d.runs || []).filter(function (x) { return !isStrengthType(x.type_key); })); }).catch(function () {});
+  }, []);
+  // 关联活动：比赛日期前后 3 天的跑步，加上当前已关联的
+  const near = runs.filter(function (x) {
+    const d = fromYMD(String(x.start_time).slice(0, 10)), rd = fromYMD(f.date);
+    return x.activity_id === f.activity_id || (d && rd && Math.abs(d - rd) <= 3 * 86400000);
+  });
+
+  async function save(e) {
+    e.preventDefault();
+    setBusy(true); setMsg("");
+    try {
+      if (props.race && props.race.id) {
+        await api("/races/" + props.race.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+        props.onSaved(props.race.id);
+      } else {
+        const res = await api("/races", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+        props.onSaved(res.id);
+      }
+    } catch (err) { setMsg("保存失败：" + errText(err)); } finally { setBusy(false); }
+  }
+
+  return h("form", { className: "gc-edit gc-race-form", onSubmit: save, "aria-label": "比赛信息" },
+    h("label", { className: "gc-field" }, "比赛名称", h("input", { value: f.name, maxLength: 80, placeholder: "如：2026 北京马拉松", onChange: function (e) { set("name", e.target.value); } })),
+    h("div", { className: "gc-edit-row" },
+      h("label", { className: "gc-field" }, "日期", h("input", { type: "date", value: f.date, onChange: function (e) { set("date", e.target.value); } })),
+      h("label", { className: "gc-field" }, "城市", h("input", { value: f.city, maxLength: 40, onChange: function (e) { set("city", e.target.value); } }))),
+    h("div", { className: "gc-edit-row" },
+      h("label", { className: "gc-field" }, "类别", h("select", { value: f.category, onChange: function (e) { set("category", e.target.value); } },
+        RACE_CATS.map(function (c) { return h("option", { key: c[0], value: c[0] }, c[1]); }))),
+      h("label", { className: "gc-field" }, "状态", h("select", { value: f.status, onChange: function (e) { set("status", e.target.value); } },
+        RACE_STATUS.map(function (c) { return h("option", { key: c[0], value: c[0] }, c[1]); })))),
+    h("div", { className: "gc-field" }, "官方成绩（枪声或净计时）", h(DurationInput, { value: f.official_s, onChange: function (v) { set("official_s", v); } })),
+    h("div", { className: "gc-edit-row" },
+      h("label", { className: "gc-field" }, "号码", h("input", { value: f.bib_no, maxLength: 20, onChange: function (e) { set("bib_no", e.target.value); } })),
+      h("label", { className: "gc-field" }, "总排名", h("input", { value: f.rank_overall, maxLength: 20, placeholder: "如 1203/30000", onChange: function (e) { set("rank_overall", e.target.value); } })),
+      h("label", { className: "gc-field" }, "组别排名", h("input", { value: f.rank_group, maxLength: 20, onChange: function (e) { set("rank_group", e.target.value); } }))),
+    h("label", { className: "gc-field" }, "关联的 Garmin 活动",
+      h("select", { value: f.activity_id, onChange: function (e) { set("activity_id", e.target.value); } },
+        [h("option", { key: "none", value: "" }, near.length ? "不关联" : "比赛日期前后 3 天没有跑步记录")].concat(near.map(function (x) {
+          return h("option", { key: x.activity_id, value: x.activity_id }, String(x.start_time).slice(0, 16) + " · " + (x.activity_name || "跑步") + " · " + fmtDistance(runView(x).dist));
+        })))),
+    h("label", { className: "gc-field" }, "备注", h("textarea", { rows: 3, value: f.note, maxLength: 2000, placeholder: "天气、配速策略、补给、感受…", onChange: function (e) { set("note", e.target.value); } })),
+    h("div", { className: "gc-detail-bar" },
+      h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: busy || !f.name.trim() }, busy ? "保存中…" : "保存"),
+      h("button", { className: "pmw-plugin-button", type: "button", onClick: props.onCancel }, "取消")),
+    msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null);
+}
+
+function RaceDetail(props) {
+  const [data, setData] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [viewer, setViewer] = useState(null);
+
+  async function load() {
+    try { setData(await api("/races/" + props.id)); } catch (err) { setMsg("读取失败：" + errText(err)); }
+  }
+  useEffect(function () { load(); }, [props.id]);
+
+  async function remove() {
+    if (!window.confirm("删除这场比赛和它的全部影像？删除后不能恢复。")) return;
+    try { await api("/races/" + props.id, { method: "DELETE" }); props.onBack(); } catch (err) { setMsg("删除失败：" + errText(err)); }
+  }
+
+  const r = data && data.race;
+  const media = (data && data.media) || [];
+  return h("div", { className: "pmw-plugin pmw-plugin-module gc-races" },
+    h(TitleBar, {
+      parent: "比赛", title: r ? r.name : "比赛",
+      desc: r ? [r.date, r.city, labelOf(RACE_CATS, r.category), labelOf(RACE_STATUS, r.status)].filter(Boolean).join(" · ") : "",
+      actions: [
+        { label: "返回", onClick: props.onBack },
+        r ? { label: "编辑信息", disabled: editing, onClick: function () { setEditing(true); } } : null,
+        r ? { label: "删除", onClick: remove } : null,
+      ],
+    }),
+    msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
+    r && editing ? h(RaceForm, { race: r, onCancel: function () { setEditing(false); }, onSaved: function () { setEditing(false); load(); } }) : null,
+    r && !editing ? h("div", { className: "gc-stats" },
+      [["官方成绩", isNum(r.official_s) && r.official_s > 0 ? fmtDuration(r.official_s) : "-"],
+       ["平均配速", isNum(r.official_s) && r.official_s > 0 && RACE_DIST[r.category] ? fmtPace(r.official_s / RACE_DIST[r.category]) : "-"],
+       ["号码", r.bib_no || "-"], ["总排名", r.rank_overall || "-"], ["组别排名", r.rank_group || "-"],
+       ["手表记录", r.act_distance_m ? fmtDistance(r.act_distance_m) + " · " + fmtDuration(r.act_duration_s) : "-"]].map(function (c) {
+        return h("div", { className: "gc-stat", key: c[0] }, h("span", { className: "gc-stat-label" }, c[0]), h("span", { className: "gc-stat-value" }, c[1]));
+      })) : null,
+    r && !editing && r.activity_id ? h("div", { className: "gc-detail-bar" },
+      h("button", { className: "pmw-plugin-button", type: "button",
+        onClick: function () { props.onOpenActivity({ id: r.activity_id, title: r.act_name, start: r.act_start }); } }, "查看这次比赛的手表数据（地图、分段、曲线）")) : null,
+    r && !editing && r.note ? h("section", null, h("h3", { className: "gc-sub" }, "备注"), h("p", { className: "gc-desc" }, r.note)) : null,
+    r ? h(MediaSection, { raceId: r.id, media: media, onChanged: load, onView: setViewer }) : null,
+    viewer ? h(MediaViewer, { list: media, index: viewer, onClose: function () { setViewer(null); }, onMove: setViewer }) : null);
+}
+
+/** 各类别的标准距离（公里），算平均配速用 */
+const RACE_DIST = { full: 42.195, half: 21.0975, "10k": 10, "5k": 5 };
+
+async function uploadFile(raceId, kind, file, onProgress) {
+  const meta = await api("/races/" + raceId + "/media", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: kind, name: file.name, mime: file.type || "", size: file.size }) });
+  // 工作台 API 请求体上限 2 MB，块按后端给的大小（1.5 MB）
+  const chunk = Math.min(meta.chunk_max || (3 << 19), 3 << 19);
+  for (let off = 0; off < file.size; off += chunk) {
+    const part = file.slice(off, Math.min(file.size, off + chunk));
+    const res = await fetch(API_BASE + "/media/" + meta.id + "/chunk?offset=" + off, { method: "PUT", body: part });
+    if (!res.ok) {
+      const d = await res.json().catch(function () { return {}; });
+      throw new Error(d.error || ("HTTP " + res.status));
+    }
+    onProgress(Math.min(file.size, off + chunk) / file.size);
+  }
+  return meta.id;
+}
+
+function MediaSection(props) {
+  const [kind, setKind] = useState("photo");
+  const [queue, setQueue] = useState([]);
+  const [msg, setMsg] = useState("");
+  const inputRef = useRef(null);
+  const counts = {};
+  props.media.forEach(function (m) { counts[m.kind] = (counts[m.kind] || 0) + 1; });
+
+  async function onFiles(files) {
+    const list = Array.prototype.slice.call(files || []);
+    if (!list.length) return;
+    setMsg("");
+    const q = list.map(function (f) { return { name: f.name, p: 0, err: "" }; });
+    setQueue(q.slice());
+    for (let i = 0; i < list.length; i++) {
+      try {
+        await uploadFile(props.raceId, kind, list[i], function (p) { q[i].p = p; setQueue(q.slice()); });
+      } catch (err) {
+        q[i].err = errText(err); setQueue(q.slice());
+      }
+    }
+    if (inputRef.current) inputRef.current.value = "";
+    props.onChanged();
+    if (!q.some(function (x) { return x.err; })) setQueue([]);
+  }
+
+  async function caption(m) {
+    const c = window.prompt("这张的说明（最多 200 字）", m.caption || "");
+    if (c === null) return;
+    try { await api("/media/" + m.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caption: c }) }); props.onChanged(); }
+    catch (err) { setMsg("保存失败：" + errText(err)); }
+  }
+  async function remove(m) {
+    if (!window.confirm("删除「" + m.name + "」？")) return;
+    try { await api("/media/" + m.id, { method: "DELETE" }); props.onChanged(); } catch (err) { setMsg("删除失败：" + errText(err)); }
+  }
+
+  return h("section", { className: "gc-media" },
+    h("div", { className: "gc-section-head" },
+      h("h3", { className: "gc-sub" }, "影像记忆"),
+      h("span", { className: "gc-detail-bar" },
+        h("select", { className: "gc-search", value: kind, "aria-label": "上传到哪一类", onChange: function (e) { setKind(e.target.value); } },
+          MEDIA_KINDS.map(function (k) { return h("option", { key: k[0], value: k[0] }, k[1]); })),
+        h("button", { className: "pmw-plugin-button gc-primary", type: "button", onClick: function () { inputRef.current && inputRef.current.click(); } }, "上传"),
+        h("input", { ref: inputRef, type: "file", multiple: true, accept: MEDIA_ACCEPT, style: { display: "none" },
+          onChange: function (e) { onFiles(e.target.files); } }))),
+    h("p", { className: "pmw-plugin-hint" }, "支持图片（JPG、PNG、WebP、HEIC，单张最大 40 MB）、视频（MP4、MOV、WebM，最大 1 GB）和 PDF 证书；文件保存在本机工作台的插件数据目录。"),
+    queue.length ? h("div", { className: "gc-upload-queue" }, queue.map(function (q, i) {
+      return h("div", { key: i, className: "gc-upload-row" }, h("span", null, q.name),
+        q.err ? h("span", { className: "gc-err" }, "失败：" + q.err)
+          : h("span", { className: "gc-zone-bar" }, h("span", { className: "gc-zone-fill", style: { width: Math.round(q.p * 100) + "%" } })));
+    })) : null,
+    msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
+    MEDIA_KINDS.map(function (k) {
+      const items = props.media.filter(function (m) { return m.kind === k[0]; });
+      return h("div", { key: k[0], className: "gc-media-group" },
+        h("div", { className: "gc-media-head" },
+          h("strong", null, k[1]), h("small", null, items.length ? items.length + " 个" : "还没有"),
+          h("button", { className: "gc-link", type: "button", onClick: function () { setKind(k[0]); setTimeout(function () { inputRef.current && inputRef.current.click(); }, 0); } }, "上传" + k[1])),
+        items.length ? h("div", { className: "gc-media-grid" }, items.map(function (m) {
+          const idx = props.media.indexOf(m);
+          const img = String(m.mime).indexOf("image/") === 0, vid = String(m.mime).indexOf("video/") === 0;
+          return h("figure", { key: m.id, className: "gc-media-item" },
+            h("button", { type: "button", className: "gc-media-thumb", onClick: function () { props.onView(idx + 1); }, "aria-label": "查看 " + m.name },
+              img ? h("img", { src: mediaURL(m.id), alt: m.caption || m.name, loading: "lazy" })
+                // 视频缩略图：只取元数据和首帧（Range 请求，开头一小段）
+                : vid ? h("span", { className: "gc-media-video" },
+                    h("video", { src: mediaURL(m.id) + "#t=0.1", preload: "metadata", muted: true, playsInline: true }),
+                    h("span", { className: "gc-media-play" }, "视频"))
+                : h("span", { className: "gc-media-icon" }, "PDF")),
+            h("figcaption", null,
+              h("span", { className: "gc-media-cap" }, m.caption || m.name),
+              h("span", { className: "gc-detail-bar" },
+                h("button", { className: "gc-link", type: "button", onClick: function () { caption(m); } }, "说明"),
+                h("a", { className: "gc-link", href: mediaURL(m.id), download: m.name }, "下载"),
+                h("button", { className: "gc-link", type: "button", onClick: function () { remove(m); } }, "删除"))));
+        })) : null);
+    }));
+}
+
+/** 大图 / 视频查看：左右切换，Esc 关闭 */
+function MediaViewer(props) {
+  const i = props.index - 1;
+  const m = props.list[i];
+  useEffect(function () {
+    const onKey = function (e) {
+      if (e.key === "Escape") props.onClose();
+      if (e.key === "ArrowRight" && i < props.list.length - 1) props.onMove(i + 2);
+      if (e.key === "ArrowLeft" && i > 0) props.onMove(i);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return function () { window.removeEventListener("keydown", onKey, true); };
+  }, [i]);
+  if (!m) return null;
+  const img = String(m.mime).indexOf("image/") === 0, vid = String(m.mime).indexOf("video/") === 0;
+  return h("div", { className: "gc-viewer", role: "dialog", "aria-label": m.name, onClick: props.onClose },
+    h("div", { className: "gc-viewer-inner", onClick: function (e) { e.stopPropagation(); } },
+      img ? h("img", { src: mediaURL(m.id), alt: m.caption || m.name })
+        : vid ? h("video", { src: mediaURL(m.id), controls: true, autoPlay: true, playsInline: true })
+        : h("iframe", { src: mediaURL(m.id), title: m.name }),
+      h("div", { className: "gc-viewer-bar" },
+        h("span", null, labelOf(MEDIA_KINDS, m.kind) + " · " + (m.caption || m.name) + "（" + (i + 1) + "/" + props.list.length + "）"),
+        h("span", { className: "gc-detail-bar" },
+          h("button", { className: "pmw-plugin-button", type: "button", disabled: i === 0, onClick: function () { props.onMove(i); } }, "上一个"),
+          h("button", { className: "pmw-plugin-button", type: "button", disabled: i === props.list.length - 1, onClick: function () { props.onMove(i + 2); } }, "下一个"),
+          h("button", { className: "pmw-plugin-button", type: "button", onClick: props.onClose }, "关闭")))));
+}
+
+// ---------------------------------------------------------------------------
 // 地图：Web 墨卡托瓦片（插件后端代取）+ SVG 轨迹；高德用 GCJ-02，轨迹从 WGS-84 换算
 // ---------------------------------------------------------------------------
 
@@ -2617,6 +3000,7 @@ window.__PMW_PLUGIN__.register({
     CTX = ctx;
     disposables.push(
       ctx.slots.register("module", { id: PLUGIN_ID, title: PLUGIN_NAME }, guarded(ModulePage)),
+      ctx.slots.register("module", { id: PLUGIN_ID + "_races", title: "比赛" }, guarded(RacesPage)),
       ctx.slots.register("settings.section", { id: PLUGIN_ID, title: PLUGIN_NAME }, guarded(SettingsSection)),
       ctx.slots.register("today.card", { key: PLUGIN_ID + "_last_run", title: "最近跑步" }, guarded(TodayCard)),
     );

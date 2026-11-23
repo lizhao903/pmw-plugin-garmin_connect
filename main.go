@@ -1887,6 +1887,7 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 		Path      string          `json:"path"`
 		Query     json.RawMessage `json:"query"`
 		BodyB64   string          `json:"body_b64"`
+		Headers   json.RawMessage `json:"headers"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, rpcErrorf("invalid_params", "HTTP 请求参数不是合法 JSON：%v", err)
@@ -1897,6 +1898,11 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 	body, _ := base64.StdEncoding.DecodeString(p.BodyB64)
 	path := routePath(p.Path)
 	query := parseQuery(p.Query)
+
+	// 影像文件：要看 Range 头、大文件流式回传，单独处理
+	if p.Method == "GET" && strings.HasPrefix(path, "/media/") && strings.HasSuffix(path, "/file") {
+		return s.serveMedia(ctx, p.RequestID, strings.TrimSuffix(strings.TrimPrefix(path, "/media/"), "/file"), parseHeaders(p.Headers))
+	}
 
 	switch {
 	case p.Method == "GET" && path == "/runs":
@@ -1915,6 +1921,24 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 		status, payload = s.apiUpdateCalendar(ctx, strings.TrimPrefix(path, "/calendar/"), body)
 	case p.Method == "DELETE" && strings.HasPrefix(path, "/calendar/"):
 		status, payload = s.apiDeleteCalendar(ctx, strings.TrimPrefix(path, "/calendar/"))
+	case p.Method == "GET" && path == "/races":
+		status, payload = s.apiRaces(ctx)
+	case p.Method == "POST" && path == "/races":
+		status, payload = s.apiCreateRace(ctx, body)
+	case p.Method == "POST" && strings.HasPrefix(path, "/races/") && strings.HasSuffix(path, "/media"):
+		status, payload = s.apiCreateMedia(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/races/"), "/media"), body)
+	case p.Method == "GET" && strings.HasPrefix(path, "/races/"):
+		status, payload = s.apiRace(ctx, strings.TrimPrefix(path, "/races/"))
+	case p.Method == "PUT" && strings.HasPrefix(path, "/races/"):
+		status, payload = s.apiUpdateRace(ctx, strings.TrimPrefix(path, "/races/"), body)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/races/"):
+		status, payload = s.apiDeleteRace(ctx, strings.TrimPrefix(path, "/races/"))
+	case p.Method == "PUT" && strings.HasPrefix(path, "/media/") && strings.HasSuffix(path, "/chunk"):
+		status, payload = s.apiMediaChunk(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/media/"), "/chunk"), query, body)
+	case p.Method == "PUT" && strings.HasPrefix(path, "/media/"):
+		status, payload = s.apiUpdateMedia(ctx, strings.TrimPrefix(path, "/media/"), body)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/media/"):
+		status, payload = s.apiDeleteMedia(ctx, strings.TrimPrefix(path, "/media/"))
 	case p.Method == "GET" && path == "/edit-options":
 		status, payload = s.apiEditOptions(ctx)
 	case p.Method == "POST" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/edit"):
@@ -1978,6 +2002,24 @@ func routePath(raw string) string {
 		p = "/" + p
 	}
 	return p
+}
+
+// parseHeaders 认 {"Range":"bytes=0-"} 和 {"Range":["bytes=0-"]} 两种形式。
+func parseHeaders(raw json.RawMessage) map[string]string {
+	out := map[string]string{}
+	var one map[string]string
+	if json.Unmarshal(raw, &one) == nil {
+		return one
+	}
+	var multi map[string][]string
+	if json.Unmarshal(raw, &multi) == nil {
+		for k, v := range multi {
+			if len(v) > 0 {
+				out[k] = v[0]
+			}
+		}
+	}
+	return out
 }
 
 // parseQuery 认宿主给的原始查询串（"refresh=1"），也认对象形式（{"refresh":"1"}）。

@@ -230,3 +230,58 @@ func TestAnalysisText(t *testing.T) {
 		t.Fatal("收录范围不对")
 	}
 }
+
+func TestParseRange(t *testing.T) {
+	cases := []struct {
+		h          string
+		start, end int64
+		ok         bool
+	}{
+		{"bytes=0-99", 0, 99, true}, {"bytes=100-", 100, 999, true}, {"bytes=-200", 800, 999, true},
+		{"bytes=900-5000", 900, 999, true}, {"bytes=1000-", 0, 0, false}, {"bytes=5-2", 0, 0, false},
+		{"bytes=0-1,5-9", 0, 0, false}, {"items=0-1", 0, 0, false}, {"", 0, 0, false},
+	}
+	for _, c := range cases {
+		s, e, ok := parseRange(c.h, 1000)
+		if ok != c.ok || (ok && (s != c.start || e != c.end)) {
+			t.Errorf("parseRange(%q) = %d,%d,%v，应为 %d,%d,%v", c.h, s, e, ok, c.start, c.end, c.ok)
+		}
+	}
+}
+
+func TestRaceRowApply(t *testing.T) {
+	str := func(s string) *string { return &s }
+	sec := 12345.0
+	r := raceRow{Category: "other", Status: "finished"}
+	if msg := r.apply(raceInput{Name: str(" 北京马拉松 "), Date: str("2026-10-18"), Category: str("full"), OfficialS: &sec}); msg != "" || r.Name != "北京马拉松" || r.OfficialS != 12345.0 {
+		t.Fatalf("合法输入被拒：%s %+v", msg, r)
+	}
+	zero := 0.0
+	r.apply(raceInput{OfficialS: &zero})
+	if r.OfficialS != nil {
+		t.Fatal("成绩填 0 应清空")
+	}
+	for name, in := range map[string]raceInput{
+		"类别": {Category: str("ultra")}, "状态": {Status: str("x")}, "日期": {Date: str("10/18")}, "活动": {ActivityID: str("../1")},
+	} {
+		rr := raceRow{Name: "x", Date: "2026-10-18", Category: "full", Status: "finished"}
+		if rr.apply(in) == "" {
+			t.Errorf("%s 应拒绝", name)
+		}
+	}
+}
+
+func TestMediaIDs(t *testing.T) {
+	if !validRaceID("race_0123abcd") || validRaceID("race_../x") || validRaceID("race_A") || validMediaID("race_1") {
+		t.Fatal("id 校验不对")
+	}
+	dataDir = t.TempDir()
+	defer func() { dataDir = "" }()
+	p, err := mediaPath("race_ab", "med_cd", "image/jpeg")
+	if err != nil || !strings.HasSuffix(p, "media/race_ab/med_cd.jpg") {
+		t.Fatalf("路径不对：%s %v", p, err)
+	}
+	if _, err := mediaPath("race_ab", "med_../../x", "image/jpeg"); err == nil {
+		t.Fatal("越界 id 应拒绝")
+	}
+}
