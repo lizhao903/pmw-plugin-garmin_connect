@@ -48,6 +48,9 @@ jobs:
       - name: 校验清单
         run: python3 scripts/pmw_plugin.py validate .
 
+      - name: 校验 dsh 插件派生文件是最新的
+        run: node dsh/scripts/build.mjs --check
+
       - name: 打包（含 SHA256SUMS）
         run: |
           python3 scripts/pmw_plugin.py pack . --os darwin --arch arm64

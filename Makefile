@@ -6,6 +6,8 @@
 #   make validate    校验 plugin.json 和包内文件
 #   make pack        打当前平台的发布包到 dist/（产物带 SHA256SUMS）
 #   make lint        gofmt + go vet + validate
+#   make dsh         生成 DeepSeek Harness 插件的派生文件（dsh/client.js 等，需要 Node 22+）
+#   make dsh-check   校验 dsh 派生文件是最新的
 #
 # 构建只需要 Go 1.22+ 和 Python 3.9+；前端 entry.ts 只用 JS 语法子集，不需要 Node。
 # 工具脚本是本仓库内自带的副本，来自 PMW plugin-sdk 的 pmw_plugin.py。
@@ -20,7 +22,7 @@ BIN_DIR  := bin
 DIST_DIR := dist
 VERSION  := $(shell $(PY) -c "import json;print(json.load(open('plugin.json'))['version'])")
 
-.PHONY: all build web build-all validate lint pack clean
+.PHONY: all build web build-all validate lint pack clean dsh dsh-check
 
 all: build
 
@@ -50,6 +52,13 @@ validate:
 lint: validate
 	@files="$$(gofmt -l .)"; if [ -n "$$files" ]; then echo "gofmt 未通过："; echo "$$files"; exit 1; fi
 	$(GO) vet ./...
+
+# DeepSeek Harness 插件（dsh/）：client.js 由 web/entry.js 生成，迁移和图标从仓库根复制
+dsh: web
+	node dsh/scripts/build.mjs
+
+dsh-check: web
+	node dsh/scripts/build.mjs --check
 
 pack:
 	$(PY) scripts/pmw_plugin.py pack .

@@ -1,0 +1,56 @@
+{
+  "name": "@lizhao903/dsh-garmin-connect",
+  "version": "0.8.0",
+  "description": "Garmin 跑步数据 · DeepSeek Harness 插件：登录 Garmin Connect 同步跑步与力量训练，左侧栏查看统计、地图曲线、AI 训练分析、训练计划与日历、比赛与影像记忆；对话里可直接查询跑步数据。",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "garmin",
+    "running",
+    "fitness"
+  ],
+  "author": "lizhao903 (https://github.com/lizhao903)",
+  "license": "MIT",
+  "type": "module",
+  "icon": "./icon.svg",
+  "homepage": "https://github.com/lizhao903/pmw-plugin-garmin_connect/tree/main/dsh#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lizhao903/pmw-plugin-garmin_connect.git",
+    "directory": "dsh"
+  },
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "migrations/*.sql",
+    "icon.svg",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  }
+}

@@ -5,6 +5,17 @@
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added
+
+- DeepSeek Harness（dsh）客户端插件版本（`dsh/`，包名 `@lizhao903/dsh-garmin-connect`）：
+  - 左侧栏增加「Garmin 跑步」和「比赛」两个入口，功能和工作台插件一致；
+  - 只读模型工具：最近活动、单次详情、周 / 月 / 年统计、训练日历、比赛成绩，对话里可以直接问跑步数据；
+  - 复用同一个 Go 后端，dsh Host 半侧实现宿主接口：node:sqlite 存储、dsh 凭据存储、出网、大文件流式回传，AI 分析走 dsh 默认模型；
+  - 前端由 `web/entry.js` 生成，不另外维护一套。
+  - 安装：`dsh plugin --profile <名称> add "github:lizhao903/pmw-plugin-garmin_connect#path:/dsh"`。
+
 ## [0.8.0]
 
 ### Added

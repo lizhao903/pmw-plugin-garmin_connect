@@ -29,6 +29,8 @@ PMW（一人之下）外部插件，遵循 **PMW Plugin 2.0**（清单 `manifest
 - 推荐视频：收录训练视频链接和 UP 主，关联到计划和每节课，日历上直接打开；
 - 今日卡片显示今天的训练和最近一次跑步；设置分节用 Garmin 账号登录；后端每 6 小时自动同步。
 
+> **也能装进 DeepSeek Harness**：`dsh/` 目录是同一插件的 dsh 客户端版本（左侧栏页面 + 对话里可用的只读跑步数据工具），安装与说明见 [dsh/README.md](dsh/README.md)。
+
 ## 登录与凭证
 
 1. 安装后先在「设置 → 插件 → 外部插件」给本插件授予 `network:any`（访问 sso / diauth / connectapi 的 garmin.cn 或 garmin.com 域名）；

@@ -1,0 +1,21 @@
+# Garmin 跑步数据 · dsh 插件。
+#
+# 一行 Host 配置：启动 Go 后端（和 PMW 外部插件同一个二进制）、提供页面 RPC 和只读跑步数据工具；
+# 浏览器半侧由 package.json 的 dsh.client 声明，在左侧栏加「Garmin 跑步」「比赛」两个入口。
+#
+# 需要改配置时在 profile 的 cordis.patch.yml 里按 id 覆盖：
+#   - id: garmin-connect
+#     config: { provider: newapi, model: deepseek-v4-flash }
+- insert:
+    - id: garmin-connect
+      name: '@lizhao903/dsh-garmin-connect'
+      config:
+        enabled: true
+        # AI 分析用的模型，留空用 dsh 默认模型
+        provider: ''
+        model: ''
+        # 留空按「仓库 bin/ → 缓存 → GitHub Release 下载（校验 SHA256）」找 Go 二进制
+        binary: ''
+        autoDownload: true
+        # 注册只读跑步数据工具（garmin_recent_activities 等）
+        tools: true
