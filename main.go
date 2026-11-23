@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -444,7 +445,12 @@ type server struct {
 	cancel    context.CancelFunc
 	startedAt time.Time
 	bgCancel  context.CancelFunc
+	bgCtx     context.Context
 	bgMu      sync.Mutex
+	fullMu    sync.Mutex
+	full      fullSyncState
+	authMu    sync.Mutex
+	syncMu    sync.Mutex
 }
 
 func (s *server) handlers() map[string]handlerFunc {
@@ -515,6 +521,7 @@ func (s *server) startBackgroundSync(parent context.Context) {
 	}
 	ctx, cancel := context.WithCancel(parent)
 	s.bgCancel = cancel
+	s.bgCtx = ctx
 	go func() {
 		timer := time.NewTimer(30 * time.Second)
 		ticker := time.NewTicker(6 * time.Hour)
@@ -525,11 +532,11 @@ func (s *server) startBackgroundSync(parent context.Context) {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				if _, err := s.doSync(ctx); err != nil {
+				if _, err := s.doSync(ctx, false, nil); err != nil {
 					s.log.Warn("后台同步失败", "err", err)
 				}
 			case <-ticker.C:
-				if _, err := s.doSync(ctx); err != nil {
+				if _, err := s.doSync(ctx, false, nil); err != nil {
 					s.log.Warn("后台同步失败", "err", err)
 				}
 			}
@@ -548,6 +555,8 @@ type credentials struct {
 	IsCN         bool   `json:"is_cn"`
 	Email        string `json:"email,omitempty"`
 	LoggedInAt   string `json:"logged_in_at,omitempty"`
+	// ExpiresAt 是 access_token 的过期时间（unix 秒）；没过期就不刷新，少打 Garmin、少碰轮换的 refresh_token
+	ExpiresAt int64 `json:"expires_at,omitempty"`
 }
 
 func (c *credentials) domain() string {
@@ -816,6 +825,9 @@ func (s *server) login(ctx context.Context, email, password string, isCN bool) (
 		}
 		c.AccessToken = tok.AccessToken
 		c.RefreshToken = tok.RefreshToken
+		if tok.ExpiresIn > 0 {
+			c.ExpiresAt = time.Now().Unix() + int64(tok.ExpiresIn)
+		}
 		c.ClientID = jwtClientID(tok.AccessToken, cid)
 		c.LoggedInAt = time.Now().Format(time.RFC3339)
 		if c.RefreshToken == "" {
@@ -888,15 +900,26 @@ func (s *server) refreshAccessToken(ctx context.Context, c *credentials) error {
 	if tr.RefreshToken != "" {
 		c.RefreshToken = tr.RefreshToken
 	}
+	c.ExpiresAt = 0
+	if tr.ExpiresIn > 0 {
+		c.ExpiresAt = time.Now().Unix() + int64(tr.ExpiresIn)
+	}
 	c.ClientID = jwtClientID(tr.AccessToken, c.ClientID)
 	return s.saveCredentials(ctx, c)
 }
 
 // authed 取凭证并刷新一次访问令牌。
+// authed 取凭证；访问令牌还有 2 分钟以上有效期就直接用，否则刷新。
+// 加锁：后台同步、手动同步、点开详情可能同时进来，Garmin 刷新会轮换 refresh_token，并发刷新会把旧的写回去。
 func (s *server) authed(ctx context.Context) (*credentials, error) {
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
 	c, err := s.loadCredentials(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if c.AccessToken != "" && c.ExpiresAt > time.Now().Add(2*time.Minute).Unix() {
+		return c, nil
 	}
 	if err := s.refreshAccessToken(ctx, c); err != nil {
 		return nil, fmt.Errorf("刷新登录失败：%w", err)
@@ -923,10 +946,22 @@ type garminActivity struct {
 	Cadence        float64 `json:"averageRunningCadenceInStepsPerMinute"`
 	ElevationGain  float64 `json:"elevationGain"`
 	Calories       float64 `json:"calories"`
+	ActivityType   struct {
+		TypeKey string `json:"typeKey"`
+	} `json:"activityType"`
 }
 
-func (s *server) fetchActivities(ctx context.Context, c *credentials) ([]garminActivity, error) {
-	body, err := s.connectAPI(ctx, c, "/activitylist-service/activities/search/activities?start=0&limit=20&activityType=running")
+// isRun：跑步类（running、treadmill_running、trail_running、track_running、indoor_running、virtual_run、ultra_run…）。
+// 列表不按 activityType=running 过滤，避免子类型（跑步机等）被漏掉，拉回来再挑。
+func isRun(typeKey string) bool {
+	return strings.Contains(typeKey, "run")
+}
+
+// indoorTypes 是统计里算「室内」的类型，其余跑步算「室外」。
+var indoorTypes = []string{"treadmill_running", "indoor_running", "virtual_run"}
+
+func (s *server) fetchActivities(ctx context.Context, c *credentials, start, limit int) ([]garminActivity, error) {
+	body, err := s.connectAPI(ctx, c, fmt.Sprintf("/activitylist-service/activities/search/activities?start=%d&limit=%d", start, limit))
 	if err != nil {
 		return nil, err
 	}
@@ -937,83 +972,194 @@ func (s *server) fetchActivities(ctx context.Context, c *credentials) ([]garminA
 	return list, nil
 }
 
-// doSync 拉一次活动并落库，返回写入条数。
-func (s *server) doSync(ctx context.Context) (int, error) {
+func (s *server) upsertRun(ctx context.Context, a garminActivity, now string) error {
+	pace := 0.0
+	if a.AvgSpeed > 0 {
+		pace = 1000.0 / a.AvgSpeed
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	var out map[string]any
+	return s.conn.call(callCtx, "host.store.exec", map[string]any{
+		"sql": `INSERT INTO runs
+			(activity_id, start_time, activity_name, distance_m, duration_s,
+			 pace_sec_per_km, avg_hr, max_hr, cadence, elevation_m, calories, synced_at, type_key)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(activity_id) DO UPDATE SET
+			 start_time=excluded.start_time, activity_name=excluded.activity_name,
+			 distance_m=excluded.distance_m, duration_s=excluded.duration_s,
+			 pace_sec_per_km=excluded.pace_sec_per_km, avg_hr=excluded.avg_hr,
+			 max_hr=excluded.max_hr, cadence=excluded.cadence,
+			 elevation_m=excluded.elevation_m, calories=excluded.calories,
+			 synced_at=excluded.synced_at, type_key=excluded.type_key`,
+		"args": []any{
+			strconv.FormatInt(a.ActivityID, 10), a.StartTimeLocal, a.ActivityName,
+			a.Distance, a.Duration, pace, a.AvgHR, a.MaxHR, a.Cadence,
+			a.ElevationGain, a.Calories, now, a.ActivityType.TypeKey,
+		},
+	}, &out)
+}
+
+func (s *server) setState(ctx context.Context, key, value string) {
+	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	var out map[string]any
+	_ = s.conn.call(callCtx, "host.store.exec", map[string]any{
+		"sql":  "INSERT INTO sync_state(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		"args": []any{key, value},
+	}, &out)
+}
+
+// doSync 拉活动并落库，返回写入的跑步条数。成败都记进 sync_state（last_sync_attempt / last_sync_error），
+// 页面据此显示「同步失败：…」，不再只看到一个越来越旧的上次同步时间。
+func (s *server) doSync(ctx context.Context, full bool, progress func(pages, written int)) (int, error) {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	// 没登录不算同步失败（后台定时同步会一直撞上），直接回提示、不记错误
+	if raw, err := s.readSecret(ctx); err == nil && raw == "" {
+		return 0, rpcErrorf("validation", "还没登录 Garmin，请先在设置页登录")
+	}
+	s.setState(ctx, "last_sync_attempt", time.Now().Format(time.RFC3339))
+	n, err := s.syncOnce(ctx, full, progress)
+	if err != nil {
+		s.setState(ctx, "last_sync_error", err.Error())
+	} else {
+		s.setState(ctx, "last_sync_error", "")
+	}
+	return n, err
+}
+
+// incrementalStop 是增量同步往前翻到哪天为止：上次同步前 2 天（时区、补传的余量）；没同步过时只看 3 页。
+func (s *server) incrementalStop(ctx context.Context) string {
+	rows, err := s.query(ctx, "SELECT value FROM sync_state WHERE key = 'last_sync'")
+	if err != nil || len(rows) == 0 {
+		return ""
+	}
+	v, _ := rows[0]["value"].(string)
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return ""
+	}
+	return t.AddDate(0, 0, -2).Format("2006-01-02")
+}
+
+func (s *server) syncOnce(ctx context.Context, full bool, progress func(pages, written int)) (int, error) {
 	c, err := s.authed(ctx)
 	if err != nil {
 		return 0, err
 	}
-	activities, err := s.fetchActivities(ctx, c)
-	if err != nil {
-		return 0, fmt.Errorf("拉取活动失败：%w", err)
+	// 列表含所有运动类型；增量按「翻到上次同步之前」为止，不再固定只看 30 条（几天不同步时会漏跑步）
+	limit, maxPages := 50, 10
+	stop := ""
+	if full {
+		limit, maxPages = 100, 100
+	} else if stop = s.incrementalStop(ctx); stop == "" {
+		maxPages = 3
 	}
-
 	now := time.Now().Format(time.RFC3339)
-	added := 0
-	for _, a := range activities {
-		if a.ActivityID == 0 {
-			continue
-		}
-		pace := 0.0
-		if a.AvgSpeed > 0 {
-			pace = 1000.0 / a.AvgSpeed
-		}
-		callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		var out map[string]any
-		err := s.conn.call(callCtx, "host.store.exec", map[string]any{
-			"sql": `INSERT INTO runs
-				(activity_id, start_time, activity_name, distance_m, duration_s,
-				 pace_sec_per_km, avg_hr, max_hr, cadence, elevation_m, calories, synced_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-				ON CONFLICT(activity_id) DO UPDATE SET
-				 start_time=excluded.start_time, activity_name=excluded.activity_name,
-				 distance_m=excluded.distance_m, duration_s=excluded.duration_s,
-				 pace_sec_per_km=excluded.pace_sec_per_km, avg_hr=excluded.avg_hr,
-				 max_hr=excluded.max_hr, cadence=excluded.cadence,
-				 elevation_m=excluded.elevation_m, calories=excluded.calories,
-				 synced_at=excluded.synced_at`,
-			"args": []any{
-				strconv.FormatInt(a.ActivityID, 10), a.StartTimeLocal, a.ActivityName,
-				a.Distance, a.Duration, pace, a.AvgHR, a.MaxHR, a.Cadence,
-				a.ElevationGain, a.Calories, now,
-			},
-		}, &out)
-		cancel()
+	written, seen := 0, 0
+	for page := 0; page < maxPages; page++ {
+		list, err := s.fetchActivities(ctx, c, page*limit, limit)
 		if err != nil {
-			s.log.Warn("写入活动失败", "id", a.ActivityID, "err", err)
-			continue
+			return written, fmt.Errorf("拉取活动失败（第 %d 页）：%w", page+1, err)
 		}
-		added++
+		seen += len(list)
+		for _, a := range list {
+			if a.ActivityID == 0 || !isRun(a.ActivityType.TypeKey) {
+				continue
+			}
+			if err := s.upsertRun(ctx, a, now); err != nil {
+				s.log.Warn("写入活动失败", "id", a.ActivityID, "err", err)
+				continue
+			}
+			written++
+		}
+		if progress != nil {
+			progress(page+1, written)
+		}
+		if len(list) < limit {
+			break
+		}
+		if stop != "" && len(list) > 0 && list[len(list)-1].StartTimeLocal < stop {
+			break
+		}
 	}
+	s.setState(ctx, "last_sync", now)
+	if full {
+		s.setState(ctx, "last_full_sync", now)
+	}
+	s.log.Info("同步完成", "full", full, "activities", seen, "runs", written)
+	return written, nil
+}
 
-	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	var out map[string]any
-	_ = s.conn.call(callCtx, "host.store.exec", map[string]any{
-		"sql":  "INSERT INTO sync_state(key, value) VALUES('last_sync', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-		"args": []any{now},
-	}, &out)
-	cancel()
+// 全部历史同步在后台跑，前端轮询 /status 看进度。
+type fullSyncState struct {
+	Running    bool   `json:"running"`
+	Pages      int    `json:"pages"`
+	Written    int    `json:"written"`
+	Error      string `json:"error,omitempty"`
+	StartedAt  string `json:"started_at,omitempty"`
+	FinishedAt string `json:"finished_at,omitempty"`
+}
 
-	s.log.Info("同步完成", "activities", len(activities), "written", added)
-	return added, nil
+func (s *server) fullSyncSnapshot() fullSyncState {
+	s.fullMu.Lock()
+	defer s.fullMu.Unlock()
+	return s.full
+}
+
+func (s *server) startFullSync() bool {
+	s.fullMu.Lock()
+	if s.full.Running {
+		s.fullMu.Unlock()
+		return false
+	}
+	s.full = fullSyncState{Running: true, StartedAt: time.Now().Format(time.RFC3339)}
+	s.fullMu.Unlock()
+	ctx := s.bgCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go func() {
+		n, err := s.doSync(ctx, true, func(pages, written int) {
+			s.fullMu.Lock()
+			s.full.Pages, s.full.Written = pages, written
+			s.fullMu.Unlock()
+		})
+		s.fullMu.Lock()
+		s.full.Running = false
+		s.full.Written = n
+		s.full.FinishedAt = time.Now().Format(time.RFC3339)
+		if err != nil {
+			s.full.Error = err.Error()
+		}
+		s.fullMu.Unlock()
+	}()
+	return true
 }
 
 // ---------------------------------------------------------------------------
-// 跑步详情：概要（summaryDTO）、逐圈分段（splits 的 lapDTOs）、心率区间（hrTimeInZones）。
-// 拉一次缓存进 run_details（0002），再打开直接读缓存；?refresh=1 重拉。
-// 只留标量字段，丢掉 GPS 轨迹、逐秒曲线这类大数组。
+// 跑步详情（缓存 run_details，detailVersion 变了自动重拉）：
+// 概要 summaryDTO 全部标量、逐圈分段 lapDTOs（含 intensityType：热身/训练/恢复/休息/舒缓）、
+// 心率区间、天气、逐点曲线（降采样）与轨迹（降采样）。
 // ---------------------------------------------------------------------------
 
+const detailVersion = 2
+
 type runDetail struct {
-	ActivityID string           `json:"activity_id"`
-	Name       string           `json:"name"`
-	StartLocal string           `json:"start_local"`
-	TypeKey    string           `json:"type_key"`
-	Summary    map[string]any   `json:"summary"`
-	Laps       []map[string]any `json:"laps"`
-	HRZones    []map[string]any `json:"hr_zones"`
-	FetchedAt  string           `json:"fetched_at"`
-	Missing    []string         `json:"missing,omitempty"`
+	V          int                   `json:"v"`
+	ActivityID string                `json:"activity_id"`
+	Name       string                `json:"name"`
+	StartLocal string                `json:"start_local"`
+	TypeKey    string                `json:"type_key"`
+	Summary    map[string]any        `json:"summary"`
+	Laps       []map[string]any      `json:"laps"`
+	HRZones    []map[string]any      `json:"hr_zones"`
+	Weather    map[string]any        `json:"weather,omitempty"`
+	Series     map[string][]*float64 `json:"series,omitempty"`
+	Track      [][2]float64          `json:"track,omitempty"`
+	FetchedAt  string                `json:"fetched_at"`
+	Missing    []string              `json:"missing,omitempty"`
 }
 
 func scalars(m map[string]any) map[string]any {
@@ -1025,6 +1171,105 @@ func scalars(m map[string]any) map[string]any {
 		}
 	}
 	return out
+}
+
+// seriesKeys 是逐点数据里要留的指标（Garmin details 接口的 metricDescriptors.key）。
+var seriesKeys = map[string]bool{
+	"sumDistance": true, "sumDuration": true, "sumElapsedDuration": true,
+	"directHeartRate": true, "directSpeed": true, "directElevation": true,
+	"directRunCadence": true, "directDoubleCadence": true, "directPower": true,
+	"directVerticalOscillation": true, "directGroundContactTime": true, "directStrideLength": true,
+	"directLatitude": true, "directLongitude": true,
+}
+
+const (
+	maxSeriesPoints = 600
+	maxTrackPoints  = 1500
+)
+
+// sampleIdx 均匀取 n 个下标（含首尾）。
+func sampleIdx(total, n int) []int {
+	if total <= n {
+		idx := make([]int, total)
+		for i := range idx {
+			idx[i] = i
+		}
+		return idx
+	}
+	idx := make([]int, n)
+	for i := 0; i < n; i++ {
+		idx[i] = int(float64(i) * float64(total-1) / float64(n-1))
+	}
+	return idx
+}
+
+type detailsResp struct {
+	MetricDescriptors []struct {
+		MetricsIndex int    `json:"metricsIndex"`
+		Key          string `json:"key"`
+	} `json:"metricDescriptors"`
+	ActivityDetailMetrics []struct {
+		Metrics []*float64 `json:"metrics"`
+	} `json:"activityDetailMetrics"`
+	GeoPolylineDTO *struct {
+		Polyline []struct {
+			Lat float64 `json:"lat"`
+			Lon float64 `json:"lon"`
+		} `json:"polyline"`
+	} `json:"geoPolylineDTO"`
+}
+
+// parseDetails 把 details 接口的逐点数据压成按指标的数组，和轨迹点。
+func parseDetails(body []byte) (map[string][]*float64, [][2]float64, error) {
+	var dr detailsResp
+	if err := json.Unmarshal(body, &dr); err != nil {
+		return nil, nil, err
+	}
+	rows := dr.ActivityDetailMetrics
+	series := map[string][]*float64{}
+	idx := sampleIdx(len(rows), maxSeriesPoints)
+	for _, d := range dr.MetricDescriptors {
+		if !seriesKeys[d.Key] {
+			continue
+		}
+		vals := make([]*float64, 0, len(idx))
+		has := false
+		for _, i := range idx {
+			var v *float64
+			if d.MetricsIndex < len(rows[i].Metrics) {
+				v = rows[i].Metrics[d.MetricsIndex]
+			}
+			if v != nil {
+				has = true
+			}
+			vals = append(vals, v)
+		}
+		if has {
+			series[d.Key] = vals
+		}
+	}
+	var track [][2]float64
+	if dr.GeoPolylineDTO != nil && len(dr.GeoPolylineDTO.Polyline) > 1 {
+		pl := dr.GeoPolylineDTO.Polyline
+		for _, i := range sampleIdx(len(pl), maxTrackPoints) {
+			if pl[i].Lat != 0 || pl[i].Lon != 0 {
+				track = append(track, [2]float64{pl[i].Lat, pl[i].Lon})
+			}
+		}
+	}
+	if len(track) < 2 {
+		// 没有 polyline 时用逐点经纬度拼
+		track = nil
+		lat, lon := series["directLatitude"], series["directLongitude"]
+		for i := range lat {
+			if i < len(lon) && lat[i] != nil && lon[i] != nil {
+				track = append(track, [2]float64{*lat[i], *lon[i]})
+			}
+		}
+	}
+	delete(series, "directLatitude")
+	delete(series, "directLongitude")
+	return series, track, nil
 }
 
 func (s *server) fetchRunDetail(ctx context.Context, c *credentials, id string) (*runDetail, error) {
@@ -1048,14 +1293,14 @@ func (s *server) fetchRunDetail(ctx context.Context, c *credentials, id string) 
 		return nil, fmt.Errorf("解析活动详情失败：%w", err)
 	}
 	d := &runDetail{
-		ActivityID: id, Name: act.ActivityName, TypeKey: act.ActivityType.TypeKey,
+		V: detailVersion, ActivityID: id, Name: act.ActivityName, TypeKey: act.ActivityType.TypeKey,
 		Summary: scalars(act.SummaryDTO), FetchedAt: time.Now().Format(time.RFC3339),
 		Laps: []map[string]any{}, HRZones: []map[string]any{},
 	}
 	if v, ok := act.SummaryDTO["startTimeLocal"].(string); ok {
 		d.StartLocal = v
 	}
-	// 分段和心率区间拿不到不算失败（老设备、手动录入的活动没有），记进 missing
+	// 下面几项拿不到不算失败（老设备、手动录入、跑步机没有轨迹），记进 missing
 	if b, err := s.connectAPI(ctx, c, base+"/splits"); err == nil {
 		var sp struct {
 			Laps []map[string]any `json:"lapDTOs"`
@@ -1078,23 +1323,63 @@ func (s *server) fetchRunDetail(ctx context.Context, c *credentials, id string) 
 		}
 	} else {
 		d.Missing = append(d.Missing, "hr_zones")
-		s.log.Warn("拉心率区间失败", "id", id, "err", err)
+	}
+	if b, err := s.connectAPI(ctx, c, base+"/weather"); err == nil {
+		var w map[string]any
+		if json.Unmarshal(b, &w) == nil && len(w) > 0 {
+			d.Weather = scalars(w)
+			if wt, ok := w["weatherTypeDTO"].(map[string]any); ok {
+				if desc, ok := wt["desc"].(string); ok {
+					d.Weather["weatherDesc"] = desc
+				}
+			}
+		}
+	} else {
+		d.Missing = append(d.Missing, "weather")
+	}
+	if b, err := s.connectAPI(ctx, c, base+"/details?maxChartSize=2000&maxPolylineSize=4000"); err == nil {
+		if series, track, perr := parseDetails(b); perr == nil {
+			d.Series, d.Track = series, track
+		} else {
+			d.Missing = append(d.Missing, "series")
+			s.log.Warn("解析逐点数据失败", "id", id, "err", perr)
+		}
+	} else {
+		d.Missing = append(d.Missing, "series")
+		s.log.Warn("拉逐点数据失败", "id", id, "err", err)
 	}
 	return d, nil
 }
 
-func (s *server) cachedDetail(ctx context.Context, id string) *runDetail {
+func (s *server) query(ctx context.Context, sql string, args ...any) ([]map[string]any, error) {
 	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	var out struct {
 		Rows []map[string]any `json:"rows"`
 	}
-	if err := s.conn.call(callCtx, "host.store.query", map[string]any{
-		"sql": "SELECT detail_json FROM run_details WHERE activity_id = ?", "args": []any{id},
-	}, &out); err != nil || len(out.Rows) == 0 {
+	params := map[string]any{"sql": sql}
+	if len(args) > 0 {
+		params["args"] = args
+	}
+	if err := s.conn.call(callCtx, "host.store.query", params, &out); err != nil {
+		return nil, err
+	}
+	return out.Rows, nil
+}
+
+func (s *server) exec(ctx context.Context, sql string, args ...any) error {
+	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	var out map[string]any
+	return s.conn.call(callCtx, "host.store.exec", map[string]any{"sql": sql, "args": args}, &out)
+}
+
+func (s *server) cachedDetail(ctx context.Context, id string) *runDetail {
+	rows, err := s.query(ctx, "SELECT detail_json FROM run_details WHERE activity_id = ?", id)
+	if err != nil || len(rows) == 0 {
 		return nil
 	}
-	raw, _ := out.Rows[0]["detail_json"].(string)
+	raw, _ := rows[0]["detail_json"].(string)
 	var d runDetail
 	if json.Unmarshal([]byte(raw), &d) != nil {
 		return nil
@@ -1107,16 +1392,227 @@ func (s *server) storeDetail(ctx context.Context, d *runDetail) {
 	if err != nil {
 		return
 	}
-	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	var out map[string]any
-	if err := s.conn.call(callCtx, "host.store.exec", map[string]any{
-		"sql": `INSERT INTO run_details(activity_id, detail_json, fetched_at) VALUES (?, ?, ?)
-			ON CONFLICT(activity_id) DO UPDATE SET detail_json=excluded.detail_json, fetched_at=excluded.fetched_at`,
-		"args": []any{d.ActivityID, string(raw), d.FetchedAt},
-	}, &out); err != nil {
+	if err := s.exec(ctx, `INSERT INTO run_details(activity_id, detail_json, fetched_at) VALUES (?, ?, ?)
+		ON CONFLICT(activity_id) DO UPDATE SET detail_json=excluded.detail_json, fetched_at=excluded.fetched_at`,
+		d.ActivityID, string(raw), d.FetchedAt); err != nil {
 		s.log.Warn("缓存跑步详情失败", "id", d.ActivityID, "err", err)
 	}
+	// 详情里的类型比列表准，顺手补到 runs
+	if d.TypeKey != "" {
+		_ = s.exec(ctx, "UPDATE runs SET type_key = ? WHERE activity_id = ?", d.TypeKey, d.ActivityID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 跑步机校正：逐段填跑步机速度（km/h），这段距离 = 速度 × 用时；runs.corrected_distance_m 存校正后的总距离，
+// 列表、统计都用它。只改本地，不回写 Garmin。
+// ---------------------------------------------------------------------------
+
+func (s *server) lapSpeeds(ctx context.Context, id string) map[string]float64 {
+	out := map[string]float64{}
+	rows, err := s.query(ctx, "SELECT lap_index, speed_kmh FROM lap_speeds WHERE activity_id = ?", id)
+	if err != nil {
+		return out
+	}
+	for _, r := range rows {
+		i, _ := r["lap_index"].(float64)
+		v, _ := r["speed_kmh"].(float64)
+		out[strconv.Itoa(int(i))] = v
+	}
+	return out
+}
+
+func num(v any) float64 {
+	f, _ := v.(float64)
+	return f
+}
+
+// correctedDistance 按逐段速度重算总距离；没有任何校正回 0（表示不校正）。
+func correctedDistance(laps []map[string]any, speeds map[string]float64) float64 {
+	if len(speeds) == 0 {
+		return 0
+	}
+	total := 0.0
+	for i, l := range laps {
+		if v, ok := speeds[strconv.Itoa(i)]; ok && v > 0 {
+			total += v / 3.6 * num(l["duration"])
+		} else {
+			total += num(l["distance"])
+		}
+	}
+	return total
+}
+
+func (s *server) apiSetLapSpeeds(ctx context.Context, id string, body []byte) (int, any) {
+	if !validActivityID(id) {
+		return 400, map[string]any{"error": "活动 id 不合法"}
+	}
+	var in struct {
+		Speeds map[string]float64 `json:"speeds"`
+		All    float64            `json:"all"`
+		Clear  bool               `json:"clear"`
+	}
+	if err := json.Unmarshal(body, &in); err != nil {
+		return 400, map[string]any{"error": "请求不是合法 JSON"}
+	}
+	d := s.cachedDetail(ctx, id)
+	if d == nil {
+		return 409, map[string]any{"error": "先打开一次详情把分段拉下来，再校正"}
+	}
+	speeds := map[string]float64{}
+	if !in.Clear {
+		if in.All > 0 {
+			for i := range d.Laps {
+				speeds[strconv.Itoa(i)] = in.All
+			}
+		}
+		for k, v := range in.Speeds {
+			i, err := strconv.Atoi(k)
+			if err != nil || i < 0 || i >= len(d.Laps) {
+				return 400, map[string]any{"error": "分段序号不对：" + k}
+			}
+			if v < 0 || v > 30 {
+				return 400, map[string]any{"error": "速度要在 0～30 km/h 之间"}
+			}
+			if v == 0 {
+				delete(speeds, k)
+				continue
+			}
+			speeds[k] = v
+		}
+	}
+	now := time.Now().Format(time.RFC3339)
+	if err := s.exec(ctx, "DELETE FROM lap_speeds WHERE activity_id = ?", id); err != nil {
+		return 500, map[string]any{"error": "保存失败：" + err.Error()}
+	}
+	for k, v := range speeds {
+		i, _ := strconv.Atoi(k)
+		if err := s.exec(ctx, "INSERT INTO lap_speeds(activity_id, lap_index, speed_kmh, updated_at) VALUES (?, ?, ?, ?)", id, i, v, now); err != nil {
+			return 500, map[string]any{"error": "保存失败：" + err.Error()}
+		}
+	}
+	var corrected any
+	if dist := correctedDistance(d.Laps, speeds); dist > 0 {
+		corrected = dist
+	}
+	if err := s.exec(ctx, "UPDATE runs SET corrected_distance_m = ? WHERE activity_id = ?", corrected, id); err != nil {
+		return 500, map[string]any{"error": "更新总距离失败：" + err.Error()}
+	}
+	return 200, map[string]any{"ok": true, "lap_speeds": speeds, "corrected_distance_m": corrected}
+}
+
+// ---------------------------------------------------------------------------
+// 统计：按周 / 月 / 年，汇总 / 室外 / 室内；距离用校正后的。
+// ---------------------------------------------------------------------------
+
+func (s *server) apiStats(ctx context.Context, q url.Values) (int, any) {
+	var bucket string
+	switch q.Get("period") {
+	case "", "week":
+		// 周一为一周开始
+		bucket = "date(substr(start_time, 1, 10), '-6 days', 'weekday 1')"
+	case "month":
+		bucket = "substr(start_time, 1, 7)"
+	case "year":
+		bucket = "substr(start_time, 1, 4)"
+	default:
+		return 400, map[string]any{"error": "period 只能是 week / month / year"}
+	}
+	in := "('" + strings.Join(indoorTypes, "','") + "')"
+	var where string
+	switch q.Get("kind") {
+	case "", "all":
+		where = "1=1"
+	case "indoor":
+		where = "type_key IN " + in
+	case "outdoor":
+		where = "COALESCE(type_key, '') NOT IN " + in
+	default:
+		return 400, map[string]any{"error": "kind 只能是 all / outdoor / indoor"}
+	}
+	rows, err := s.query(ctx, `SELECT `+bucket+` AS bucket, COUNT(*) AS runs,
+		SUM(COALESCE(corrected_distance_m, distance_m)) AS distance_m,
+		SUM(duration_s) AS duration_s,
+		SUM(CASE WHEN avg_hr > 0 THEN avg_hr * duration_s ELSE 0 END) AS hr_weighted,
+		SUM(CASE WHEN avg_hr > 0 THEN duration_s ELSE 0 END) AS hr_duration,
+		MAX(COALESCE(corrected_distance_m, distance_m)) AS longest_m,
+		SUM(COALESCE(elevation_m, 0)) AS elevation_m
+		FROM runs WHERE `+where+` GROUP BY bucket ORDER BY bucket`)
+	if err != nil {
+		return 500, map[string]any{"error": "统计失败：" + err.Error()}
+	}
+	for _, r := range rows {
+		if hd := num(r["hr_duration"]); hd > 0 {
+			r["avg_hr"] = num(r["hr_weighted"]) / hd
+		}
+		delete(r, "hr_weighted")
+		delete(r, "hr_duration")
+	}
+	unknown := 0
+	if u, err := s.query(ctx, "SELECT COUNT(*) AS n FROM runs WHERE type_key IS NULL OR type_key = ''"); err == nil && len(u) > 0 {
+		unknown = int(num(u[0]["n"]))
+	}
+	return 200, map[string]any{"buckets": rows, "unknown_type": unknown, "indoor_types": indoorTypes}
+}
+
+// ---------------------------------------------------------------------------
+// 地图瓦片代理：页面 CSP 只许同源图片，插件后端经宿主出网代理取瓦片，缓存在插件缓存目录。
+// 中国区用高德（GCJ-02，前端把轨迹换算过去），国际区用 OpenStreetMap。
+// ---------------------------------------------------------------------------
+
+type rawResponse struct {
+	Status      int
+	ContentType string
+	Body        []byte
+	MaxAge      int
+}
+
+func tileURL(src string, z, x, y int) string {
+	if src == "amap" {
+		return fmt.Sprintf("https://webrd0%d.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=%d&y=%d&z=%d", (x+y)%4+1, x, y, z)
+	}
+	return fmt.Sprintf("https://tile.openstreetmap.org/%d/%d/%d.png", z, x, y)
+}
+
+func (s *server) apiTile(ctx context.Context, rest string) (int, any) {
+	parts := strings.Split(rest, "/")
+	if len(parts) != 4 || (parts[0] != "amap" && parts[0] != "osm") {
+		return 400, map[string]any{"error": "瓦片地址应为 /tiles/{amap|osm}/{z}/{x}/{y}"}
+	}
+	src := parts[0]
+	z, e1 := strconv.Atoi(parts[1])
+	x, e2 := strconv.Atoi(parts[2])
+	y, e3 := strconv.Atoi(strings.TrimSuffix(parts[3], ".png"))
+	if e1 != nil || e2 != nil || e3 != nil || z < 1 || z > 18 || x < 0 || y < 0 || x >= 1<<z || y >= 1<<z {
+		return 400, map[string]any{"error": "瓦片坐标不合法"}
+	}
+	var cachePath string
+	if cacheDir != "" {
+		cachePath = filepath.Join(cacheDir, "tiles", src, strconv.Itoa(z), strconv.Itoa(x), strconv.Itoa(y)+".png")
+		if b, err := os.ReadFile(cachePath); err == nil && len(b) > 0 {
+			return 200, rawResponse{Status: 200, ContentType: "image/png", Body: b, MaxAge: 86400 * 7}
+		}
+	}
+	res, err := s.httpRaw(ctx, "GET", tileURL(src, z, x, y), map[string]string{
+		"User-Agent": "pmw-plugin-garmin_connect/" + pluginVer + " (+https://github.com/lizhao903/pmw-plugin-garmin_connect)",
+		"Accept":     "image/png,image/*;q=0.8",
+	}, nil)
+	if err != nil {
+		return 502, map[string]any{"error": "取地图瓦片失败：" + err.Error()}
+	}
+	if res.Status != 200 || len(res.body) == 0 {
+		return 502, map[string]any{"error": fmt.Sprintf("地图服务返回 HTTP %d", res.Status)}
+	}
+	ct := res.Headers["content-type"]
+	if !strings.HasPrefix(ct, "image/") {
+		ct = "image/png"
+	}
+	if cachePath != "" {
+		if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err == nil {
+			_ = os.WriteFile(cachePath, res.body, 0o644)
+		}
+	}
+	return 200, rawResponse{Status: 200, ContentType: ct, Body: res.body, MaxAge: 86400 * 7}
 }
 
 // ---------------------------------------------------------------------------
@@ -1144,8 +1640,14 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 	switch {
 	case p.Method == "GET" && path == "/runs":
 		status, payload = s.apiRuns(ctx)
+	case p.Method == "POST" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/lap-speeds"):
+		status, payload = s.apiSetLapSpeeds(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/runs/"), "/lap-speeds"), body)
 	case p.Method == "GET" && strings.HasPrefix(path, "/runs/"):
 		status, payload = s.apiRunDetail(ctx, strings.TrimPrefix(path, "/runs/"), query.Get("refresh") == "1")
+	case p.Method == "GET" && path == "/stats":
+		status, payload = s.apiStats(ctx, query)
+	case p.Method == "GET" && strings.HasPrefix(path, "/tiles/"):
+		status, payload = s.apiTile(ctx, strings.TrimPrefix(path, "/tiles/"))
 	case p.Method == "GET" && path == "/status":
 		status, payload = s.apiStatus(ctx)
 	case p.Method == "POST" && path == "/login":
@@ -1153,12 +1655,23 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 	case p.Method == "POST" && path == "/logout":
 		status, payload = s.apiLogout(ctx)
 	case p.Method == "POST" && path == "/sync":
-		status, payload = s.apiSync(ctx)
+		status, payload = s.apiSync(ctx, query.Get("full") == "1")
 	default:
 		status = 404
 		payload = map[string]any{"error": "未知接口"}
 	}
 
+	if rr, ok := payload.(rawResponse); ok {
+		return map[string]any{
+			"stream": false,
+			"status": rr.Status,
+			"headers": map[string]string{
+				"Content-Type":  rr.ContentType,
+				"Cache-Control": fmt.Sprintf("private, max-age=%d", rr.MaxAge),
+			},
+			"body_b64": base64.StdEncoding.EncodeToString(rr.Body),
+		}, nil
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return nil, rpcErrorf("internal", "编码 HTTP 响应失败：%v", err)
@@ -1205,28 +1718,14 @@ func parseQuery(raw json.RawMessage) url.Values {
 	return out
 }
 
-func (s *server) queryRuns(ctx context.Context, limit int) ([]map[string]any, error) {
-	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	var out struct {
-		Columns []string         `json:"columns"`
-		Rows    []map[string]any `json:"rows"`
-	}
-	sql := "SELECT activity_id, start_time, activity_name, distance_m, duration_s, pace_sec_per_km, avg_hr, max_hr, cadence, elevation_m, calories, synced_at FROM runs ORDER BY start_time DESC LIMIT ?"
-	if err := s.conn.call(callCtx, "host.store.query", map[string]any{
-		"sql": sql, "args": []any{limit},
-	}, &out); err != nil {
-		return nil, err
-	}
-	return out.Rows, nil
-}
-
 func (s *server) apiRuns(ctx context.Context) (int, any) {
-	rows, err := s.queryRuns(ctx, 50)
+	rows, err := s.query(ctx, `SELECT activity_id, start_time, activity_name, distance_m, duration_s, pace_sec_per_km,
+		avg_hr, max_hr, cadence, elevation_m, calories, synced_at, type_key, corrected_distance_m
+		FROM runs ORDER BY start_time DESC LIMIT 200`)
 	if err != nil {
 		return 500, map[string]any{"error": "读取跑步记录失败：" + err.Error()}
 	}
-	return 200, map[string]any{"runs": rows, "count": len(rows)}
+	return 200, map[string]any{"runs": rows, "count": len(rows), "indoor_types": indoorTypes}
 }
 
 func validActivityID(id string) bool {
@@ -1241,17 +1740,40 @@ func validActivityID(id string) bool {
 	return true
 }
 
+func (s *server) mapSource(ctx context.Context) string {
+	raw, err := s.readSecret(ctx)
+	if err == nil && raw != "" {
+		var c credentials
+		if json.Unmarshal([]byte(raw), &c) == nil && !c.IsCN {
+			return "osm"
+		}
+	}
+	return "amap"
+}
+
 func (s *server) apiRunDetail(ctx context.Context, id string, refresh bool) (int, any) {
 	if !validActivityID(id) {
 		return 400, map[string]any{"error": "活动 id 不合法"}
 	}
+	respond := func(d *runDetail, cached bool) (int, any) {
+		return 200, map[string]any{
+			"detail": d, "cached": cached, "lap_speeds": s.lapSpeeds(ctx, id),
+			"map_source": s.mapSource(ctx), "indoor_types": indoorTypes,
+		}
+	}
 	if !refresh {
-		if d := s.cachedDetail(ctx, id); d != nil {
-			return 200, map[string]any{"detail": d, "cached": true}
+		if d := s.cachedDetail(ctx, id); d != nil && d.V >= detailVersion {
+			return respond(d, true)
 		}
 	}
 	c, err := s.authed(ctx)
 	if err != nil {
+		// 拉不到新的就先给旧缓存
+		if d := s.cachedDetail(ctx, id); d != nil {
+			code, payload := respond(d, true)
+			payload.(map[string]any)["warning"] = "没能从 Garmin 刷新：" + err.Error()
+			return code, payload
+		}
 		return 502, map[string]any{"error": err.Error()}
 	}
 	d, err := s.fetchRunDetail(ctx, c, id)
@@ -1263,11 +1785,17 @@ func (s *server) apiRunDetail(ctx context.Context, id string, refresh bool) (int
 		return 502, map[string]any{"error": "拉取跑步详情失败：" + err.Error()}
 	}
 	s.storeDetail(ctx, d)
-	return 200, map[string]any{"detail": d, "cached": false}
+	// 分段变了（重新拉取）时按已有校正重算总距离
+	if speeds := s.lapSpeeds(ctx, id); len(speeds) > 0 {
+		if dist := correctedDistance(d.Laps, speeds); dist > 0 {
+			_ = s.exec(ctx, "UPDATE runs SET corrected_distance_m = ? WHERE activity_id = ?", dist, id)
+		}
+	}
+	return respond(d, false)
 }
 
 func (s *server) apiStatus(ctx context.Context) (int, any) {
-	resp := map[string]any{"logged_in": false, "configured": false, "last_sync": ""}
+	resp := map[string]any{"logged_in": false, "configured": false, "last_sync": "", "full_sync": s.fullSyncSnapshot()}
 	if raw, err := s.readSecret(ctx); err != nil {
 		resp["error"] = "读取登录信息失败：" + err.Error()
 	} else if raw != "" {
@@ -1280,15 +1808,14 @@ func (s *server) apiStatus(ctx context.Context) (int, any) {
 			resp["logged_in_at"] = c.LoggedInAt
 		}
 	}
-	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	var st struct {
-		Rows []map[string]any `json:"rows"`
+	if rows, err := s.query(ctx, "SELECT key, value FROM sync_state WHERE key IN ('last_sync', 'last_full_sync', 'last_sync_error', 'last_sync_attempt')"); err == nil {
+		for _, r := range rows {
+			k, _ := r["key"].(string)
+			resp[k], _ = r["value"].(string)
+		}
 	}
-	if err := s.conn.call(callCtx, "host.store.query", map[string]any{
-		"sql": "SELECT value FROM sync_state WHERE key='last_sync'",
-	}, &st); err == nil && len(st.Rows) > 0 {
-		resp["last_sync"], _ = st.Rows[0]["value"].(string)
+	if rows, err := s.query(ctx, "SELECT COUNT(*) AS n FROM runs"); err == nil && len(rows) > 0 {
+		resp["runs"] = int(num(rows[0]["n"]))
 	}
 	return 200, resp
 }
@@ -1333,8 +1860,14 @@ func (s *server) apiLogout(ctx context.Context) (int, any) {
 	return 200, map[string]any{"ok": true}
 }
 
-func (s *server) apiSync(ctx context.Context) (int, any) {
-	added, err := s.doSync(ctx)
+func (s *server) apiSync(ctx context.Context, full bool) (int, any) {
+	if full {
+		if !s.startFullSync() {
+			return 409, map[string]any{"error": "全部历史同步已经在跑了", "full_sync": s.fullSyncSnapshot()}
+		}
+		return 202, map[string]any{"ok": true, "started": true, "full_sync": s.fullSyncSnapshot()}
+	}
+	added, err := s.doSync(ctx, false, nil)
 	if err != nil {
 		return 502, map[string]any{"error": err.Error()}
 	}

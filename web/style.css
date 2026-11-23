@@ -156,3 +156,60 @@
 [data-pmw-plugin="garmin_connect"] .gc-scroll { overflow-x: auto; }
 [data-pmw-plugin="garmin_connect"] .gc-scroll .gc-table th,
 [data-pmw-plugin="garmin_connect"] .gc-scroll .gc-table td { white-space: nowrap; }
+
+/* 0.3.0：标题行兜底、分段按钮、统计图、曲线、地图、分段归类、跑步机校正 */
+[data-pmw-plugin="garmin_connect"] .gc-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+[data-pmw-plugin="garmin_connect"] .gc-header > div:first-child { flex: 1 1 auto; }
+
+[data-pmw-plugin="garmin_connect"] .gc-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+[data-pmw-plugin="garmin_connect"] .gc-tag {
+  display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 12px; line-height: 18px;
+  background: var(--pmw-panel-hover, #eef0f3); color: var(--pmw-text-secondary, #4b5563);
+}
+[data-pmw-plugin="garmin_connect"] .gc-mark { font-size: 11px; color: var(--pmw-text-secondary, #6b7280); }
+[data-pmw-plugin="garmin_connect"] .gc-note {
+  margin: 0; padding: 6px 10px; border-left: 3px solid var(--pmw-border, #d1d5db);
+  background: var(--pmw-panel, #f9fafb); font-size: 13px;
+}
+[data-pmw-plugin="garmin_connect"] .gc-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+[data-pmw-plugin="garmin_connect"] .gc-speed { width: 78px; padding: 3px 6px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px; font: inherit; }
+[data-pmw-plugin="garmin_connect"] .gc-subtotal td { font-weight: 600; background: var(--pmw-panel, #f9fafb); }
+[data-pmw-plugin="garmin_connect"] .gc-corrected td:nth-child(3),
+[data-pmw-plugin="garmin_connect"] .gc-corrected td:nth-child(5) { font-weight: 600; }
+
+[data-pmw-plugin="garmin_connect"] .gc-chart { margin: 0; }
+[data-pmw-plugin="garmin_connect"] .gc-chart svg { width: 100%; height: auto; display: block; }
+[data-pmw-plugin="garmin_connect"] .gc-grid { stroke: var(--pmw-border, #e5e7eb); stroke-width: 1; }
+[data-pmw-plugin="garmin_connect"] .gc-axis { fill: var(--pmw-text-secondary, #6b7280); font-size: 11px; }
+[data-pmw-plugin="garmin_connect"] .gc-bar { fill: var(--pmw-accent, #4b5563); opacity: 0.8; }
+[data-pmw-plugin="garmin_connect"] .gc-bar:hover { opacity: 1; }
+[data-pmw-plugin="garmin_connect"] .gc-charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+[data-pmw-plugin="garmin_connect"] .gc-line {
+  padding: 8px 10px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);
+}
+[data-pmw-plugin="garmin_connect"] .gc-line figcaption { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); margin-bottom: 4px; }
+[data-pmw-plugin="garmin_connect"] .gc-line figcaption strong { color: var(--pmw-text, inherit); }
+[data-pmw-plugin="garmin_connect"] .gc-linepath { stroke: var(--pmw-accent, #4b5563); stroke-width: 1.5; stroke-linejoin: round; }
+
+[data-pmw-plugin="garmin_connect"] .gc-map {
+  position: relative; overflow: hidden; border: 1px solid var(--pmw-border, #e5e7eb);
+  border-radius: var(--pmw-radius, 8px); background: #e9ecef;
+}
+[data-pmw-plugin="garmin_connect"] .gc-tile { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; }
+[data-pmw-plugin="garmin_connect"] .gc-map-svg { position: absolute; left: 0; top: 0; pointer-events: none; }
+[data-pmw-plugin="garmin_connect"] .gc-route { stroke: #d9480f; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+[data-pmw-plugin="garmin_connect"] .gc-route-halo { stroke: #fff; stroke-width: 6; stroke-linejoin: round; stroke-linecap: round; opacity: 0.8; }
+[data-pmw-plugin="garmin_connect"] .gc-pin-start { fill: #2b8a3e; stroke: #fff; stroke-width: 2; }
+[data-pmw-plugin="garmin_connect"] .gc-pin-end { fill: #c92a2a; stroke: #fff; stroke-width: 2; }
+[data-pmw-plugin="garmin_connect"] .gc-map-zoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; }
+[data-pmw-plugin="garmin_connect"] .gc-map-zoom button {
+  width: 28px; height: 28px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px;
+  background: #fff; color: #111; font-size: 16px; line-height: 1; cursor: pointer;
+}
+[data-pmw-plugin="garmin_connect"] .gc-map-attr {
+  position: absolute; right: 4px; bottom: 2px; padding: 0 4px; font-size: 10px; color: #333; background: rgba(255, 255, 255, 0.7);
+}
+
+[data-pmw-plugin="garmin_connect"] .gc-all summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+[data-pmw-plugin="garmin_connect"] .gc-kv th { text-align: left; font-weight: 400; color: var(--pmw-text-secondary, #6b7280); }
+[data-pmw-plugin="garmin_connect"] .gc-kv code { font-size: 11px; }
