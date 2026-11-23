@@ -1894,9 +1894,14 @@ function intensityClassByLabel(l) {
 // ---------------------------------------------------------------------------
 
 const AGENT_KEY = "gc-agent";
+/** 默认用工作台里的「跑步数据分析」Agent（在设置 → Agent 里可以改它的模型和指令）；没有这个 Agent 时留空用默认模型 */
+const DEFAULT_AGENT = "跑步数据分析";
 
 function loadAgent() {
-  try { return window.localStorage.getItem(AGENT_KEY) || ""; } catch (e) { return ""; }
+  try {
+    const v = window.localStorage.getItem(AGENT_KEY);
+    return v === null ? DEFAULT_AGENT : v;
+  } catch (e) { return DEFAULT_AGENT; }
 }
 
 /** 极简 Markdown：标题、列表、粗体、段落（模型输出够用；不渲染 HTML，防注入） */
@@ -1975,7 +1980,7 @@ function AnalysisTab(props) {
     h("div", { className: "gc-controls" },
       h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: running, onClick: start },
         running ? "分析中…" : has ? "重新分析" : "生成分析"),
-      h("label", { className: "gc-inline", title: "在「设置 → Agent」里建一个 Agent（比如写好你的目标、伤病史），这里填它的名称；留空用默认模型服务商" },
+      h("label", { className: "gc-inline", title: "默认用「跑步数据分析」Agent；可以在「设置 → Agent」里改它的模型，或补充你的目标、比赛计划、伤病史。留空用默认模型服务商" },
         "使用的 Agent",
         h("input", { className: "gc-search", placeholder: "留空用默认模型", value: agentName, onChange: function (e) { setAgentName(e.target.value); } })),
       h("span", { className: "pmw-plugin-hint" }, "会把这次的数据和最近 4 周训练量发给工作台配置的模型服务商")),
