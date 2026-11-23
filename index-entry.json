@@ -10,8 +10,8 @@
         "en": "Garmin Running Data"
       },
       "description": {
-        "zh": "登录 Garmin Connect，定时同步跑步活动，查看单次跑步的分段配速与心率区间",
-        "en": "Sign in to Garmin Connect, sync runs on a schedule, view splits and heart-rate zones"
+        "zh": "登录 Garmin Connect 同步跑步：按周月年统计（室内/室外），单次跑步的地图、曲线、分段归类与跑步机速度校正",
+        "en": "Sync Garmin runs: weekly/monthly/yearly stats (indoor/outdoor), per-run map, charts, lap types and treadmill speed correction"
       },
       "author": "lizhao903",
       "repository": "https://github.com/lizhao903/pmw-plugin-garmin_connect",
@@ -25,6 +25,37 @@
         "running"
       ],
       "versions": [
+        {
+          "version": "0.3.0",
+          "published_at": "2026-11-23T07:46:00Z",
+          "api": ">=2.0.0 <3.0.0",
+          "pmw": ">=0.3.0 <1.0.0",
+          "permissions": [
+            "network:any",
+            "secrets:garmin_connect",
+            "schedule"
+          ],
+          "source": {
+            "type": "github-release",
+            "repository": "lizhao903/pmw-plugin-garmin_connect",
+            "tag": "v0.3.0",
+            "commit": "77640d86b8fe1f56ab9a6dc0e2830a274e3bf87c",
+            "assets": {
+              "darwin-arm64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.3.0/garmin_connect-0.3.0-darwin-arm64.tar.gz",
+                "sha256": "50fd6e7ab91608e7d5ad601d272d83c58321663f71e0ebad47e80e3c875b2418"
+              },
+              "linux-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.3.0/garmin_connect-0.3.0-linux-amd64.tar.gz",
+                "sha256": "57e33d6e786f09d7555f6cf234f8ab9d455152639cebeb7f508d1130a7e450f9"
+              },
+              "windows-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.3.0/garmin_connect-0.3.0-windows-amd64.tar.gz",
+                "sha256": "b3b9901c98f2ebb00ac9307d7d040304d8f0f36ea83a3f703bc76daa6dd77fee"
+              }
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "published_at": "2026-11-23T07:27:00Z",
