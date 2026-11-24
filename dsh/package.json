@@ -1,6 +1,6 @@
 {
   "name": "@lizhao903/dsh-garmin-connect",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Garmin 跑步数据 · DeepSeek Harness 插件：登录 Garmin Connect 同步跑步与力量训练，左侧栏查看统计、地图曲线、AI 训练分析、训练计划与日历、比赛与影像记忆；对话里可直接查询跑步数据。",
   "keywords": [
     "deepseek-harness",

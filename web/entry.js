@@ -19,6 +19,59 @@ const disposables = [];
 /** 宿主 ctx（activate 时存下，组件里取 ctx.ui） */
 let CTX = null;
 
+// ---------------------------------------------------------------------------
+// 主题（0.9.0）：浅色 / 深色，默认跟随宿主（<html data-theme>，PMW 和 dsh 都写这个属性），没有再跟系统。
+// 选项存 localStorage；所有插件组件包在 .gc-root[data-gc-theme] 里，样式按它切换 token。
+// ---------------------------------------------------------------------------
+
+const THEME_KEY = "gc-theme";
+const THEME_OPTIONS = [["auto", "跟随系统"], ["light", "浅色"], ["dark", "深色"]];
+let themePref = (function () {
+  try { const v = window.localStorage.getItem(THEME_KEY); return v === "light" || v === "dark" ? v : "auto"; } catch (e) { return "auto"; }
+})();
+const themeSubs = new Set();
+
+function hostTheme() {
+  const t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function resolvedTheme() { return themePref === "auto" ? hostTheme() : themePref; }
+function setThemePref(v) {
+  themePref = v;
+  try { window.localStorage.setItem(THEME_KEY, v); } catch (e) { /* 存不了就只在本次生效 */ }
+  themeSubs.forEach(function (f) { f(); });
+}
+
+/** 订阅主题变化（手动切换、宿主切换、系统切换），返回当前生效的主题 */
+function useTheme() {
+  const [, force] = useState(0);
+  useEffect(function () {
+    const f = function () { force(function (n) { return n + 1; }); };
+    themeSubs.add(f);
+    const ob = new MutationObserver(f);
+    ob.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    const mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+    if (mq && mq.addEventListener) mq.addEventListener("change", f);
+    return function () {
+      themeSubs.delete(f); ob.disconnect();
+      if (mq && mq.removeEventListener) mq.removeEventListener("change", f);
+    };
+  }, []);
+  return resolvedTheme();
+}
+
+function ThemeRoot(props) {
+  const theme = useTheme();
+  return h("div", { className: "gc-root", "data-gc-theme": theme }, props.children);
+}
+
+/** 标题栏上的快速切换：当前深色就给「浅色」，反之亦然（切换后不再跟随） */
+function themeAction(theme) {
+  return { label: theme === "dark" ? "浅色" : "深色", title: "切换浅色 / 深色主题（在设置里可改回跟随系统）",
+    onClick: function () { setThemePref(theme === "dark" ? "light" : "dark"); } };
+}
+
 /** @param {string} path @param {RequestInit} [init] @returns {Promise<any>} */
 async function api(path, init) {
   const res = await fetch(API_BASE + path, init);
@@ -129,7 +182,7 @@ class ErrorBoundary extends Component {
 
 function guarded(Inner) {
   return function Guarded(props) {
-    return h(ErrorBoundary, null, h(Inner, props));
+    return h(ThemeRoot, null, h(ErrorBoundary, null, h(Inner, props)));
   };
 }
 
@@ -194,6 +247,7 @@ function Seg(props) {
 // ---------------------------------------------------------------------------
 
 function ModulePage() {
+  const theme = useTheme();
   const [view, setView] = useState("runs");
   const [runs, setRuns] = useState([]);
   const [indoorTypes, setIndoorTypes] = useState(DEFAULT_INDOOR);
@@ -293,6 +347,7 @@ function ModulePage() {
         { label: busy ? "同步中…" : "立即同步", primary: true, disabled: busy || fullRunning, onClick: syncNow },
         { label: fullRunning ? "历史同步中…" : (narrow ? "全部历史" : "同步全部历史"), disabled: busy || fullRunning, onClick: syncAll,
           title: "把 Garmin 上所有跑步记录都拉下来（统计用），在后台进行" },
+        themeAction(theme),
       ],
     }),
     narrow ? viewSeg : null,
@@ -1267,14 +1322,14 @@ function WeatherCard(props) {
  * moving 表示人停下时这个指标没意义（停下的点画成断开）。
  */
 const METRIC_DEFS = [
-  { key: "pace", src: "directSpeed", label: "配速", unit: "/km", color: "#2563eb", pace: true, minDev: 0.35 },
-  { key: "hr", src: "directHeartRate", label: "心率", unit: "bpm", color: "#dc2626", lo: 35, hi: 230, minDev: 8 },
-  { key: "ele", src: "directElevation", label: "海拔", unit: "m", color: "#059669", lo: -500, hi: 9000, minDev: 4 },
-  { key: "cad", src: "directDoubleCadence", alt: "directRunCadence", label: "步频", unit: "步/分", color: "#7c3aed", lo: 100, hi: 260, minDev: 8, moving: true },
-  { key: "pow", src: "directPower", label: "功率", unit: "W", color: "#ea580c", lo: 1, hi: 1500, minDev: 40, moving: true },
-  { key: "gct", src: "directGroundContactTime", label: "触地时间", unit: "ms", color: "#0891b2", lo: 100, hi: 500, minDev: 25, moving: true },
-  { key: "vo", src: "directVerticalOscillation", label: "垂直振幅", unit: "cm", color: "#db2777", lo: 2, hi: 20, minDev: 1, moving: true, digits: 1 },
-  { key: "stride", src: "directStrideLength", label: "步幅", unit: "m", color: "#65a30d", lo: 0.3, hi: 2.5, minDev: 0.12, moving: true, scale: 0.01, digits: 2 },
+  { key: "pace", src: "directSpeed", label: "配速", unit: "/km", color: "var(--gc-m-pace, #2563eb)", pace: true, minDev: 0.35 },
+  { key: "hr", src: "directHeartRate", label: "心率", unit: "bpm", color: "var(--gc-m-hr, #dc2626)", lo: 35, hi: 230, minDev: 8 },
+  { key: "ele", src: "directElevation", label: "海拔", unit: "m", color: "var(--gc-m-ele, #059669)", lo: -500, hi: 9000, minDev: 4 },
+  { key: "cad", src: "directDoubleCadence", alt: "directRunCadence", label: "步频", unit: "步/分", color: "var(--gc-m-cad, #7c3aed)", lo: 100, hi: 260, minDev: 8, moving: true },
+  { key: "pow", src: "directPower", label: "功率", unit: "W", color: "var(--gc-m-pow, #ea580c)", lo: 1, hi: 1500, minDev: 40, moving: true },
+  { key: "gct", src: "directGroundContactTime", label: "触地时间", unit: "ms", color: "var(--gc-m-gct, #0891b2)", lo: 100, hi: 500, minDev: 25, moving: true },
+  { key: "vo", src: "directVerticalOscillation", label: "垂直振幅", unit: "cm", color: "var(--gc-m-vo, #db2777)", lo: 2, hi: 20, minDev: 1, moving: true, digits: 1 },
+  { key: "stride", src: "directStrideLength", label: "步幅", unit: "m", color: "var(--gc-m-stride, #65a30d)", lo: 0.3, hi: 2.5, minDev: 0.12, moving: true, scale: 0.01, digits: 2 },
 ];
 
 const STOP_SPEED = 0.6; // m/s，低于这个算停下（约 28'/km）
@@ -1665,7 +1720,7 @@ function ChartSvg(props) {
       h("line", { x1: sx(prep.x[hv]), x2: sx(prep.x[hv]), y1: padT, y2: H - padB, className: "gc-cross" }),
       ms.map(function (m, j) {
         const v = m.vals[hv];
-        return isNum(v) ? h("circle", { key: m.def.key, cx: sx(prep.x[hv]), cy: scales[j](v), r: 3.5, fill: m.def.color, stroke: "#fff", strokeWidth: 1.5 }) : null;
+        return isNum(v) ? h("circle", { key: m.def.key, cx: sx(prep.x[hv]), cy: scales[j](v), r: 3.5, fill: m.def.color, stroke: "var(--gc-card, #fff)", strokeWidth: 1.5 }) : null;
       })) : null,
     h("text", { x: padL, y: H - 6, className: "gc-axis" }, xText(prep.axis, xmin)),
     h("text", { x: (padL + W - padR) / 2, y: H - 6, className: "gc-axis", textAnchor: "middle" }, xText(prep.axis, (xmin + xmax) / 2)),
@@ -2745,6 +2800,7 @@ function personalBests(races) {
 }
 
 function RacesPage() {
+  const theme = useTheme();
   const [races, setRaces] = useState(null);
   const [open, setOpen] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -2778,7 +2834,7 @@ function RacesPage() {
     h(TitleBar, {
       title: "比赛",
       desc: list.length ? "完赛 " + finished.length + " 场 · 共收录 " + list.length + " 场" : "",
-      actions: [{ label: "添加比赛", primary: true, onClick: function () { setAdding(true); } }],
+      actions: [{ label: "添加比赛", primary: true, onClick: function () { setAdding(true); } }, themeAction(theme)],
     }),
     msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
     adding ? h(RaceForm, {
@@ -3209,6 +3265,7 @@ function TodayCard() {
 }
 
 function SettingsSection() {
+  useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isCN, setIsCN] = useState(true);
@@ -3270,6 +3327,9 @@ function SettingsSection() {
   const loggedIn = Boolean(state && state.logged_in);
   return h("section", { className: "pmw-plugin pmw-plugin-settings" },
     h("h3", null, PLUGIN_NAME + " 设置"),
+    h("div", { className: "gc-controls" },
+      h(Seg, { label: "外观", value: themePref, onChange: setThemePref, options: THEME_OPTIONS }),
+      h("span", { className: "pmw-plugin-hint" }, "外观：跟随系统时按工作台的明暗模式；只影响本插件页面。")),
     loggedIn
       ? h("div", { className: "gc-account" },
           h("p", null, "已登录：", h("strong", null, state.email || "Garmin 账号"),

@@ -519,3 +519,216 @@
 [data-pmw-plugin="garmin_connect"] .gc-video-top { display: flex; gap: 6px; }
 [data-pmw-plugin="garmin_connect"] .gc-video-title { font-weight: 600; color: inherit; text-decoration: none; line-height: 1.4; }
 [data-pmw-plugin="garmin_connect"] a.gc-video-title:hover { color: var(--pmw-accent, #2563eb); text-decoration: underline; }
+
+/* =========================================================================
+ * 0.9.0：浅色 / 深色主题
+ * 组件都包在 .gc-root[data-gc-theme] 里。这里先定 --gc-* 主题 token，再把 --pmw-* 映射过去，
+ * 前面按 --pmw-* 写的样式自动跟着主题走；下面只覆盖原来写死的颜色和需要变形态的组件。
+ * 浅色 = 清新卡片（浮起白卡、指标分色）；深色 = 运动仪表盘（深底、橙色主色、等宽数字）。
+ * ========================================================================= */
+
+[data-pmw-plugin="garmin_connect"] .gc-root {
+  --pmw-text: var(--gc-text);
+  --pmw-text-secondary: var(--gc-muted);
+  --pmw-border: var(--gc-border);
+  --pmw-panel: var(--gc-card);
+  --pmw-panel-hover: var(--gc-soft);
+  --pmw-accent: var(--gc-accent);
+  --pmw-danger: var(--gc-bad);
+  --pmw-radius: var(--gc-radius);
+  --line: var(--gc-border);
+  --hover: var(--gc-soft);
+  color: var(--gc-text);
+}
+
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] {
+  --gc-bg: transparent;
+  --gc-card: #ffffff;
+  --gc-border: #e7ecf3;
+  --gc-text: #172033;
+  --gc-muted: #6f7a8e;
+  --gc-soft: #eef2f8;
+  --gc-accent: #2f6bff;
+  --gc-on-accent: #ffffff;
+  --gc-good: #0e8a59;
+  --gc-warn: #b45309;
+  --gc-bad: #d92d3f;
+  --gc-radius: 12px;
+  --gc-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 14px rgba(16, 24, 40, 0.06);
+  --gc-shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.06), 0 8px 22px rgba(16, 24, 40, 0.1);
+  --gc-num-font: inherit;
+  --gc-cover: #eef2f8;
+  --gc-tag-in-bg: #e8f0ff; --gc-tag-in: #2f6bff;
+  --gc-tag-pb-bg: #fff4d6; --gc-tag-pb: #a86b00;
+  --gc-src-up-bg: #fde7f1; --gc-src-up: #b4235f; --gc-src-up-border: #f9c6dc;
+  --gc-src-bg: #e8edff; --gc-src: #3a46b5; --gc-src-border: #cdd6ff;
+  /* 指标色：距离蓝、配速青、心率红、步频紫 */
+  --gc-m-pace: #0fa5a0;
+  --gc-m-hr: #f0436a;
+  --gc-m-ele: #16a34a;
+  --gc-m-cad: #8b5cf6;
+  --gc-m-pow: #f97316;
+  --gc-m-gct: #0ea5e9;
+  --gc-m-vo: #ec4899;
+  --gc-m-stride: #65a30d;
+}
+
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] {
+  --gc-bg: #0d1117;
+  --gc-card: #151b24;
+  --gc-border: #243041;
+  --gc-text: #e8edf4;
+  --gc-muted: #8d99ab;
+  --gc-soft: #1d2531;
+  --gc-accent: #ff6a2b;
+  --gc-on-accent: #ffffff;
+  --gc-good: #3ddc97;
+  --gc-warn: #fbbf24;
+  --gc-bad: #ff5c6c;
+  --gc-radius: 10px;
+  --gc-shadow: none;
+  --gc-shadow-hover: 0 0 0 1px #34425a;
+  --gc-num-font: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --gc-cover: #1a2230;
+  --gc-tag-in-bg: rgba(46, 196, 255, 0.14); --gc-tag-in: #5fd3ff;
+  --gc-tag-pb-bg: rgba(255, 106, 43, 0.16); --gc-tag-pb: #ff9a66;
+  --gc-src-up-bg: rgba(244, 114, 182, 0.16); --gc-src-up: #f9a8d4; --gc-src-up-border: rgba(244, 114, 182, 0.35);
+  --gc-src-bg: rgba(129, 140, 248, 0.16); --gc-src: #c7d2fe; --gc-src-border: rgba(129, 140, 248, 0.35);
+  --gc-m-pace: #2ec4ff;
+  --gc-m-hr: #ff4d6d;
+  --gc-m-ele: #3ddc97;
+  --gc-m-cad: #b18cff;
+  --gc-m-pow: #ff8a3d;
+  --gc-m-gct: #22d3ee;
+  --gc-m-vo: #f472b6;
+  --gc-m-stride: #a3e635;
+  color-scheme: dark;
+  background: var(--gc-bg);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+/* ---- 卡片：浅色浮起白卡，深色描边深卡 ---- */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-stat,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-group,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-line,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-chart-box,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-plan-card,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-race-card,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-media-group,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-video-card,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-edit,
+[data-pmw-plugin="garmin_connect"] .gc-root .pmw-plugin-card {
+  border-color: var(--gc-border);
+  border-radius: var(--gc-radius);
+  background: var(--gc-card);
+  box-shadow: var(--gc-shadow);
+}
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-stat,
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-group,
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-chart-box,
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-race-card,
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-plan-card,
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-video-card { border-color: transparent; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-race-card:hover,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-plan-card:hover,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-stat-btn:hover { box-shadow: var(--gc-shadow-hover); border-color: var(--gc-border); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-plan-card.on { border-color: var(--gc-accent); box-shadow: 0 0 0 1px var(--gc-accent), var(--gc-shadow); }
+
+/* 统计卡：数字更大；浅色顶部带一点主色渐变，深色左侧主色条 */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-stat { padding: 10px 14px; position: relative; overflow: hidden; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-stat-value { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-stat { background: linear-gradient(165deg, color-mix(in srgb, var(--gc-accent) 7%, #fff) 0%, #fff 60%); }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-stat { box-shadow: inset 3px 0 0 var(--gc-accent); }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-stat-value { color: #fff; }
+
+/* 数字列：深色用等宽字体 */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-table .num,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-race-result,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-dl dd { font-family: var(--gc-num-font); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-race-result { font-size: 22px; }
+
+/* 主按钮用主色 */
+[data-pmw-plugin="garmin_connect"] .gc-root .pmw-plugin-button { border-color: var(--gc-border); background: var(--gc-card); border-radius: calc(var(--gc-radius) - 4px); }
+[data-pmw-plugin="garmin_connect"] .gc-root .pmw-plugin-button:hover { background: var(--gc-soft); }
+[data-pmw-plugin="garmin_connect"] .gc-root .pmw-plugin-button.gc-primary { background: var(--gc-accent); border-color: var(--gc-accent); color: var(--gc-on-accent); }
+[data-pmw-plugin="garmin_connect"] .gc-root .pmw-plugin-button.gc-primary:hover { background: color-mix(in srgb, var(--gc-accent) 88%, #000); }
+[data-pmw-plugin="garmin_connect"] .gc-root .pmw-plugin-button:disabled { opacity: 0.55; cursor: default; }
+
+/* 表格与列表 */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-table th,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-table td { border-bottom-color: var(--gc-border); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-row:hover,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-row:focus-visible { background: var(--gc-soft); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-tag { background: var(--gc-soft); color: var(--gc-muted); border-radius: 999px; padding: 0 8px; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-tag-in { background: var(--gc-tag-in-bg); color: var(--gc-tag-in); font-weight: 600; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-tag-pb { background: var(--gc-tag-pb-bg); color: var(--gc-tag-pb); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-note { border-left-color: var(--gc-accent); background: var(--gc-soft); border-radius: 0 6px 6px 0; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-readout { background: var(--gc-soft); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-subtotal td { background: var(--gc-soft); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-chip { border-color: var(--gc-border); background: var(--gc-card); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-lap-summary em { background: var(--gc-soft); color: var(--gc-muted); }
+
+/* 图表 */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-grid { stroke: var(--gc-border); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-bar { fill: var(--gc-accent); opacity: 0.82; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-bar:hover { opacity: 1; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-avgline { stroke: var(--gc-m-hr); opacity: 0.9; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-lapbar.on,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-lap-tag { stroke: var(--gc-text); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-lap-tag { fill: var(--gc-text); stroke: none; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-band-note.gc-collapse { color: var(--gc-warn); }
+
+/* 地图：深色主题把瓦片反相成暗色底图，路线和起终点颜色不变 */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-map { background: var(--gc-cover); border-color: var(--gc-border); }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-tile { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7); }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-route { stroke: var(--gc-accent); }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-route-halo { stroke: #0d1117; opacity: 0.7; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-map-zoom button { background: var(--gc-card); color: var(--gc-text); border-color: var(--gc-border); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-map-attr { background: color-mix(in srgb, var(--gc-card) 75%, transparent); color: var(--gc-muted); }
+
+/* 日历 */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-cal-cell { border-color: var(--gc-border); background: var(--gc-card); border-radius: 8px; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-cal-cell.today .gc-cal-day { background: var(--gc-accent); color: var(--gc-on-accent); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-cal-cell.sel { border-color: var(--gc-accent); box-shadow: 0 0 0 1px var(--gc-accent); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-cal-act { color: var(--gc-good); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-k-run, [data-pmw-plugin="garmin_connect"] .gc-root .gc-int-work { background: var(--gc-accent); fill: var(--gc-accent); }
+
+/* 比赛与影像 */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-race-cover,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-media-thumb { background: var(--gc-cover); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-race-cover-empty,
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-media-icon { color: var(--gc-muted); }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-race-cover-empty { background: linear-gradient(135deg, color-mix(in srgb, var(--gc-accent) 12%, #fff), #f4f7fb); color: color-mix(in srgb, var(--gc-accent) 70%, #6f7a8e); }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-race-cover-empty { background: linear-gradient(135deg, rgba(255, 106, 43, 0.18), #151b24 70%); color: #ff9a66; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-empty { border-color: var(--gc-border); border-radius: var(--gc-radius); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-err { color: var(--gc-bad); }
+
+/* 来源标记 */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-source { border-color: var(--gc-src-up-border); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-source-type { background: var(--gc-src-up-bg); color: var(--gc-src-up); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-source-name { color: var(--gc-src-up); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-source-coach, [data-pmw-plugin="garmin_connect"] .gc-root .gc-source-book, [data-pmw-plugin="garmin_connect"] .gc-root .gc-source-other { border-color: var(--gc-src-border); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-source-coach .gc-source-type, [data-pmw-plugin="garmin_connect"] .gc-root .gc-source-book .gc-source-type, [data-pmw-plugin="garmin_connect"] .gc-root .gc-source-other .gc-source-type { background: var(--gc-src-bg); color: var(--gc-src); }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-source-coach .gc-source-name, [data-pmw-plugin="garmin_connect"] .gc-root .gc-source-book .gc-source-name, [data-pmw-plugin="garmin_connect"] .gc-root .gc-source-other .gc-source-name { color: var(--gc-src); }
+
+/* 表单控件 */
+[data-pmw-plugin="garmin_connect"] .gc-root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+[data-pmw-plugin="garmin_connect"] .gc-root select,
+[data-pmw-plugin="garmin_connect"] .gc-root textarea { background: var(--gc-card); color: var(--gc-text); border-color: var(--gc-border); }
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] select,
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] textarea { background: #0f141c; }
+[data-pmw-plugin="garmin_connect"] .gc-root input[type=checkbox] { accent-color: var(--gc-accent); }
+
+/* 表格放进卡片（记录、统计明细、分段） */
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-scroll {
+  background: var(--gc-card); border: 1px solid var(--gc-border); border-radius: var(--gc-radius); box-shadow: var(--gc-shadow); padding: 2px 10px 6px;
+}
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] .gc-scroll { border-color: transparent; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-scroll .gc-table tr:last-child td { border-bottom: 0; }
+/* 深色主色是橙色，和力量训练的橙色撞了：跑步类改用蓝色 */
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-k-run,
+[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-int-work { background: #3b82f6; fill: #3b82f6; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-stat-value { white-space: nowrap; }
+[data-pmw-plugin="garmin_connect"] .gc-root .gc-races .gc-stats { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
