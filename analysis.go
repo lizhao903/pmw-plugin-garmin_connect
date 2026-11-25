@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +28,7 @@ const analysisSystemRun = `你是一名有经验的跑步教练，也懂体能�
 - 用中文，不使用 emoji，语气专业、直接。
 - 只根据给出的数据下结论，数据里没有的不要编造；缺数据就直说。
 - 结论尽量落到具体数字（配速、心率、距离、时长）。
+- 如果提供了目标比赛或目标成绩，训练配速建议要围绕目标配速区间给，并在建议里点明对应的比赛；同时引用给出的个人最好成绩作为参照。没有目标时，按当前训练水平给。
 - 用 Markdown 输出，按下面的结构，总长度控制在 700 字以内：
 ## 本次概况
 （2～3 句：这是什么类型的训练、完成得怎么样）
@@ -35,31 +37,61 @@ const analysisSystemRun = `你是一名有经验的跑步教练，也懂体能�
 （如跑崩、心率漂移、配速波动大、步频偏低、强度过高或训练量增长过快等，没有就写没有明显问题）
 ## 后续训练建议
 （未来 1～2 周的具体安排：每次课的类型、距离或时长、配速或心率区间，标明哪天适合上强度）
-## 恢复与注意事项`
+## 恢复与注意事项
+最后另起一段，输出一个 plan 代码块（不计入上面的字数），把「后续训练建议」里的每节课逐条列成 JSON 数组，供用户一键排进训练计划。格式：
+` + "```plan" + `
+[{"day":1,"kind":"run","title":"轻松跑 6 km","detail":"配速 6:20～6:40，心率区间 2"}]
+` + "```" + `
+- day 是从开始执行那天算起的第几天（1～14），一天最多一节课，休息日不用列；
+- kind 只能是 run（跑步）、strength（力量）、other（拉伸、交叉训练等）；
+- title 不超过 20 个字，写清课的类型和量；detail 写配速、心率区间、组数次数等要点，不超过 80 个字；
+- 代码块里只放 JSON 数组，不要注释；和正文的建议保持一致。`
 
 const analysisSystemStrength = `你是一名有经验的体能教练，熟悉跑者的力量训练。用户会给你一次 Garmin 力量训练记录（训练组、心率等）和最近几周的训练量，请分析这次训练并给出后续训练建议。
 要求：
 - 用中文，不使用 emoji，语气专业、直接。
 - 只根据给出的数据下结论，数据里没有的不要编造；动作识别可能不准，提到时说明。
+- 力量安排要和给出的目标比赛周期相配；没有目标时按当前训练水平给。
 - 用 Markdown 输出，按下面的结构，总长度控制在 600 字以内：
 ## 本次概况
 ## 亮点
 ## 问题与风险
 ## 后续训练建议
 （未来 1～2 周：力量课的频率、动作、组数次数和强度，以及怎么和跑步训练搭配）
-## 恢复与注意事项`
+## 恢复与注意事项
+最后另起一段，输出一个 plan 代码块（不计入上面的字数），把「后续训练建议」里的每节课逐条列成 JSON 数组，供用户一键排进训练计划。格式：
+` + "```plan" + `
+[{"day":1,"kind":"run","title":"轻松跑 6 km","detail":"配速 6:20～6:40，心率区间 2"}]
+` + "```" + `
+- day 是从开始执行那天算起的第几天（1～14），一天最多一节课，休息日不用列；
+- kind 只能是 run（跑步）、strength（力量）、other（拉伸、交叉训练等）；
+- title 不超过 20 个字，写清课的类型和量；detail 写配速、心率区间、组数次数等要点，不超过 80 个字；
+- 代码块里只放 JSON 数组，不要注释；和正文的建议保持一致。`
 
-func fmtPaceSec(secPerKm float64) string {
+// paceUnitOf 兼容旧调用：不传单位时按 min/km。
+func paceUnitOf(unit []string) string {
+	if len(unit) > 0 && unit[0] == "mile" {
+		return "mile"
+	}
+	return "km"
+}
+
+func fmtPaceUnit(secPerKm float64, unit string) string {
 	if secPerKm <= 0 || math.IsInf(secPerKm, 0) || math.IsNaN(secPerKm) {
 		return "-"
+	}
+	if unit == "mile" {
+		secPerKm *= 1.609344
 	}
 	m := int(secPerKm) / 60
 	s := int(math.Round(secPerKm)) % 60
 	if int(math.Round(secPerKm))/60 > m {
 		m, s = int(math.Round(secPerKm))/60, 0
 	}
-	return fmt.Sprintf("%d'%02d\"/km", m, s)
+	return fmt.Sprintf("%d'%02d\"/%s", m, s, unit)
 }
+
+func fmtPaceSec(secPerKm float64) string { return fmtPaceUnit(secPerKm, "km") }
 
 func fmtDur(sec float64) string {
 	if sec <= 0 {
@@ -78,7 +110,8 @@ func numField(m map[string]any, k string) float64 {
 }
 
 // summaryLines 挑概要里对分析有用的字段，换成中文和常用单位。
-func summaryLines(sm map[string]any, distOverride float64) []string {
+func summaryLines(sm map[string]any, distOverride float64, unit ...string) []string {
+	u := paceUnitOf(unit)
 	var out []string
 	add := func(label, val string) {
 		if val != "" && val != "-" {
@@ -96,13 +129,13 @@ func summaryLines(sm map[string]any, distOverride float64) []string {
 	add("计时用时", fmtDur(dur))
 	add("移动用时", fmtDur(numField(sm, "movingDuration")))
 	if dist > 0 && dur > 0 {
-		add("平均配速", fmtPaceSec(dur/(dist/1000)))
+		add("平均配速", fmtPaceUnit(dur/(dist/1000), u))
 	}
 	if v := numField(sm, "maxSpeed"); v > 0 && distOverride == 0 {
-		add("最快配速", fmtPaceSec(1000/v))
+		add("最快配速", fmtPaceUnit(1000/v, u))
 	}
 	if v := numField(sm, "avgGradeAdjustedSpeed"); v > 0 && distOverride == 0 {
-		add("坡度调整配速", fmtPaceSec(1000/v))
+		add("坡度调整配速", fmtPaceUnit(1000/v, u))
 	}
 	for _, f := range []struct{ k, label, unit string }{
 		{"averageHR", "平均心率", "bpm"}, {"maxHR", "最大心率", "bpm"}, {"averageRunCadence", "平均步频", "步/分"},
@@ -130,7 +163,8 @@ func summaryLines(sm map[string]any, distOverride float64) []string {
 	return out
 }
 
-func lapLines(laps []map[string]any, speeds map[string]float64) []string {
+func lapLines(laps []map[string]any, speeds map[string]float64, unit ...string) []string {
+	u := paceUnitOf(unit)
 	var out []string
 	for i, l := range laps {
 		if i >= 60 {
@@ -146,7 +180,7 @@ func lapLines(laps []map[string]any, speeds map[string]float64) []string {
 		}
 		pace := "-"
 		if dist > 0 {
-			pace = fmtPaceSec(dur / (dist / 1000))
+			pace = fmtPaceUnit(dur/(dist/1000), u)
 		}
 		typ, _ := l["intensityType"].(string)
 		line := fmt.Sprintf("第%d段 %s %.2fkm 用时%s 配速%s", i+1, typ, dist/1000, fmtDur(dur), pace)
@@ -197,7 +231,8 @@ func setLines(sets []map[string]any) []string {
 }
 
 // recentLines 是最近 7 天、28 天的训练量（不含这次），给模型判断负荷。
-func (s *server) recentLines(ctx context.Context, start string, id string) []string {
+func (s *server) recentLines(ctx context.Context, start string, id string, unit ...string) []string {
+	u := paceUnitOf(unit)
 	day := start
 	if len(day) >= 10 {
 		day = day[:10]
@@ -212,6 +247,7 @@ func (s *server) recentLines(ctx context.Context, start string, id string) []str
 		runs, strength int
 		dist, dur      float64
 		longest        float64
+		fastest        float64 // 单次跑步最快的平均配速（秒/公里）
 	}
 	var w7, w28 agg
 	weekAgo := ""
@@ -236,15 +272,95 @@ func (s *server) recentLines(ctx context.Context, start string, id string) []str
 			if d > a.longest {
 				a.longest = d
 			}
+			if d > 0 && du > 0 {
+				if pace := du / (d / 1000); pace > 0 && (a.fastest == 0 || pace < a.fastest) {
+					a.fastest = pace
+				}
+			}
 		}
 	}
 	f := func(label string, a agg) string {
 		return fmt.Sprintf("%s：跑步 %d 次，共 %.1f km、%s，最长一次 %.1f km；力量训练 %d 次", label, a.runs, a.dist/1000, fmtDur(a.dur), a.longest/1000, a.strength)
 	}
-	return []string{f("这次之前 7 天", w7), f("这次之前 28 天", w28), fmt.Sprintf("28 天平均每周跑量约 %.1f km", w28.dist/1000/4)}
+	out := []string{f("这次之前 7 天", w7), f("这次之前 28 天", w28), fmt.Sprintf("28 天平均每周跑量约 %.1f km", w28.dist/1000/4)}
+	if w28.dist > 0 && w28.dur > 0 {
+		out = append(out, fmt.Sprintf("近 28 天整体平均配速 %s，其中最快的一次平均配速 %s（作为配速范围的历史参照）",
+			fmtPaceUnit(w28.dur/(w28.dist/1000), u), fmtPaceUnit(w28.fastest, u)))
+	}
+	return out
 }
 
-func (s *server) buildAnalysisPrompt(ctx context.Context, d *runDetail, insights string) (string, string) {
+// goalLines 把用户设的目标比赛/成绩和各项目 PB 放进 prompt，让建议围绕目标配速而不是凭空给数。
+func (s *server) goalLines(ctx context.Context, unit ...string) []string {
+	u := paceUnitOf(unit)
+	var out []string
+	rows, err := s.query(ctx, "SELECT race_name, category, date, target_s FROM training_goals WHERE id = 1")
+	if err == nil && len(rows) > 0 {
+		name, _ := rows[0]["race_name"].(string)
+		cat, _ := rows[0]["category"].(string)
+		date, _ := rows[0]["date"].(string)
+		target := numField(rows[0], "target_s")
+		if target > 0 {
+			line := "目标比赛"
+			if name != "" {
+				line += "：" + name
+			}
+			if cat != "" {
+				line += "（" + raceCategoryLabel(cat) + "）"
+			}
+			if date != "" {
+				line += "，日期 " + date
+			}
+			line += "，目标成绩 " + fmtDur(target)
+			if pace := goalPaceSec(cat, target); pace > 0 {
+				line += "，目标平均配速 " + fmtPaceUnit(pace, u)
+			}
+			out = append(out, line)
+		}
+	}
+	rows, err = s.query(ctx, `SELECT name, category, date, COALESCE(net_s, official_s) AS t FROM races
+		WHERE status = 'finished' AND COALESCE(net_s, official_s) > 0`)
+	if err == nil {
+		best := map[string]map[string]any{}
+		for _, r := range rows {
+			cat, _ := r["category"].(string)
+			if !raceCategories[cat] {
+				continue
+			}
+			t := numField(r, "t")
+			if b := best[cat]; b == nil || t < numField(b, "t") {
+				best[cat] = r
+			}
+		}
+		cats := []string{"full", "half", "10k", "5k", "trail", "other"}
+		for _, cat := range cats {
+			b := best[cat]
+			if b == nil {
+				continue
+			}
+			t := numField(b, "t")
+			line := fmt.Sprintf("%s个人最好：%s", raceCategoryLabel(cat), fmtDur(t))
+			if pace := goalPaceSec(cat, t); pace > 0 {
+				line += "（平均配速 " + fmtPaceUnit(pace, u) + "）"
+			}
+			if name, _ := b["name"].(string); name != "" {
+				line += "，" + name
+			}
+			if date, _ := b["date"].(string); date != "" {
+				line += " " + date
+			}
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func raceCategoryLabel(cat string) string {
+	return map[string]string{"full": "全马", "half": "半马", "10k": "10 公里", "5k": "5 公里", "trail": "越野", "other": "其他"}[cat]
+}
+
+func (s *server) buildAnalysisPrompt(ctx context.Context, d *runDetail, insights, unit string) (string, string) {
+	u := paceUnitOf([]string{unit})
 	strength := isStrength(d.TypeKey)
 	var b strings.Builder
 	fmt.Fprintf(&b, "活动：%s（类型 %s，开始 %s）\n", d.Name, d.TypeKey, strings.Replace(d.StartLocal, "T", " ", 1))
@@ -254,10 +370,10 @@ func (s *server) buildAnalysisPrompt(ctx context.Context, d *runDetail, insights
 	speeds := s.lapSpeeds(ctx, d.ActivityID)
 	corrected := correctedDistance(d.Laps, speeds)
 	if corrected > 0 {
-		b.WriteString("注意：这是跑步机数据，距离和配速已按用户填写的跑步机速度校正。\n")
+		b.WriteString("注意：这是跑步机数据，距离、配速、分段和曲线已按同一套逐段速度校正，四者口径一致，配速以这里给出的数值为准。\n")
 	}
 	b.WriteString("\n【概要】\n")
-	for _, l := range summaryLines(d.Summary, corrected) {
+	for _, l := range summaryLines(d.Summary, corrected, u) {
 		b.WriteString(l + "\n")
 	}
 	if w := d.Weather; len(w) > 0 {
@@ -272,31 +388,26 @@ func (s *server) buildAnalysisPrompt(ctx context.Context, d *runDetail, insights
 		}
 	} else if len(d.Laps) > 0 {
 		b.WriteString("\n【分段】\n")
-		for _, l := range lapLines(d.Laps, speeds) {
+		for _, l := range lapLines(d.Laps, speeds, u) {
 			b.WriteString(l + "\n")
 		}
 	}
-	if len(d.HRZones) > 0 {
-		total := 0.0
-		for _, z := range d.HRZones {
-			total += numField(z, "secsInZone")
-		}
-		if total > 0 {
-			sort.SliceStable(d.HRZones, func(i, j int) bool {
-				return numField(d.HRZones[i], "zoneNumber") < numField(d.HRZones[j], "zoneNumber")
-			})
-			b.WriteString("\n【心率区间】\n")
-			for _, z := range d.HRZones {
-				fmt.Fprintf(&b, "区间%.0f（≥%.0f bpm）：%s，占 %.0f%%\n", numField(z, "zoneNumber"), numField(z, "zoneLowBoundary"), fmtDur(numField(z, "secsInZone")), numField(z, "secsInZone")/total*100)
-			}
-		}
+	zones, zoneSource := s.effectiveHRZones(ctx, d)
+	if lines := hrZoneLines(zones, zoneSource); len(lines) > 0 {
+		b.WriteString("\n" + strings.Join(lines, "\n") + "\n")
 	}
 	if strings.TrimSpace(insights) != "" {
 		b.WriteString("\n【曲线分析（插件根据逐点数据算出：主要波动区间、分段变化、暂停与停下）】\n")
 		b.WriteString(strings.TrimSpace(insights) + "\n")
 	}
-	if lines := s.recentLines(ctx, d.StartLocal, d.ActivityID); len(lines) > 0 {
+	if lines := s.recentLines(ctx, d.StartLocal, d.ActivityID, u); len(lines) > 0 {
 		b.WriteString("\n【近期训练量】\n")
+		for _, l := range lines {
+			b.WriteString(l + "\n")
+		}
+	}
+	if lines := s.goalLines(ctx, u); len(lines) > 0 {
+		b.WriteString("\n【目标比赛与历史最好成绩】\n")
 		for _, l := range lines {
 			b.WriteString(l + "\n")
 		}
@@ -305,6 +416,7 @@ func (s *server) buildAnalysisPrompt(ctx context.Context, d *runDetail, insights
 	if strength {
 		sys = analysisSystemStrength
 	}
+	sys += "\n- 配速统一用 min/" + u + " 表示（距离仍用 km），不要混用单位。"
 	return sys, b.String()
 }
 
@@ -324,6 +436,7 @@ func (s *server) apiStartAnalysis(ctx context.Context, id string, body []byte) (
 	var in struct {
 		Agent    string `json:"agent"`
 		Insights string `json:"insights"`
+		Unit     string `json:"unit"`
 	}
 	_ = json.Unmarshal(body, &in)
 	if len(in.Insights) > 8000 {
@@ -350,7 +463,7 @@ func (s *server) apiStartAnalysis(ctx context.Context, id string, body []byte) (
 	}
 	agentName := strings.TrimSpace(in.Agent)
 	go func() {
-		err := s.runAnalysis(bg, d, agentName, in.Insights)
+		_, err := s.runAnalysis(bg, d, agentName, in.Insights, in.Unit)
 		s.anMu.Lock()
 		j := s.anJobs[id]
 		j.Running = false
@@ -362,34 +475,58 @@ func (s *server) apiStartAnalysis(ctx context.Context, id string, body []byte) (
 	return 202, map[string]any{"ok": true, "status": "running"}
 }
 
-func (s *server) runAnalysis(ctx context.Context, d *runDetail, agentName, insights string) error {
-	sys, prompt := s.buildAnalysisPrompt(ctx, d, insights)
+func (s *server) runAnalysis(ctx context.Context, d *runDetail, agentName, insights, unit string) (string, error) {
+	sys, prompt := s.buildAnalysisPrompt(ctx, d, insights, unit)
 	callCtx, cancel := context.WithTimeout(ctx, 200*time.Second)
 	defer cancel()
-	var out struct {
-		Result string `json:"result"`
+	call := func(preset string) (string, error) {
+		var out struct {
+			Result string `json:"result"`
+		}
+		params := map[string]any{"system": sys, "prompt": prompt, "timeout_ms": 180000}
+		if preset != "" {
+			params["preset_id"] = preset
+		}
+		if err := s.conn.call(callCtx, "host.agent.run", params, &out); err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(out.Result), nil
 	}
-	params := map[string]any{"system": sys, "prompt": prompt, "timeout_ms": 180000}
-	if agentName != "" {
-		params["preset_id"] = agentName
-	}
-	if err := s.conn.call(callCtx, "host.agent.run", params, &out); err != nil {
+	usedAgent := strings.TrimSpace(agentName)
+	content, err := call(usedAgent)
+	if err != nil {
 		var rerr *rpcError
 		if ok := asRPC(err, &rerr); ok && rerr.Code == errorCodeNumbers["permission_denied"] {
-			return fmt.Errorf("插件还没有调用模型的权限：到「设置 → 插件 → 外部插件」重新确认权限（agent:run）")
+			return "", fmt.Errorf("插件还没有调用模型的权限：到「设置 → 插件 → 外部插件」重新确认权限（agent:run）")
 		}
 		if ok := asRPC(err, &rerr); ok && rerr.Code == errorCodeNumbers["method_not_found"] {
-			return fmt.Errorf("当前工作台版本还不支持插件调用模型（host.agent.run），需要升级工作台")
+			return "", fmt.Errorf("当前工作台版本还不支持插件调用模型（host.agent.run），需要升级工作台")
 		}
-		return fmt.Errorf("模型分析失败：%v", err)
+		// 指定的 Agent 没建或被删了，回退到内置分析，不让第一次使用卡住。
+		if usedAgent != "" && presetMissing(err) {
+			content, err = call("")
+			usedAgent = ""
+		}
+		if err != nil {
+			return "", fmt.Errorf("模型分析失败：%v", err)
+		}
 	}
-	content := strings.TrimSpace(out.Result)
 	if content == "" {
-		return fmt.Errorf("模型没有返回内容")
+		return "", fmt.Errorf("模型没有返回内容")
 	}
-	return s.exec(ctx, `INSERT INTO analyses(activity_id, content, agent, created_at) VALUES (?, ?, ?, ?)
+	return usedAgent, s.exec(ctx, `INSERT INTO analyses(activity_id, content, agent, created_at) VALUES (?, ?, ?, ?)
 		ON CONFLICT(activity_id) DO UPDATE SET content=excluded.content, agent=excluded.agent, created_at=excluded.created_at`,
-		d.ActivityID, content, agentName, time.Now().Format(time.RFC3339))
+		d.ActivityID, content, usedAgent, time.Now().Format(time.RFC3339))
+}
+
+func presetMissing(err error) bool {
+	msg := strings.ToLower(err.Error())
+	for _, k := range []string{"preset", "not found", "unknown agent", "不存在", "找不到", "没有这个"} {
+		if strings.Contains(msg, k) {
+			return true
+		}
+	}
+	return false
 }
 
 func asRPC(err error, target **rpcError) bool {
@@ -407,6 +544,57 @@ func asRPC(err error, target **rpcError) bool {
 	return false
 }
 
+// aiSession 是分析末尾 plan 代码块里的一节课：day 为从开始执行那天算起的第几天
+type aiSession struct {
+	Day    int    `json:"day"`
+	Kind   string `json:"kind"`
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
+}
+
+var planBlockRe = regexp.MustCompile("(?s)```(?:plan|json)[ \\t]*\\n(.*?)```")
+
+// splitAnalysisPlan 把模型输出里的 plan 代码块拆出来：返回去掉代码块的正文和校验过的课表。
+// 解析不了就当没有课表，正文照常显示。
+func splitAnalysisPlan(content string) (string, []aiSession) {
+	plan := []aiSession{}
+	m := planBlockRe.FindStringSubmatchIndex(content)
+	if m == nil {
+		return content, plan
+	}
+	var raw []aiSession
+	if err := json.Unmarshal([]byte(strings.TrimSpace(content[m[2]:m[3]])), &raw); err != nil {
+		return content, plan
+	}
+	text := strings.TrimSpace(content[:m[0]] + content[m[1]:])
+	cut := func(s string, n int) string {
+		s = strings.TrimSpace(s)
+		if r := []rune(s); len(r) > n {
+			return string(r[:n])
+		}
+		return s
+	}
+	for _, x := range raw {
+		if x.Day < 1 || x.Day > 28 || strings.TrimSpace(x.Title) == "" {
+			continue
+		}
+		switch x.Kind {
+		case "run", "strength", "other":
+		case "rest":
+			continue
+		default:
+			x.Kind = "other"
+		}
+		x.Title, x.Detail = cut(x.Title, 60), cut(x.Detail, 500)
+		plan = append(plan, x)
+		if len(plan) >= 40 {
+			break
+		}
+	}
+	sort.SliceStable(plan, func(i, j int) bool { return plan[i].Day < plan[j].Day })
+	return text, plan
+}
+
 func (s *server) apiGetAnalysis(ctx context.Context, id string) (int, any) {
 	if !validActivityID(id) {
 		return 400, map[string]any{"error": "活动 id 不合法"}
@@ -415,7 +603,9 @@ func (s *server) apiGetAnalysis(ctx context.Context, id string) (int, any) {
 	resp := map[string]any{"status": "idle"}
 	if rows, err := s.query(ctx, "SELECT content, agent, created_at FROM analyses WHERE activity_id = ?", id); err == nil && len(rows) > 0 {
 		resp["status"] = "done"
-		resp["content"], resp["agent"], resp["created_at"] = rows[0]["content"], rows[0]["agent"], rows[0]["created_at"]
+		content, _ := rows[0]["content"].(string)
+		text, plan := splitAnalysisPlan(content)
+		resp["content"], resp["plan"], resp["agent"], resp["created_at"] = text, plan, rows[0]["agent"], rows[0]["created_at"]
 	}
 	if j.Running {
 		resp["status"] = "running"

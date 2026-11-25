@@ -53,6 +53,59 @@ window.__ModuleLoader__.load({
 .gc-dsh-banner { margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; background: color-mix(in srgb, var(--pmw-danger) 10%, transparent); color: var(--pmw-danger); }
 .gc-dsh-banner code { font-size: 12px; }
 .gc-dsh-settings { max-width: 520px; }
+
+/* ---- 配色跟随 dsh：主题 token 全部取 --dsw-*，明暗随 body[data-ds-dark-theme] 切换 ---- */
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] {
+  --gc-bg: transparent;
+  --gc-card: var(--dsw-alias-card-fill, var(--dsw-alias-bg-layer-1));
+  --gc-card-border: transparent;
+  --gc-border: var(--dsw-alias-border-l2);
+  --gc-text: var(--dsw-alias-label-primary);
+  --gc-muted: var(--dsw-alias-label-secondary);
+  --gc-soft: var(--dsw-alias-interactive-bg-hover);
+  --gc-accent: var(--dsw-alias-state-business-primary);
+  --gc-on-accent: var(--dsw-alias-label-on-color, #fff);
+  --gc-good: var(--dsw-alias-state-success-primary);
+  --gc-bad: var(--dsw-alias-state-error-primary);
+  --gc-warn: var(--dsw-static-amber-600, #d97706);
+  --gc-radius: var(--dsw-radius-lg, 12px);
+  --gc-shadow: none;
+  --gc-shadow-hover: none;
+  --gc-num-font: inherit;
+  --gc-tile: color-mix(in srgb, var(--gc-text) 4%, transparent);
+  --gc-seg-bg: color-mix(in srgb, var(--gc-text) 7%, transparent);
+  --gc-seg-on: var(--dsw-alias-bg-layer-1, #fff);
+  --gc-cover: var(--dsw-alias-card-fill-hover, var(--dsw-alias-bg-layer-2));
+  --gc-tag-in-bg: color-mix(in srgb, var(--gc-accent) 14%, transparent); --gc-tag-in: var(--gc-accent);
+  --gc-tag-pb-bg: color-mix(in srgb, var(--dsw-static-amber-500, #f59e0b) 18%, transparent); --gc-tag-pb: var(--dsw-static-amber-600, #b45309);
+  --gc-src-up-bg: color-mix(in srgb, var(--dsw-alias-state-done-primary, #7c3aed) 14%, transparent); --gc-src-up: var(--dsw-alias-state-done-primary, #7c3aed);
+  --gc-src-up-border: color-mix(in srgb, var(--dsw-alias-state-done-primary, #7c3aed) 35%, transparent);
+  --gc-src-bg: color-mix(in srgb, var(--gc-accent) 12%, transparent); --gc-src: var(--gc-accent); --gc-src-border: color-mix(in srgb, var(--gc-accent) 32%, transparent);
+  background: transparent; padding: 0; border-radius: 0;
+}
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-stat,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-group,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-chart-box,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-race-card,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-plan-card,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-video-card,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-kpanel,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-scroll { background: var(--gc-card); border-color: var(--gc-card-border); box-shadow: none; }
+/* 浅色：dsh 底色是白，卡片用浅灰底加细边框（旧版 dsh 没有 card-fill 变量） */
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] { --gc-card: var(--dsw-alias-card-fill, var(--dsw-static-neutral-bluish-50, #f9fafb)); --gc-card-border: var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1)); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-race-card:hover,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-plan-card:hover,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-stat-btn:hover { background: var(--dsw-alias-card-fill-hover, var(--gc-soft)); box-shadow: none; }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-stat-value { color: var(--gc-text); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-stat { box-shadow: none; }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-race-cover-empty { background: color-mix(in srgb, var(--gc-accent) 10%, var(--gc-cover)); color: var(--gc-accent); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] select,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] textarea { background: var(--dsw-alias-bg-layer-1); color: var(--gc-text); border-color: var(--gc-border); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .pmw-plugin-button { background: var(--dsw-alias-bg-layer-1); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .pmw-plugin-button:hover { background: var(--gc-soft); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .pmw-plugin-button.gc-primary { background: var(--gc-accent); color: var(--gc-on-accent); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-route-halo { stroke: var(--dsw-alias-bg-base, #0d1117); }
 `
 
     /** 页面调 Host：在 apply 里接上 ctx.connection */
@@ -222,21 +275,19 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = React.useState('data')
       __gcActivatePMW()
       const Module = __gcSlots['module:garmin_connect']
+      const Races = __gcSlots['module:garmin_connect_races']
       const Settings = __gcSlots['settings.section:garmin_connect']
       return __gcH(__gcPage, null,
         __gcH('div', { className: 'gc-dsh-top' },
           __gcH('div', { className: 'gc-dsh-tabs', role: 'tablist' },
             __gcH('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'data', onClick: function () { setTab('data') } }, '跑步数据'),
+            __gcH('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'races', onClick: function () { setTab('races') } }, '比赛'),
             __gcH('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'settings', onClick: function () { setTab('settings') } }, '账号与同步'))),
         tab === 'settings'
           ? __gcH('div', { className: 'gc-dsh-settings' }, Settings ? __gcH(Settings) : null)
-          : Module ? __gcH(Module) : null)
-    }
-
-    function __gcRacesPage() {
-      __gcActivatePMW()
-      const Races = __gcSlots['module:garmin_connect_races']
-      return __gcH(__gcPage, null, Races ? __gcH(Races) : null)
+          : tab === 'races'
+            ? (Races ? __gcH(Races) : null)
+            : Module ? __gcH(Module) : null)
     }
 
     function __gcRunIcon(props) {
@@ -246,15 +297,6 @@ window.__ModuleLoader__.load({
       __gcH('circle', { cx: 14.5, cy: 4.5, r: 2, fill: 'currentColor' }),
       __gcH('path', { d: 'M8 21l3-6 3 2 1 4M6.5 12.5l3-3.5 4 1.5 2.5 3.5 3 .5M10.5 9.5 9 15', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }))
     }
-    function __gcMedalIcon(props) {
-      const size = props.size || 18
-      return __gcH('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true,
-        style: { display: 'block', color: props.active ? 'var(--dsw-alias-brand-primary)' : 'currentColor' } },
-      __gcH('path', { d: 'M8 3l2.5 6M16 3l-2.5 6', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' }),
-      __gcH('circle', { cx: 12, cy: 15, r: 5.5, stroke: 'currentColor', strokeWidth: 1.8 }),
-      __gcH('path', { d: 'M12 12.5v5M10.5 13.5l1.5-1', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }))
-    }
-
     return {
       inject: ['slots', 'connection'],
       apply(ctx) {
@@ -268,11 +310,9 @@ window.__ModuleLoader__.load({
         }, 'garmin-connect: style')
         ctx.slots.inject('sidebar.panellist', function* () {
           yield ctx.slots.register({ name: 'sidebar.panellist', id: 'garmin-connect', order: 30, label: function () { return 'Garmin 跑步' } }, __gcRunIcon)
-          yield ctx.slots.register({ name: 'sidebar.panellist', id: 'garmin-connect-races', order: 31, label: function () { return '比赛' } }, __gcMedalIcon)
         })
         ctx.slots.inject('main', function* () {
           yield ctx.slots.register({ name: 'main', key: 'garmin-connect' }, __gcRunsPage)
-          yield ctx.slots.register({ name: 'main', key: 'garmin-connect-races' }, __gcRacesPage)
         })
       },
     }

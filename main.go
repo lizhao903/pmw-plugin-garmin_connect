@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -440,22 +441,26 @@ func idKey(raw json.RawMessage) string {
 // ---------------------------------------------------------------------------
 
 type server struct {
-	conn       *rpcConn
-	log        *slog.Logger
-	cancel     context.CancelFunc
-	startedAt  time.Time
-	bgCancel   context.CancelFunc
-	bgCtx      context.Context
-	bgMu       sync.Mutex
-	fullMu     sync.Mutex
-	full       fullSyncState
-	authMu     sync.Mutex
-	syncMu     sync.Mutex
-	optMu      sync.Mutex
-	anMu       sync.Mutex
-	anJobs     map[string]*analysisJob
-	runTypes   []typeOption
-	eventTypes []typeOption
+	conn        *rpcConn
+	log         *slog.Logger
+	cancel      context.CancelFunc
+	startedAt   time.Time
+	bgCancel    context.CancelFunc
+	bgCtx       context.Context
+	bgMu        sync.Mutex
+	fullMu      sync.Mutex
+	full        fullSyncState
+	raceImpMu   sync.Mutex
+	raceImp     raceImportState
+	authMu      sync.Mutex
+	syncMu      sync.Mutex
+	optMu       sync.Mutex
+	anMu        sync.Mutex
+	anJobs      map[string]*analysisJob
+	recMu       sync.Mutex
+	recBackfill recoveryBackfillState
+	runTypes    []typeOption
+	eventTypes  []typeOption
 }
 
 func (s *server) handlers() map[string]handlerFunc {
@@ -554,12 +559,15 @@ func (s *server) startBackgroundSync(parent context.Context) {
 // ---------------------------------------------------------------------------
 
 type credentials struct {
-	RefreshToken string `json:"refresh_token"`
-	ClientID     string `json:"client_id"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	ClientID     string `json:"client_id,omitempty"`
 	AccessToken  string `json:"access_token,omitempty"`
-	IsCN         bool   `json:"is_cn"`
-	Email        string `json:"email,omitempty"`
-	LoggedInAt   string `json:"logged_in_at,omitempty"`
+	// PersonalKey 是 Garmin Connect 网页生成的个人 API Key，给开了 MFA 的账号用（只读）。
+	PersonalKey string `json:"personal_key,omitempty"`
+	AuthMode    string `json:"auth_mode,omitempty"` // 空 / "di" 为账号密码，"personal" 为个人 API Key
+	IsCN        bool   `json:"is_cn"`
+	Email       string `json:"email,omitempty"`
+	LoggedInAt  string `json:"logged_in_at,omitempty"`
 	// ExpiresAt 是 access_token 的过期时间（unix 秒）；没过期就不刷新，少打 Garmin、少碰轮换的 refresh_token
 	ExpiresAt int64 `json:"expires_at,omitempty"`
 }
@@ -569,6 +577,18 @@ func (c *credentials) domain() string {
 		return "garmin.cn"
 	}
 	return "garmin.com"
+}
+
+func (c *credentials) isPersonal() bool {
+	return c.AuthMode == "personal" || (c.PersonalKey != "" && c.RefreshToken == "")
+}
+
+// apiBase 给个人 API Key 用独立的域名；读写权限和数据范围与 connectapi 不同。
+func (c *credentials) apiBase() string {
+	if c.isPersonal() {
+		return "https://personal.connectapi." + c.domain()
+	}
+	return "https://connectapi." + c.domain()
 }
 
 func (s *server) readSecret(ctx context.Context) (string, error) {
@@ -595,7 +615,10 @@ func (s *server) loadCredentials(ctx context.Context) (*credentials, error) {
 	if err := json.Unmarshal([]byte(raw), &c); err != nil {
 		return nil, rpcErrorf("validation", "保存的登录信息损坏，请在设置页重新登录")
 	}
-	if c.RefreshToken == "" || c.ClientID == "" {
+	if !c.isPersonal() && (c.RefreshToken == "" || c.ClientID == "") {
+		return nil, rpcErrorf("validation", "登录信息不完整，请在设置页重新登录")
+	}
+	if c.isPersonal() && c.PersonalKey == "" {
 		return nil, rpcErrorf("validation", "登录信息不完整，请在设置页重新登录")
 	}
 	return &c, nil
@@ -791,7 +814,7 @@ func (s *server) login(ctx context.Context, email, password string, isCN bool) (
 	case "INVALID_USERNAME_PASSWORD":
 		return nil, &loginError{401, "邮箱或密码不对"}
 	case "MFA_REQUIRED":
-		return nil, &loginError{409, "这个 Garmin 账号开了两步验证，插件暂不支持；在 Garmin Connect 里关掉两步验证后再登录"}
+		return nil, &loginError{409, "这个 Garmin 账号开了两步验证；请在设置页切换到「个人 API Key」登录（Garmin Connect 网页生成，支持 MFA、只读同步），或关掉两步验证后再用账号密码登录"}
 	case "CAPTCHA_REQUIRED":
 		return nil, &loginError{429, "Garmin 要求人机验证，过一会儿再试"}
 	default:
@@ -869,6 +892,25 @@ func jwtClientID(token, fallback string) string {
 	return payload.ClientID
 }
 
+// jwtExp 取 JWT 的 exp（unix 秒）。个人 API 的令牌是裸 JWT 字符串，响应体里没有 expires_in。
+func jwtExp(token string) int64 {
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 {
+		return 0
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return 0
+	}
+	var payload struct {
+		Exp int64 `json:"exp"`
+	}
+	if json.Unmarshal(raw, &payload) != nil {
+		return 0
+	}
+	return payload.Exp
+}
+
 // ---------------------------------------------------------------------------
 // Garmin API
 // ---------------------------------------------------------------------------
@@ -913,6 +955,30 @@ func (s *server) refreshAccessToken(ctx context.Context, c *credentials) error {
 	return s.saveCredentials(ctx, c)
 }
 
+// personalToken 用 Garmin Connect 网页生成的个人 API Key 换 24 小时 bearer token。
+// 官方端点返回裸 JWT 字符串（不是 JSON），没有 refresh token；到期直接用 key 再换。
+func (s *server) personalToken(ctx context.Context, c *credentials) error {
+	raw, err := s.httpOK(ctx, "POST", c.apiBase()+"/personalapitoken-service/personal-api/personal-api-key/token",
+		map[string]string{
+			"Accept":        "*/*",
+			"Authorization": "ApiKey " + c.PersonalKey,
+		}, nil)
+	if err != nil {
+		var he *garminHTTPError
+		if errors.As(err, &he) && (he.Status == 400 || he.Status == 401 || he.Status == 403) {
+			return errors.New("个人 API Key 无效或已过期，请在 Garmin Connect 网页重新生成")
+		}
+		return err
+	}
+	token := strings.TrimSpace(string(raw))
+	if token == "" || strings.Count(token, ".") < 2 {
+		return errors.New("Garmin 个人 API 没有返回有效的 access token")
+	}
+	c.AccessToken = token
+	c.ExpiresAt = jwtExp(token)
+	return s.saveCredentials(ctx, c)
+}
+
 // authed 取凭证并刷新一次访问令牌。
 // authed 取凭证；访问令牌还有 2 分钟以上有效期就直接用，否则刷新。
 // 加锁：后台同步、手动同步、点开详情可能同时进来，Garmin 刷新会轮换 refresh_token，并发刷新会把旧的写回去。
@@ -923,7 +989,18 @@ func (s *server) authed(ctx context.Context) (*credentials, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.AccessToken != "" && c.ExpiresAt > time.Now().Add(2*time.Minute).Unix() {
+	// 官方个人 API 的 token 是 24 小时 JWT，提前 1 小时换新（和官方客户端一致）
+	window := 2 * time.Minute
+	if c.isPersonal() {
+		window = time.Hour
+	}
+	if c.AccessToken != "" && c.ExpiresAt > time.Now().Add(window).Unix() {
+		return c, nil
+	}
+	if c.isPersonal() {
+		if err := s.personalToken(ctx, c); err != nil {
+			return nil, fmt.Errorf("个人 API Key 换取令牌失败：%w", err)
+		}
 		return c, nil
 	}
 	if err := s.refreshAccessToken(ctx, c); err != nil {
@@ -933,7 +1010,7 @@ func (s *server) authed(ctx context.Context) (*credentials, error) {
 }
 
 func (s *server) connectAPI(ctx context.Context, c *credentials, path string) ([]byte, error) {
-	return s.httpOK(ctx, "GET", "https://connectapi."+c.domain()+path, nativeHeaders(map[string]string{
+	return s.httpOK(ctx, "GET", c.apiBase()+path, nativeHeaders(map[string]string{
 		"Authorization": "Bearer " + c.AccessToken,
 		"Accept":        "application/json",
 	}), nil)
@@ -954,6 +1031,9 @@ type garminActivity struct {
 	ActivityType   struct {
 		TypeKey string `json:"typeKey"`
 	} `json:"activityType"`
+	EventTypeDTO struct {
+		TypeKey string `json:"typeKey"`
+	} `json:"eventTypeDTO"`
 }
 
 // isRun：跑步类（running、treadmill_running、trail_running、track_running、indoor_running、virtual_run、ultra_run…）。
@@ -998,19 +1078,20 @@ func (s *server) upsertRun(ctx context.Context, a garminActivity, now string) er
 	return s.conn.call(callCtx, "host.store.exec", map[string]any{
 		"sql": `INSERT INTO runs
 			(activity_id, start_time, activity_name, distance_m, duration_s,
-			 pace_sec_per_km, avg_hr, max_hr, cadence, elevation_m, calories, synced_at, type_key)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 pace_sec_per_km, avg_hr, max_hr, cadence, elevation_m, calories, synced_at, type_key, event_type)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(activity_id) DO UPDATE SET
 			 start_time=excluded.start_time, activity_name=excluded.activity_name,
 			 distance_m=excluded.distance_m, duration_s=excluded.duration_s,
 			 pace_sec_per_km=excluded.pace_sec_per_km, avg_hr=excluded.avg_hr,
 			 max_hr=excluded.max_hr, cadence=excluded.cadence,
 			 elevation_m=excluded.elevation_m, calories=excluded.calories,
-			 synced_at=excluded.synced_at, type_key=excluded.type_key`,
+			 synced_at=excluded.synced_at, type_key=excluded.type_key,
+			 event_type=COALESCE(NULLIF(excluded.event_type, ''), runs.event_type)`,
 		"args": []any{
 			strconv.FormatInt(a.ActivityID, 10), a.StartTimeLocal, a.ActivityName,
 			a.Distance, a.Duration, pace, a.AvgHR, a.MaxHR, a.Cadence,
-			a.ElevationGain, a.Calories, now, a.ActivityType.TypeKey,
+			a.ElevationGain, a.Calories, now, a.ActivityType.TypeKey, a.EventTypeDTO.TypeKey,
 		},
 	}, &out)
 }
@@ -1088,6 +1169,14 @@ func (s *server) syncOnce(ctx context.Context, full bool, progress func(pages, w
 				continue
 			}
 			written++
+			// Garmin 列表里的 eventTypeDTO=race 自动进「比赛」；手表计时作净计时。
+			if a.EventTypeDTO.TypeKey == "race" {
+				s.autoCollectRace(ctx, raceSeed{
+					ActivityID: strconv.FormatInt(a.ActivityID, 10), Name: a.ActivityName,
+					StartLocal: a.StartTimeLocal, TypeKey: a.ActivityType.TypeKey,
+					DistanceM: a.Distance, DurationS: a.Duration,
+				})
+			}
 		}
 		if progress != nil {
 			progress(page+1, written)
@@ -1467,9 +1556,14 @@ func (s *server) storeDetail(ctx context.Context, d *runDetail) {
 		d.ActivityID, string(raw), d.FetchedAt); err != nil {
 		s.log.Warn("缓存跑步详情失败", "id", d.ActivityID, "err", err)
 	}
-	// 详情里的类型比列表准，顺手补到 runs
-	if d.TypeKey != "" {
-		_ = s.exec(ctx, "UPDATE runs SET type_key = ? WHERE activity_id = ?", d.TypeKey, d.ActivityID)
+	// 训练指标结构化落库，供跨天恢复/体能趋势使用（0.10.0）
+	s.storeMetrics(ctx, d)
+	// 详情里的类型/比赛类别比列表准，顺手补到 runs（空值不覆盖已有数据）
+	if d.TypeKey != "" || d.EventType != "" {
+		_ = s.exec(ctx, `UPDATE runs SET
+			type_key = COALESCE(NULLIF(?, ''), type_key),
+			event_type = COALESCE(NULLIF(?, ''), event_type)
+			WHERE activity_id = ?`, d.TypeKey, d.EventType, d.ActivityID)
 	}
 }
 
@@ -1494,6 +1588,178 @@ func (s *server) lapSpeeds(ctx context.Context, id string) map[string]float64 {
 
 func num(v any) float64 {
 	f, _ := v.(float64)
+	return f
+}
+
+// isIndoorRun 判断是不是跑步机/室内跑，用统计页同一套类型口径。
+func isIndoorRun(typeKey string) bool {
+	for _, t := range indoorTypes {
+		if typeKey == t {
+			return true
+		}
+	}
+	return false
+}
+
+// garminLapSpeed 取 Garmin 分段自带的平均速度（m/s），换算成 km/h。
+// 跑步机上手表记录的瞬时速度/距离常常不可信，但分段平均速度是跑步机面板同步给手表的，
+// 用它做首次校正的初值比全靠手填准；用户随时可以改成手填值。
+func garminLapSpeed(lap map[string]any) float64 {
+	v := num(lap["averageSpeed"])
+	if v <= 0 {
+		return 0
+	}
+	kmh := v * 3.6
+	if kmh < 1 || kmh > 30 {
+		return 0
+	}
+	return math.Round(kmh*10) / 10
+}
+
+// autoLapSpeeds 按 Garmin 分段平均速度生成初值；任一段没速度就不自动填，
+// 宁可让用户手填，也不拿半套不可靠的数据当已校正。
+func autoLapSpeeds(laps []map[string]any) map[string]float64 {
+	if len(laps) == 0 {
+		return nil
+	}
+	out := map[string]float64{}
+	for i, l := range laps {
+		v := garminLapSpeed(l)
+		if v <= 0 {
+			return nil
+		}
+		out[strconv.Itoa(i)] = v
+	}
+	return out
+}
+
+// ensureAutoCorrection 首次打开室内跑详情时写入自动校正速度。
+// 只在该活动没有任何逐段速度记录时写；用户改过或清过就不再自动填。
+func (s *server) ensureAutoCorrection(ctx context.Context, d *runDetail) {
+	if d == nil || !isIndoorRun(d.TypeKey) || len(d.Laps) == 0 {
+		return
+	}
+	if speeds := s.lapSpeeds(ctx, d.ActivityID); len(speeds) > 0 {
+		return
+	}
+	speeds := autoLapSpeeds(d.Laps)
+	if len(speeds) == 0 {
+		return
+	}
+	now := time.Now().Format(time.RFC3339)
+	for k, v := range speeds {
+		i, _ := strconv.Atoi(k)
+		if err := s.exec(ctx, "INSERT INTO lap_speeds(activity_id, lap_index, speed_kmh, source, updated_at) VALUES (?, ?, ?, 'auto', ?)", d.ActivityID, i, v, now); err != nil {
+			return // 写一半就停，避免半套校正
+		}
+	}
+	if dist := correctedDistance(d.Laps, speeds); dist > 0 {
+		_ = s.exec(ctx, "UPDATE runs SET corrected_distance_m = ? WHERE activity_id = ?", dist, d.ActivityID)
+	}
+}
+
+// seriesLapIndex 返回累计秒数 t 落在哪一段；bounds 是各段累计时长边界。
+func seriesLapIndex(t float64, bounds []float64) int {
+	if len(bounds) < 2 {
+		return -1
+	}
+	for k := 1; k < len(bounds); k++ {
+		if t < bounds[k] {
+			return k - 1
+		}
+	}
+	return len(bounds) - 2
+}
+
+// correctedDetail 返回按逐段校正速度重算过曲线的详情副本，不改缓存里的原始逐点数据。
+// 每段原始速度按比例缩放，让段平均对齐校正速度、段内波动保留：
+// 概要、分段、曲线、AI 摘要因此同一口径，又不会把真实掉速抹平。
+func correctedDetail(d *runDetail, speeds map[string]float64) *runDetail {
+	if d == nil || len(speeds) == 0 || d.Series == nil {
+		return d
+	}
+	spd0, dist0 := d.Series["directSpeed"], d.Series["sumDistance"]
+	if len(spd0) == 0 || len(dist0) == 0 {
+		return d
+	}
+	n := len(spd0)
+	clock := d.Series["sumDuration"]
+	if len(clock) != n {
+		clock = d.Series["sumElapsedDuration"]
+	}
+	if len(clock) != n {
+		return d
+	}
+	bounds := make([]float64, len(d.Laps)+1)
+	for i, l := range d.Laps {
+		bounds[i+1] = bounds[i] + num(l["duration"])
+	}
+	// 各段原始平均速度（跳过停下的点）
+	rawSum := make([]float64, len(d.Laps))
+	rawCnt := make([]int, len(d.Laps))
+	for i := 0; i < n; i++ {
+		if spd0[i] == nil || *spd0[i] < 0.6 || clock[i] == nil {
+			continue
+		}
+		k := seriesLapIndex(*clock[i], bounds)
+		if k < 0 || k >= len(d.Laps) {
+			continue
+		}
+		rawSum[k] += *spd0[i]
+		rawCnt[k]++
+	}
+	cp := *d
+	cp.Series = make(map[string][]*float64, len(d.Series))
+	for k, v := range d.Series {
+		cp.Series[k] = v
+	}
+	spd := append([]*float64(nil), spd0...)
+	dist := append([]*float64(nil), dist0...)
+	cp.Series["directSpeed"], cp.Series["sumDistance"] = spd, dist
+	cum := 0.0
+	for i := 0; i < n; i++ {
+		t := 0.0
+		if clock[i] != nil {
+			t = *clock[i]
+		}
+		k := seriesLapIndex(t, bounds)
+		vt := 0.0
+		if k >= 0 && k < len(d.Laps) {
+			vt = speeds[strconv.Itoa(k)] / 3.6
+		}
+		v := 0.0
+		if spd[i] != nil {
+			v = *spd[i]
+			if vt > 0 {
+				if rawCnt[k] > 0 && rawSum[k] > 0 {
+					v = v * (vt / (rawSum[k] / float64(rawCnt[k])))
+				} else {
+					v = vt
+				}
+				scaled := v
+				spd[i] = &scaled
+			}
+		}
+		if i > 0 && clock[i] != nil && clock[i-1] != nil {
+			if dt := *clock[i] - *clock[i-1]; dt > 0 && dt < 120 {
+				cum += v * dt
+			}
+		}
+		s := cum
+		dist[i] = &s
+	}
+	return &cp
+}
+
+// queryFloat 解析统计口径的阈值参数；缺失、非法、负数一律按 0（不过滤）处理。
+func queryFloat(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || f < 0 || math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0
+	}
 	return f
 }
 
@@ -1557,7 +1823,7 @@ func (s *server) apiSetLapSpeeds(ctx context.Context, id string, body []byte) (i
 	}
 	for k, v := range speeds {
 		i, _ := strconv.Atoi(k)
-		if err := s.exec(ctx, "INSERT INTO lap_speeds(activity_id, lap_index, speed_kmh, updated_at) VALUES (?, ?, ?, ?)", id, i, v, now); err != nil {
+		if err := s.exec(ctx, "INSERT INTO lap_speeds(activity_id, lap_index, speed_kmh, source, updated_at) VALUES (?, ?, ?, 'manual', ?)", id, i, v, now); err != nil {
 			return 500, map[string]any{"error": "保存失败：" + err.Error()}
 		}
 	}
@@ -1708,6 +1974,9 @@ func (s *server) apiEditRun(ctx context.Context, id string, body []byte) (int, a
 	if err != nil {
 		return 502, map[string]any{"error": err.Error()}
 	}
+	if c.isPersonal() {
+		return 403, map[string]any{"error": "个人 API Key 是只读授权，不能把修改写回 Garmin；请用账号密码登录后再编辑"}
+	}
 	var runs, events []typeOption
 	if in.TypeKey != nil || in.EventType != nil {
 		if runs, events, err = s.editOptions(ctx, c); err != nil {
@@ -1790,6 +2059,15 @@ func (s *server) apiStats(ctx context.Context, q url.Values) (int, any) {
 		where = "COALESCE(type_key, '') LIKE '%strength%'"
 	default:
 		return 400, map[string]any{"error": "kind 只能是 all / outdoor / indoor / strength"}
+	}
+	// 统计口径：忽略短活动。跑步按校正后距离，力量按时长；前端按设置传阈值。
+	// 参数缺失或非法视为 0（不过滤），保持旧客户端口径不变。
+	minRunM, minStrengthS := queryFloat(q.Get("min_run_m")), queryFloat(q.Get("min_strength_s"))
+	if minRunM > 0 && q.Get("kind") != "strength" {
+		where += ` AND COALESCE(corrected_distance_m, distance_m) >= ` + strconv.FormatFloat(minRunM, 'f', -1, 64)
+	}
+	if minStrengthS > 0 && q.Get("kind") == "strength" {
+		where += ` AND duration_s >= ` + strconv.FormatFloat(minStrengthS, 'f', -1, 64)
 	}
 	rows, err := s.query(ctx, `SELECT `+bucket+` AS bucket, COUNT(*) AS runs,
 		SUM(COALESCE(corrected_distance_m, distance_m)) AS distance_m,
@@ -1906,7 +2184,7 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 
 	switch {
 	case p.Method == "GET" && path == "/runs":
-		status, payload = s.apiRuns(ctx)
+		status, payload = s.apiRuns(ctx, query.Get("from"))
 	case p.Method == "POST" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/analysis"):
 		status, payload = s.apiStartAnalysis(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/runs/"), "/analysis"), body)
 	case p.Method == "GET" && strings.HasPrefix(path, "/runs/") && strings.HasSuffix(path, "/analysis"):
@@ -1937,10 +2215,20 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 		status, payload = s.savePlan(ctx, strings.TrimPrefix(path, "/plans/"), body)
 	case p.Method == "DELETE" && strings.HasPrefix(path, "/plans/"):
 		status, payload = s.apiDeletePlan(ctx, strings.TrimPrefix(path, "/plans/"))
+	case p.Method == "GET" && path == "/goals":
+		status, payload = s.apiGetGoals(ctx)
+	case p.Method == "POST" && path == "/goals":
+		status, payload = s.apiSaveGoals(ctx, body)
+	case p.Method == "GET" && path == "/hr-zones":
+		status, payload = s.apiGetHRZones(ctx)
+	case p.Method == "POST" && path == "/hr-zones":
+		status, payload = s.apiSaveHRZones(ctx, body)
 	case p.Method == "GET" && path == "/races":
 		status, payload = s.apiRaces(ctx)
 	case p.Method == "POST" && path == "/races":
 		status, payload = s.apiCreateRace(ctx, body)
+	case p.Method == "POST" && path == "/races/import":
+		status, payload = s.apiRaceImport()
 	case p.Method == "POST" && strings.HasPrefix(path, "/races/") && strings.HasSuffix(path, "/media"):
 		status, payload = s.apiCreateMedia(ctx, strings.TrimSuffix(strings.TrimPrefix(path, "/races/"), "/media"), body)
 	case p.Method == "GET" && strings.HasPrefix(path, "/races/"):
@@ -1965,12 +2253,22 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 		status, payload = s.apiRunDetail(ctx, strings.TrimPrefix(path, "/runs/"), query.Get("refresh") == "1")
 	case p.Method == "GET" && path == "/stats":
 		status, payload = s.apiStats(ctx, query)
+	case p.Method == "GET" && path == "/recovery":
+		status, payload = s.apiRecovery(ctx, recoveryDaysParam(query.Get("days")))
+	case p.Method == "POST" && path == "/recovery/backfill":
+		if s.startRecoveryBackfill(ctx) {
+			status, payload = 202, map[string]any{"ok": true, "backfill": s.recoveryBackfillSnapshot()}
+		} else {
+			status, payload = 202, map[string]any{"ok": true, "running": true, "backfill": s.recoveryBackfillSnapshot()}
+		}
 	case p.Method == "GET" && strings.HasPrefix(path, "/tiles/"):
 		status, payload = s.apiTile(ctx, strings.TrimPrefix(path, "/tiles/"))
 	case p.Method == "GET" && path == "/status":
 		status, payload = s.apiStatus(ctx)
 	case p.Method == "POST" && path == "/login":
 		status, payload = s.apiLogin(ctx, body)
+	case p.Method == "POST" && path == "/login/personal":
+		status, payload = s.apiLoginPersonal(ctx, body)
 	case p.Method == "POST" && path == "/logout":
 		status, payload = s.apiLogout(ctx)
 	case p.Method == "POST" && path == "/sync":
@@ -2055,12 +2353,25 @@ func parseQuery(raw json.RawMessage) url.Values {
 	return out
 }
 
-func (s *server) apiRuns(ctx context.Context) (int, any) {
-	rows, err := s.query(ctx, `SELECT activity_id, start_time, activity_name, distance_m, duration_s, pace_sec_per_km,
-		avg_hr, max_hr, cadence, elevation_m, calories, synced_at, type_key, corrected_distance_m
-		FROM runs ORDER BY start_time DESC LIMIT 200`)
+// apiRuns 默认返回最近 200 条；带 from（YYYY-MM-DD）时返回这天以来的全部记录，给概览统计用
+func (s *server) apiRuns(ctx context.Context, from string) (int, any) {
+	const cols = `SELECT activity_id, start_time, activity_name, distance_m, duration_s, pace_sec_per_km,
+		avg_hr, max_hr, cadence, elevation_m, calories, synced_at, type_key, corrected_distance_m FROM runs`
+	var rows []map[string]any
+	var err error
+	if from != "" {
+		if !validDate(from) {
+			return 400, map[string]any{"error": "from 应为 YYYY-MM-DD"}
+		}
+		rows, err = s.query(ctx, cols+` WHERE substr(start_time, 1, 10) >= ? ORDER BY start_time DESC`, from)
+	} else {
+		rows, err = s.query(ctx, cols+` ORDER BY start_time DESC LIMIT 200`)
+	}
 	if err != nil {
 		return 500, map[string]any{"error": "读取跑步记录失败：" + err.Error()}
+	}
+	if rows == nil {
+		rows = []map[string]any{}
 	}
 	return 200, map[string]any{"runs": rows, "count": len(rows), "indoor_types": indoorTypes}
 }
@@ -2093,9 +2404,17 @@ func (s *server) apiRunDetail(ctx context.Context, id string, refresh bool) (int
 		return 400, map[string]any{"error": "活动 id 不合法"}
 	}
 	respond := func(d *runDetail, cached bool) (int, any) {
+		// 打开详情时发现 Garmin 标成比赛（含旧缓存），自动收录；已有的比赛不动。
+		s.autoCollectRaceFromDetail(ctx, d)
+		// 室内跑首次打开：按 Garmin 分段平均速度自动填一份校正初值，用户不用逐段手填。
+		s.ensureAutoCorrection(ctx, d)
+		speeds := s.lapSpeeds(ctx, id)
+		// 有校正时把逐点曲线也换成同一口径：分段/概要/曲线/AI 从此一致。
+		zones, zoneSource := s.effectiveHRZones(ctx, d)
 		return 200, map[string]any{
-			"detail": d, "cached": cached, "lap_speeds": s.lapSpeeds(ctx, id),
+			"detail": correctedDetail(d, speeds), "cached": cached, "lap_speeds": speeds,
 			"map_source": s.mapSource(ctx), "indoor_types": indoorTypes,
+			"hr_zones_effective": zones, "hr_zone_source": zoneSource,
 		}
 	}
 	if !refresh {
@@ -2132,17 +2451,22 @@ func (s *server) apiRunDetail(ctx context.Context, id string, refresh bool) (int
 }
 
 func (s *server) apiStatus(ctx context.Context) (int, any) {
-	resp := map[string]any{"logged_in": false, "configured": false, "last_sync": "", "full_sync": s.fullSyncSnapshot()}
+	resp := map[string]any{"logged_in": false, "configured": false, "last_sync": "", "auth_mode": "di", "read_only": false, "full_sync": s.fullSyncSnapshot(), "race_import": s.raceImportSnapshot(), "hr_zones_updated_at": s.hrZonesUpdatedAt(ctx)}
 	if raw, err := s.readSecret(ctx); err != nil {
 		resp["error"] = "读取登录信息失败：" + err.Error()
 	} else if raw != "" {
 		var c credentials
-		if json.Unmarshal([]byte(raw), &c) == nil && c.RefreshToken != "" {
+		if json.Unmarshal([]byte(raw), &c) == nil && (c.RefreshToken != "" || c.PersonalKey != "") {
 			resp["logged_in"] = true
 			resp["configured"] = true
 			resp["email"] = c.Email
 			resp["is_cn"] = c.IsCN
 			resp["logged_in_at"] = c.LoggedInAt
+			resp["auth_mode"] = c.AuthMode
+			resp["read_only"] = c.isPersonal()
+			if c.isPersonal() && c.Email == "" {
+				resp["email"] = "Garmin 个人 API Key"
+			}
 		}
 	}
 	if rows, err := s.query(ctx, "SELECT key, value FROM sync_state WHERE key IN ('last_sync', 'last_full_sync', 'last_sync_error', 'last_sync_attempt')"); err == nil {
@@ -2188,6 +2512,34 @@ func (s *server) apiLogin(ctx context.Context, body []byte) (int, any) {
 	}
 	s.log.Info("Garmin 登录成功", "cn", isCN)
 	return 200, map[string]any{"ok": true, "email": c.Email, "is_cn": c.IsCN}
+}
+
+// apiLoginPersonal 用 Garmin Connect 网页生成的个人 API Key 登录；支持 MFA 账号，权限只读。
+func (s *server) apiLoginPersonal(ctx context.Context, body []byte) (int, any) {
+	var in struct {
+		APIKey string `json:"api_key"`
+		IsCN   *bool  `json:"is_cn"`
+	}
+	if err := json.Unmarshal(body, &in); err != nil {
+		return 400, map[string]any{"error": "请求不是合法 JSON"}
+	}
+	key := strings.TrimSpace(in.APIKey)
+	if key == "" {
+		return 400, map[string]any{"error": "个人 API Key 不能为空"}
+	}
+	isCN := true
+	if in.IsCN != nil {
+		isCN = *in.IsCN
+	}
+	c := &credentials{
+		PersonalKey: key, AuthMode: "personal", IsCN: isCN,
+		Email: "Garmin 个人 API Key", LoggedInAt: time.Now().Format(time.RFC3339),
+	}
+	if err := s.personalToken(ctx, c); err != nil {
+		return 502, map[string]any{"error": err.Error()}
+	}
+	s.log.Info("Garmin 个人 API Key 登录成功", "cn", isCN)
+	return 200, map[string]any{"ok": true, "is_cn": isCN, "read_only": true}
 }
 
 func (s *server) apiLogout(ctx context.Context) (int, any) {

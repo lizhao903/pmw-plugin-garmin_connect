@@ -5,6 +5,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math"
 	"strings"
 	"testing"
 )
@@ -196,7 +198,7 @@ func TestParseSets(t *testing.T) {
 }
 
 func TestCalItemCheck(t *testing.T) {
-	ok := calItem{Date: "2026-11-30", Kind: "run", Title: " 轻松跑 6 公里 "}
+	ok := calItem{Date: "2026-11-30", Kind: "run", Title: " 轻松跑 6 公里 ", TargetDistanceM: 6000, TargetDurationS: 1800}
 	if msg := ok.check(); msg != "" || ok.Title != "轻松跑 6 公里" {
 		t.Fatalf("合法条目被拒：%s", msg)
 	}
@@ -205,6 +207,9 @@ func TestCalItemCheck(t *testing.T) {
 		"不存在的日期": {Date: "2026-02-30", Kind: "run", Title: "x"},
 		"类型":     {Date: "2026-11-30", Kind: "swim", Title: "x"},
 		"空标题":    {Date: "2026-11-30", Kind: "rest", Title: "  "},
+		"目标距离为负": {Date: "2026-11-30", Kind: "run", Title: "x", TargetDistanceM: -1},
+		"目标距离过大": {Date: "2026-11-30", Kind: "run", Title: "x", TargetDistanceM: 1000001},
+		"目标时长过大": {Date: "2026-11-30", Kind: "run", Title: "x", TargetDurationS: 86401},
 	} {
 		if it.check() == "" {
 			t.Errorf("%s 应拒绝", name)
@@ -275,6 +280,46 @@ func TestRaceRowApply(t *testing.T) {
 	}
 }
 
+func TestRaceSeedFromGarmin(t *testing.T) {
+	raw := []byte(`{"activityId":123,"activityName":"2026 北京马拉松","startTimeLocal":"2026-11-01 07:00:00",
+		"distance":42690,"duration":15876,"activityType":{"typeKey":"running"},"eventTypeDTO":{"typeId":1,"typeKey":"race"}}`)
+	var a garminActivity
+	if err := json.Unmarshal(raw, &a); err != nil {
+		t.Fatal(err)
+	}
+	if a.EventTypeDTO.TypeKey != "race" {
+		t.Fatalf("列表里的 eventTypeDTO 没解析出来：%+v", a.EventTypeDTO)
+	}
+	r, ok := raceSeed{ActivityID: "123", Name: a.ActivityName, StartLocal: a.StartTimeLocal,
+		TypeKey: a.ActivityType.TypeKey, DistanceM: a.Distance, DurationS: a.Duration}.raceRowFromSeed()
+	if !ok || r.Name != "2026 北京马拉松" || r.Date != "2026-11-01" || r.Category != "full" ||
+		r.Status != "finished" || r.ActivityID != "123" || r.NetS != 15876.0 {
+		t.Fatalf("自动收录的比赛行不对：ok=%v %+v", ok, r)
+	}
+	if _, ok := (raceSeed{ActivityID: "123", Name: "x", StartLocal: "11/01", TypeKey: "running"}).raceRowFromSeed(); ok {
+		t.Fatal("日期不合法应拒绝")
+	}
+	if _, ok := (raceSeed{ActivityID: "123", Name: "x", StartLocal: "2026-11-01", TypeKey: "cycling"}).raceRowFromSeed(); ok {
+		t.Fatal("非跑步活动不该自动收录为比赛")
+	}
+}
+
+func TestInferRaceCategory(t *testing.T) {
+	for _, c := range []struct {
+		dist float64
+		typ  string
+		want string
+	}{
+		{42690, "running", "full"}, {42630, "running", "full"}, {21320, "running", "half"},
+		{10000, "running", "10k"}, {5000, "running", "5k"}, {8000, "running", "other"},
+		{10000, "trail_running", "trail"},
+	} {
+		if got := inferRaceCategory(c.dist, c.typ); got != c.want {
+			t.Errorf("inferRaceCategory(%v, %q) = %q，应为 %q", c.dist, c.typ, got, c.want)
+		}
+	}
+}
+
 func TestMediaIDs(t *testing.T) {
 	if !validRaceID("race_0123abcd") || validRaceID("race_../x") || validRaceID("race_A") || validMediaID("race_1") {
 		t.Fatal("id 校验不对")
@@ -336,5 +381,152 @@ func TestVideoAndSourceChecks(t *testing.T) {
 	p.Weeks[0][0].Video = "data:text/html,x"
 	if p.check() == "" {
 		t.Fatal("课时视频非 http 应拒绝")
+	}
+}
+
+func TestSplitAnalysisPlan(t *testing.T) {
+	in := "## 本次概况\n不错。\n\n```plan\n[{\"day\":3,\"kind\":\"strength\",\"title\":\"核心力量\",\"detail\":\"3 组\"},{\"day\":1,\"kind\":\"run\",\"title\":\"轻松跑 6 km\",\"detail\":\"区间 2\"},{\"day\":2,\"kind\":\"rest\",\"title\":\"休息\"},{\"day\":0,\"kind\":\"run\",\"title\":\"x\"},{\"day\":5,\"kind\":\"swim\",\"title\":\"游泳\"}]\n```\n"
+	text, plan := splitAnalysisPlan(in)
+	if text != "## 本次概况\n不错。" {
+		t.Fatalf("text = %q", text)
+	}
+	if len(plan) != 3 || plan[0].Day != 1 || plan[1].Kind != "strength" || plan[2].Kind != "other" {
+		t.Fatalf("plan = %+v", plan)
+	}
+	// 没有代码块或 JSON 坏了：正文原样返回，课表为空
+	for _, c := range []string{"## 只有正文", "正文\n```plan\n[{bad\n```"} {
+		if txt, p := splitAnalysisPlan(c); txt != c || len(p) != 0 {
+			t.Fatalf("%q -> %q %+v", c, txt, p)
+		}
+	}
+}
+
+func TestGoals(t *testing.T) {
+	g := goalRow{RaceName: " 2026 北京马拉松 ", Category: "half", Date: "2026-11-01", TargetS: 1*3600 + 54*60 + 45}
+	if msg := g.check(); msg != "" || g.RaceName != "2026 北京马拉松" {
+		t.Fatalf("合法目标被拒：%s %+v", msg, g)
+	}
+	p := goalPaceSec(g.Category, g.TargetS)
+	if p <= 325 || p >= 327 { // 1:54:45 / 21.0975 ≈ 326 秒/公里
+		t.Fatalf("半马目标配速算错：%v", p)
+	}
+	if goalPaceSec("trail", g.TargetS) != 0 || goalPaceSec("half", 0) != 0 {
+		t.Fatal("没有距离或成绩时不该给配速")
+	}
+	for name, v := range map[string]goalRow{
+		"类别": {Category: "swim"}, "日期": {Date: "11/01"}, "成绩": {TargetS: -1}, "名称": {RaceName: strings.Repeat("长", 81)},
+	} {
+		v2 := v
+		if v2.check() == "" {
+			t.Errorf("%s 应拒绝", name)
+		}
+	}
+}
+
+func TestPresetMissing(t *testing.T) {
+	for _, msg := range []string{"preset 跑步数据分析 not found", "agent 不存在", "找不到 preset"} {
+		if !presetMissing(fmt.Errorf("%s", msg)) {
+			t.Errorf("%q 应识别为 Agent 不存在", msg)
+		}
+	}
+	for _, msg := range []string{"网络超时", "模型没有返回内容", "permission denied"} {
+		if presetMissing(fmt.Errorf("%s", msg)) {
+			t.Errorf("%q 不该回退", msg)
+		}
+	}
+}
+
+func TestPlanStartMode(t *testing.T) {
+	p := planInput{Name: "AI 建议", Kind: "run", StartMode: "date", Days: []int{1, 3},
+		Weeks: [][]calItem{{{Kind: "run", Title: "轻松跑"}}}}
+	if msg := p.check(); msg != "" {
+		t.Fatalf("date 口径被拒：%s", msg)
+	}
+	p.StartMode = "monday"
+	if p.check() == "" {
+		t.Fatal("非法排期口径应拒绝")
+	}
+}
+
+func TestQueryFloat(t *testing.T) {
+	cases := map[string]float64{
+		"": 0, "abc": 0, "-3": 0, "NaN": 0, "Inf": 0, "0": 0,
+		"1000": 1000, "1.5": 1.5, "0.25": 0.25,
+	}
+	for in, want := range cases {
+		if got := queryFloat(in); got != want {
+			t.Errorf("queryFloat(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+func TestGarminLapSpeed(t *testing.T) {
+	cases := []struct {
+		in   float64
+		want float64
+	}{
+		{2.9, 10.4}, {3.0, 10.8}, {0, 0}, {-1, 0}, {0.2, 0}, {12, 0},
+	}
+	for _, c := range cases {
+		if got := garminLapSpeed(map[string]any{"averageSpeed": c.in}); got != c.want {
+			t.Errorf("garminLapSpeed(%v) = %v, want %v", c.in, got, c.want)
+		}
+	}
+	// 任一段没速度就不给自动值，避免半套数据当已校正
+	partial := autoLapSpeeds([]map[string]any{
+		{"averageSpeed": 2.9}, {"averageSpeed": 0},
+	})
+	if len(partial) != 0 {
+		t.Errorf("缺速度的跑步机不该自动填，得到 %v", partial)
+	}
+}
+
+func fptr(v float64) *float64 { return &v }
+
+func TestCorrectedDetailAlignsPace(t *testing.T) {
+	// 两段各 600 秒：原始速度 2.0 / 4.0 m/s，校正成 2.5 / 2.5 m/s（9 km/h）
+	d := &runDetail{
+		TypeKey: "treadmill_running",
+		Laps: []map[string]any{
+			{"duration": 600.0, "distance": 1200.0},
+			{"duration": 600.0, "distance": 2400.0},
+		},
+		Series: map[string][]*float64{
+			"directSpeed": {fptr(2.0), fptr(2.0), fptr(4.0), fptr(4.0)},
+			"sumDistance": {fptr(0), fptr(100), fptr(200), fptr(300)},
+			"sumDuration": {fptr(0), fptr(1), fptr(601), fptr(602)},
+		},
+	}
+	speeds := map[string]float64{"0": 9, "1": 9}
+	got := correctedDetail(d, speeds)
+	if got == d {
+		t.Fatal("校正应返回新副本")
+	}
+	spd := got.Series["directSpeed"]
+	for i, v := range spd {
+		if v == nil || math.Abs(*v-2.5) > 1e-6 {
+			t.Errorf("第 %d 点校正后速度 = %v, want 2.5", i, v)
+		}
+	}
+	// 原始 detail 不能被改动
+	if *d.Series["directSpeed"][0] != 2.0 {
+		t.Fatal("不该改缓存里的原始逐点数据")
+	}
+	// 距离按校正速度积分重算：两个 1 秒有效间隔 × 2.5 m/s；跨段的大间隔按暂停跳过
+	dist := got.Series["sumDistance"]
+	if dist[3] == nil || math.Abs(*dist[3]-5) > 1e-6 {
+		t.Errorf("校正后累计距离 = %v, want 5", dist[3])
+	}
+}
+
+func TestSeriesLapIndex(t *testing.T) {
+	b := []float64{0, 600, 1200}
+	for _, c := range []struct {
+		t    float64
+		want int
+	}{{-1, 0}, {0, 0}, {599, 0}, {600, 1}, {1199, 1}, {1200, 1}, {9999, 1}} {
+		if got := seriesLapIndex(c.t, b); got != c.want {
+			t.Errorf("seriesLapIndex(%v) = %d, want %d", c.t, got, c.want)
+		}
 	}
 }

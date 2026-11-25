@@ -42,6 +42,9 @@ type calItem struct {
 	Detail string `json:"detail"`
 	// Video 是这节课挂的视频链接（可空，0.8.0）
 	Video string `json:"video,omitempty"`
+	// 目标量（0.10.0）：距离单位米、时长单位秒；都填时达成率取低的一个。
+	TargetDistanceM float64 `json:"target_distance_m,omitempty"`
+	TargetDurationS int     `json:"target_duration_s,omitempty"`
 }
 
 func (it *calItem) check() string {
@@ -61,6 +64,10 @@ func (it *calItem) check() string {
 		return "内容最多 2000 个字"
 	case !validURL(strings.TrimSpace(it.Video)):
 		return "视频链接要是 http(s) 开头的完整地址"
+	case it.TargetDistanceM < 0 || it.TargetDistanceM > 1000000:
+		return "目标距离应在 0～1000 公里之间"
+	case it.TargetDurationS < 0 || it.TargetDurationS > 86400:
+		return "目标时长应在 0～24 小时之间"
 	}
 	return ""
 }
@@ -69,7 +76,8 @@ func (s *server) apiCalendar(ctx context.Context, from, to string) (int, any) {
 	if !validDate(from) || !validDate(to) || from > to {
 		return 400, map[string]any{"error": "from、to 应为 YYYY-MM-DD，且 from 不晚于 to"}
 	}
-	items, err := s.query(ctx, `SELECT id, date, kind, title, detail, video, plan_key, plan_name, plan_run, done, created_at, updated_at
+	items, err := s.query(ctx, `SELECT id, date, kind, title, detail, video, target_distance_m, target_duration_s,
+		plan_key, plan_name, plan_run, done, created_at, updated_at
 		FROM calendar_items WHERE date >= ? AND date <= ? ORDER BY date, created_at`, from, to)
 	if err != nil {
 		return 500, map[string]any{"error": "读取日历失败：" + err.Error()}
@@ -114,9 +122,9 @@ func (s *server) apiAddCalendar(ctx context.Context, body []byte) (int, any) {
 	ids := []string{}
 	for _, it := range in.Items {
 		id := newID("cal_")
-		if err := s.exec(ctx, `INSERT INTO calendar_items(id, date, kind, title, detail, video, plan_key, plan_name, plan_run, done, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-			id, it.Date, it.Kind, it.Title, it.Detail, it.Video, strings.TrimSpace(in.PlanKey), strings.TrimSpace(in.PlanName), planRun, now, now); err != nil {
+		if err := s.exec(ctx, `INSERT INTO calendar_items(id, date, kind, title, detail, video, target_distance_m, target_duration_s, plan_key, plan_name, plan_run, done, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+			id, it.Date, it.Kind, it.Title, it.Detail, it.Video, it.TargetDistanceM, it.TargetDurationS, strings.TrimSpace(in.PlanKey), strings.TrimSpace(in.PlanName), planRun, now, now); err != nil {
 			return 500, map[string]any{"error": "保存失败：" + err.Error(), "saved": ids}
 		}
 		ids = append(ids, id)
@@ -128,7 +136,7 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if !strings.HasPrefix(id, "cal_") || len(id) > 40 {
 		return 400, map[string]any{"error": "日历条目 id 不合法"}
 	}
-	rows, err := s.query(ctx, "SELECT date, kind, title, detail, video, done FROM calendar_items WHERE id = ?", id)
+	rows, err := s.query(ctx, "SELECT date, kind, title, detail, video, target_distance_m, target_duration_s, done FROM calendar_items WHERE id = ?", id)
 	if err != nil || len(rows) == 0 {
 		return 404, map[string]any{"error": "找不到这条安排"}
 	}
@@ -138,14 +146,18 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	cur.Title, _ = rows[0]["title"].(string)
 	cur.Detail, _ = rows[0]["detail"].(string)
 	cur.Video, _ = rows[0]["video"].(string)
+	cur.TargetDistanceM = numField(rows[0], "target_distance_m")
+	cur.TargetDurationS = int(numField(rows[0], "target_duration_s"))
 	done := numField(rows[0], "done") != 0
 	var in struct {
-		Date   *string `json:"date"`
-		Kind   *string `json:"kind"`
-		Title  *string `json:"title"`
-		Detail *string `json:"detail"`
-		Video  *string `json:"video"`
-		Done   *bool   `json:"done"`
+		Date            *string  `json:"date"`
+		Kind            *string  `json:"kind"`
+		Title           *string  `json:"title"`
+		Detail          *string  `json:"detail"`
+		Video           *string  `json:"video"`
+		TargetDistanceM *float64 `json:"target_distance_m"`
+		TargetDurationS *int     `json:"target_duration_s"`
+		Done            *bool    `json:"done"`
 	}
 	if err := json.Unmarshal(body, &in); err != nil {
 		return 400, map[string]any{"error": "请求不是合法 JSON"}
@@ -165,6 +177,12 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if in.Video != nil {
 		cur.Video = *in.Video
 	}
+	if in.TargetDistanceM != nil {
+		cur.TargetDistanceM = *in.TargetDistanceM
+	}
+	if in.TargetDurationS != nil {
+		cur.TargetDurationS = *in.TargetDurationS
+	}
 	if in.Done != nil {
 		done = *in.Done
 	}
@@ -175,8 +193,8 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if done {
 		d = 1
 	}
-	if err := s.exec(ctx, "UPDATE calendar_items SET date=?, kind=?, title=?, detail=?, video=?, done=?, updated_at=? WHERE id=?",
-		cur.Date, cur.Kind, cur.Title, cur.Detail, cur.Video, d, time.Now().Format(time.RFC3339), id); err != nil {
+	if err := s.exec(ctx, "UPDATE calendar_items SET date=?, kind=?, title=?, detail=?, video=?, target_distance_m=?, target_duration_s=?, done=?, updated_at=? WHERE id=?",
+		cur.Date, cur.Kind, cur.Title, cur.Detail, cur.Video, cur.TargetDistanceM, cur.TargetDurationS, d, time.Now().Format(time.RFC3339), id); err != nil {
 		return 500, map[string]any{"error": "保存失败：" + err.Error()}
 	}
 	return 200, map[string]any{"ok": true}

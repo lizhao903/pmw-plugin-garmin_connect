@@ -44,6 +44,134 @@ var mimeExt = map[string]string{
 	"video/mp4": ".mp4", "video/quicktime": ".mov", "video/webm": ".webm", "application/pdf": ".pdf",
 }
 
+// 后台批量导入历史比赛的进度（和 fullSyncState 分开，互不占用）
+type raceImportState struct {
+	Running    bool   `json:"running"`
+	Pages      int    `json:"pages"`
+	Found      int    `json:"found"`
+	Imported   int    `json:"imported"`
+	Error      string `json:"error,omitempty"`
+	StartedAt  string `json:"started_at,omitempty"`
+	FinishedAt string `json:"finished_at,omitempty"`
+}
+
+// 自动收录用的活动信息：成绩用手表计时（duration）作净计时。
+type raceSeed struct {
+	ActivityID, Name, StartLocal, TypeKey string
+	DistanceM, DurationS                  float64
+}
+
+// 和前端 guessCategory 保持一致：按距离猜比赛类别。
+func inferRaceCategory(distM float64, typeKey string) string {
+	if strings.Contains(typeKey, "trail") {
+		return "trail"
+	}
+	if distM >= 40000 {
+		return "full"
+	}
+	if distM >= 20000 && distM <= 22500 {
+		return "half"
+	}
+	if distM >= 9500 && distM <= 11000 {
+		return "10k"
+	}
+	if distM >= 4800 && distM <= 5600 {
+		return "5k"
+	}
+	return "other"
+}
+
+// raceRowFromSeed 用 Garmin 活动生成比赛行；手表计时作净计时，类别按距离猜。
+func (seed raceSeed) raceRowFromSeed() (raceRow, bool) {
+	id := strings.TrimSpace(seed.ActivityID)
+	if !validActivityID(id) || (seed.TypeKey != "" && !isRun(seed.TypeKey)) {
+		return raceRow{}, false
+	}
+	date := ""
+	if len(seed.StartLocal) >= 10 {
+		date = seed.StartLocal[:10]
+	}
+	name := strings.TrimSpace(seed.Name)
+	if name == "" {
+		name = "比赛"
+	}
+	if len([]rune(name)) > 80 {
+		name = string([]rune(name)[:80])
+	}
+	var netS any
+	if seed.DurationS > 0 && seed.DurationS <= 7*24*3600 {
+		netS = seed.DurationS
+	}
+	r := raceRow{Name: name, Date: date, Category: inferRaceCategory(seed.DistanceM, seed.TypeKey),
+		Status: "finished", ActivityID: id, NetS: netS}
+	return r, r.apply(raceInput{}) == ""
+}
+
+// autoCollectRace 把 Garmin 标成比赛的活动收录进 races：只新增，不覆盖用户改过的比赛；
+// 用户主动删掉的活动留在 race_skips 里，后续同步不会把它「复活」。
+func (s *server) autoCollectRace(ctx context.Context, seed raceSeed) bool {
+	r, ok := seed.raceRowFromSeed()
+	if !ok {
+		return false
+	}
+	id := r.ActivityID
+	if rows, err := s.query(ctx, "SELECT id FROM races WHERE activity_id = ? LIMIT 1", id); err != nil || len(rows) > 0 {
+		return false
+	}
+	// 手动收录过、但没关联活动的同一场（同日期同名称或同净成绩）也不重复加
+	if rows, err := s.query(ctx, "SELECT id FROM races WHERE date = ? AND name = ? LIMIT 1", r.Date, r.Name); err == nil && len(rows) > 0 {
+		return false
+	}
+	if r.NetS != nil {
+		if rows, err := s.query(ctx, "SELECT id FROM races WHERE date = ? AND net_s = ? LIMIT 1", r.Date, r.NetS); err == nil && len(rows) > 0 {
+			return false
+		}
+	}
+	if rows, err := s.query(ctx, "SELECT activity_id FROM race_skips WHERE activity_id = ? LIMIT 1", id); err != nil || len(rows) > 0 {
+		return false
+	}
+	now := time.Now().Format(time.RFC3339)
+	err := s.exec(ctx, `INSERT INTO races(id, name, date, city, category, status, official_s, net_s,
+		bib_no, rank_overall, rank_group, activity_id, note, created_at, updated_at)
+		VALUES (?, ?, ?, '', ?, 'finished', NULL, ?, '', '', '', ?, '', ?, ?)`,
+		newID("race_"), r.Name, r.Date, r.Category, r.NetS, id, now, now)
+	return err == nil
+}
+
+// 打开详情时也能收录：旧缓存里已有 event_type=race 的，补齐名称/距离/时长后收录。
+func (s *server) autoCollectRaceFromDetail(ctx context.Context, d *runDetail) bool {
+	if d == nil || d.EventType != "race" {
+		return false
+	}
+	seed := raceSeed{
+		ActivityID: d.ActivityID, Name: d.Name, StartLocal: d.StartLocal, TypeKey: d.TypeKey,
+		DistanceM: numField(d.Summary, "distance"), DurationS: numField(d.Summary, "duration"),
+	}
+	if seed.Name == "" || seed.StartLocal == "" || seed.TypeKey == "" || seed.DistanceM <= 0 || seed.DurationS <= 0 {
+		rows, err := s.query(ctx, `SELECT activity_name, start_time, distance_m, duration_s, type_key
+			FROM runs WHERE activity_id = ? LIMIT 1`, d.ActivityID)
+		if err == nil && len(rows) > 0 {
+			g := func(k string) string { v, _ := rows[0][k].(string); return v }
+			if seed.Name == "" {
+				seed.Name = g("activity_name")
+			}
+			if seed.StartLocal == "" {
+				seed.StartLocal = g("start_time")
+			}
+			if seed.TypeKey == "" {
+				seed.TypeKey = g("type_key")
+			}
+			if seed.DistanceM <= 0 {
+				seed.DistanceM = numField(rows[0], "distance_m")
+			}
+			if seed.DurationS <= 0 {
+				seed.DurationS = numField(rows[0], "duration_s")
+			}
+		}
+	}
+	return s.autoCollectRace(ctx, seed)
+}
+
 func mediaRoot() (string, error) {
 	if dataDir == "" {
 		return "", fmt.Errorf("宿主没有给插件数据目录，存不了文件")
@@ -167,6 +295,106 @@ func (s *server) apiRaces(ctx context.Context) (int, any) {
 	return 200, map[string]any{"races": rows}
 }
 
+func (s *server) raceImportSnapshot() raceImportState {
+	s.raceImpMu.Lock()
+	defer s.raceImpMu.Unlock()
+	return s.raceImp
+}
+
+// 从 Garmin 全量活动里补录比赛，后台跑、前端轮询 /status 看进度。
+func (s *server) startRaceImport() bool {
+	s.raceImpMu.Lock()
+	if s.raceImp.Running {
+		s.raceImpMu.Unlock()
+		return false
+	}
+	s.raceImp = raceImportState{Running: true, StartedAt: time.Now().Format(time.RFC3339)}
+	s.raceImpMu.Unlock()
+	ctx := s.bgCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go func() {
+		found, imported, err := s.importRacesFromGarmin(ctx, func(pages, f, i int) {
+			s.raceImpMu.Lock()
+			s.raceImp.Pages, s.raceImp.Found, s.raceImp.Imported = pages, f, i
+			s.raceImpMu.Unlock()
+		})
+		s.raceImpMu.Lock()
+		s.raceImp.Running = false
+		s.raceImp.Found, s.raceImp.Imported = found, imported
+		s.raceImp.FinishedAt = time.Now().Format(time.RFC3339)
+		if err != nil {
+			s.raceImp.Error = err.Error()
+		}
+		s.raceImpMu.Unlock()
+	}()
+	return true
+}
+
+func (s *server) apiRaceImport() (int, any) {
+	if !s.startRaceImport() {
+		return 409, map[string]any{"error": "历史比赛导入已经在跑了", "race_import": s.raceImportSnapshot()}
+	}
+	return 202, map[string]any{"ok": true, "started": true, "race_import": s.raceImportSnapshot()}
+}
+
+// importRacesFromGarmin 逐页扫 Garmin 活动；列表没给 eventTypeDTO 时用本地 runs / 详情缓存兜底。
+func (s *server) importRacesFromGarmin(ctx context.Context, progress func(pages, found, imported int)) (int, int, error) {
+	c, err := s.authed(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	local := map[string]string{}
+	if rows, err := s.query(ctx, "SELECT activity_id, event_type FROM runs WHERE event_type IS NOT NULL AND event_type != ''"); err == nil {
+		for _, r := range rows {
+			id, _ := r["activity_id"].(string)
+			et, _ := r["event_type"].(string)
+			local[id] = et
+		}
+	}
+	const limit, maxPages = 100, 100
+	found, imported := 0, 0
+	for page := 0; page < maxPages; page++ {
+		list, err := s.fetchActivities(ctx, c, page*limit, limit)
+		if err != nil {
+			return found, imported, fmt.Errorf("拉取 Garmin 活动失败（第 %d 页）：%w", page+1, err)
+		}
+		for _, a := range list {
+			if a.ActivityID == 0 || !isRun(a.ActivityType.TypeKey) {
+				continue
+			}
+			id := strconv.FormatInt(a.ActivityID, 10)
+			et := a.EventTypeDTO.TypeKey
+			if et == "" {
+				et = local[id]
+			}
+			if et == "" {
+				if d := s.cachedDetail(ctx, id); d != nil {
+					et = d.EventType
+				}
+			}
+			if et != "race" {
+				continue
+			}
+			found++
+			if s.autoCollectRace(ctx, raceSeed{
+				ActivityID: id, Name: a.ActivityName, StartLocal: a.StartTimeLocal,
+				TypeKey: a.ActivityType.TypeKey, DistanceM: a.Distance, DurationS: a.Duration,
+			}) {
+				imported++
+			}
+		}
+		if progress != nil {
+			progress(page+1, found, imported)
+		}
+		if len(list) < limit {
+			break
+		}
+	}
+	return found, imported, nil
+}
+
 func (s *server) apiRace(ctx context.Context, id string) (int, any) {
 	if !validRaceID(id) {
 		return 400, map[string]any{"error": "比赛 id 不合法"}
@@ -195,6 +423,14 @@ func (s *server) apiCreateRace(ctx context.Context, body []byte) (int, any) {
 	r := raceRow{Category: "other", Status: "finished"}
 	if msg := r.apply(in); msg != "" {
 		return 400, map[string]any{"error": msg}
+	}
+	// 同一次活动只收录一场比赛：重复标记（或把类别改成比赛）时返回已有的那场
+	if r.ActivityID != "" {
+		if rows, err := s.query(ctx, "SELECT id FROM races WHERE activity_id = ? LIMIT 1", r.ActivityID); err == nil && len(rows) > 0 {
+			return 200, map[string]any{"ok": true, "id": rows[0]["id"], "existing": true}
+		}
+		// 手动重新标记时允许收录之前被自动同步删掉的活动
+		_ = s.exec(ctx, "DELETE FROM race_skips WHERE activity_id = ?", r.ActivityID)
 	}
 	id := newID("race_")
 	now := time.Now().Format(time.RFC3339)
@@ -237,6 +473,12 @@ func (s *server) apiUpdateRace(ctx context.Context, id string, body []byte) (int
 func (s *server) apiDeleteRace(ctx context.Context, id string) (int, any) {
 	if !validRaceID(id) {
 		return 400, map[string]any{"error": "比赛 id 不合法"}
+	}
+	if rows, err := s.query(ctx, "SELECT activity_id FROM races WHERE id = ?", id); err == nil && len(rows) > 0 {
+		if activityID, _ := rows[0]["activity_id"].(string); activityID != "" {
+			_ = s.exec(ctx, "INSERT OR IGNORE INTO race_skips(activity_id, created_at) VALUES (?, ?)",
+				activityID, time.Now().Format(time.RFC3339))
+		}
 	}
 	if err := s.exec(ctx, "DELETE FROM race_media WHERE race_id = ?", id); err != nil {
 		return 500, map[string]any{"error": "删除失败：" + err.Error()}

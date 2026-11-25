@@ -46,20 +46,22 @@ if (/^\s*(import|export)\s/m.test(entry)) throw new Error('web/entry.js 还有 i
 
 // 宿主相关的文案：PMW 工作台 → dsh
 const TEXTS = [
-  ['先在设置页登录 Garmin，再点', '先在「账号与同步」里登录 Garmin，再点'],
+  ['先在设置页登录 Garmin，再在「账号与同步」里点', '先在「账号与同步」里登录 Garmin，再点'],
   ['暂无跑步记录，先在设置页登录 Garmin', '暂无跑步记录，先在「账号与同步」里登录 Garmin'],
-  ['会把这次的数据和最近 4 周训练量发给工作台配置的模型服务商', '会把这次的数据和最近 4 周训练量发给 dsh 当前的默认模型（设置 → 模型）'],
+  ['默认内置可用；会把这次的数据、最近 4 周训练量、目标比赛和 PB 发给模型服务商', '默认内置可用；会把这次的数据、最近 4 周训练量、目标比赛和 PB 发给 dsh 当前默认模型'],
   ['文件保存在本机工作台的插件数据目录。', '文件保存在本机 dsh 的插件数据目录（~/.dsh/cache/garmin-connect）；dsh 页面里查看单个文件最大 200 MB。'],
-  ['令牌加密存在工作台的凭证保险箱里。', '令牌存在 dsh 的凭据存储里。'],
-  ['需要先在「设置 → 插件 → 外部插件」给本插件授予 network:any；开了两步验证的账号暂不支持。', '开了两步验证的账号暂不支持。'],
+  ['令牌加密存在工作台的凭证保险箱里。开了 MFA 请改用个人 API Key。', '令牌存在 dsh 的凭据存储里。开了 MFA 请改用个人 API Key。'],
+  ['需要先在「设置 → 插件 → 外部插件」给本插件授予 network:any；同步按钮只在「账号与同步」里。', 'dsh 已内置出网与凭据存储；同步按钮只在「账号与同步」里。'],
 ]
 for (const [from, to] of TEXTS) entry = replaceOnce(entry, from, to, from.slice(0, 16))
-// AI 分析：dsh 版不选 PMW 的 Agent，直接用 dsh 默认模型，去掉「使用的 Agent」输入框
+// AI 分析：dsh 版直接用当前默认模型，去掉 PMW 的「自定义 Agent」输入框
 entry = entry.replace(
-  /h\("label", \{ className: "gc-inline", title: "默认用「跑步数据分析」Agent[^\n]*\n[^\n]*"使用的 Agent",\n[^\n]*setAgentName\(e\.target\.value\); \} \}\)\),\n/,
+  /h\("label", \{ className: "gc-inline", title: "[^\n]*Agent[^\n]*\n[^\n]*"自定义 Agent",\n[^\n]*setAgentName\(e\.target\.value\); \} \}\)\),\n/,
   'null,\n')
-if (entry.includes('"使用的 Agent"')) throw new Error('没去掉「使用的 Agent」输入框：web/entry.js 改过了，更新 dsh/scripts/build.mjs')
-entry = replaceOnce(entry, 'const DEFAULT_AGENT = "跑步数据分析";', 'const DEFAULT_AGENT = "";', 'DEFAULT_AGENT')
+if (entry.includes('"自定义 Agent"')) throw new Error('没去掉「自定义 Agent」输入框：web/entry.js 改过了，更新 dsh/scripts/build.mjs')
+if (!entry.includes('const DEFAULT_AGENT = "";')) throw new Error('DEFAULT_AGENT 不是空值：web/entry.js 改过了，更新 dsh/scripts/build.mjs')
+// 明暗只跟随 dsh 应用（body[data-ds-dark-theme]），不给手动切换；配色在 client.template.js 里映射到 --dsw-*
+entry = replaceOnce(entry, 'const THEME_HOST = "pmw";', 'const THEME_HOST = "dsh";', 'THEME_HOST')
 entry = replaceOnce(entry, 'return v === null ? DEFAULT_AGENT : v;', 'return DEFAULT_AGENT;', 'loadAgent')
 
 const style = readFileSync(join(ROOT, 'web', 'style.css'), 'utf8')

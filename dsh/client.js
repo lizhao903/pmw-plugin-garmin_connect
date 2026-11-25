@@ -20,7 +20,7 @@ window.__ModuleLoader__.load({
 
     const __GC_RPC_ENDPOINT = 'garmin-connect/call'
     const __GC_BASE = 'dsh-gc:'
-    const __GC_STYLE = "/*\n * PMW 外部插件的样式只允许写在 [data-pmw-plugin=\"<id>\"] 作用域下。\n * 宿主会渲染 <div data-pmw-plugin=\"<id>\"> 包住插件组件；不要改宿主全局样式、\n * 不要给 body/html 设样式、不要用 !important 覆盖别人。\n *\n * 颜色优先用宿主暴露的 --pmw-* token，取不到时给中性兜底，别硬编码品牌色。\n */\n\n[data-pmw-plugin=\"garmin_connect\"] {\n  color: var(--pmw-text, inherits);\n  font-size: var(--pmw-font-size, 14px);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-header h2 {\n  margin: 0;\n  font-size: 18px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-hint {\n  margin: 0;\n  color: var(--pmw-text-secondary, #6b7280);\n  font-size: 12px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-card {\n  padding: 12px;\n  border: 1px solid var(--pmw-border, #e5e7eb);\n  border-radius: var(--pmw-radius, 8px);\n  background: var(--pmw-panel, #ffffff);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-card h4 {\n  margin: 0 0 6px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-button {\n  align-self: flex-start;\n  padding: 6px 12px;\n  border: 1px solid var(--pmw-border, #d1d5db);\n  border-radius: var(--pmw-radius, 6px);\n  background: var(--pmw-panel, #f9fafb);\n  color: inherit;\n  cursor: pointer;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-button:hover {\n  background: var(--pmw-panel-hover, #f3f4f6);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-error {\n  padding: 10px;\n  border: 1px solid var(--pmw-danger, #ef4444);\n  border-radius: var(--pmw-radius, 6px);\n  color: var(--pmw-danger, #b91c1c);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-check {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-table {\n  width: 100%;\n  border-collapse: collapse;\n  font-size: var(--pmw-font-size, 14px);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-table th,\n[data-pmw-plugin=\"garmin_connect\"] .gc-table td {\n  padding: 6px 8px;\n  text-align: left;\n  border-bottom: 1px solid var(--pmw-border, #e5e7eb);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-table th {\n  color: var(--pmw-text-secondary, #6b7280);\n  font-weight: 600;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-field {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--pmw-text-secondary, #6b7280);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-field input {\n  padding: 6px 8px;\n  border: 1px solid var(--pmw-border, #d1d5db);\n  border-radius: var(--pmw-radius, 6px);\n  background: var(--pmw-panel, #ffffff);\n  color: inherit;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-main {\n  margin: 0;\n  font-size: 16px;\n  font-weight: 600;\n}\n\n/* 0.2.0：列表可点、跑步详情、登录表单 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-row { cursor: pointer; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-row:hover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-row:focus-visible { background: var(--pmw-panel-hover, #f3f4f6); outline: none; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-detail-bar { display: flex; gap: 8px; flex-wrap: wrap; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-sub { margin: 8px 0 6px; font-size: 15px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-stats {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));\n  gap: 8px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat {\n  display: flex; flex-direction: column; gap: 2px;\n  padding: 8px 10px;\n  border: 1px solid var(--pmw-border, #e5e7eb);\n  border-radius: var(--pmw-radius, 8px);\n  background: var(--pmw-panel, #ffffff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat-label { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-zones { display: flex; flex-direction: column; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-zone { display: grid; grid-template-columns: 110px 1fr 120px; align-items: center; gap: 8px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-zone-bar { height: 10px; border-radius: 5px; background: var(--pmw-border, #e5e7eb); overflow: hidden; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-zone-fill { display: block; height: 100%; background: var(--pmw-accent, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z1 { opacity: 0.35; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z2 { opacity: 0.5; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z3 { opacity: 0.65; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z4 { opacity: 0.8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z5 { opacity: 1; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-zone-time { font-variant-numeric: tabular-nums; color: var(--pmw-text-secondary, #6b7280); }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-login,\n[data-pmw-plugin=\"garmin_connect\"] .gc-account { display: flex; flex-direction: column; gap: 8px; max-width: 420px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-account p { margin: 0; }\n\n@media (max-width: 560px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-zone { grid-template-columns: 80px 1fr; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-zone-time { grid-column: 1 / -1; }\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-scroll { overflow-x: auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-scroll .gc-table th,\n[data-pmw-plugin=\"garmin_connect\"] .gc-scroll .gc-table td { white-space: nowrap; }\n\n/* 0.3.0：标题行兜底、分段按钮、统计图、曲线、地图、分段归类、跑步机校正 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-header > div:first-child { flex: 1 1 auto; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-controls { display: flex; flex-wrap: wrap; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tag {\n  display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 12px; line-height: 18px;\n  background: var(--pmw-panel-hover, #eef0f3); color: var(--pmw-text-secondary, #4b5563);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-mark { font-size: 11px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-note {\n  margin: 0; padding: 6px 10px; border-left: 3px solid var(--pmw-border, #d1d5db);\n  background: var(--pmw-panel, #f9fafb); font-size: 13px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-speed { width: 78px; padding: 3px 6px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px; font: inherit; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-subtotal td { font-weight: 600; background: var(--pmw-panel, #f9fafb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-corrected td:nth-child(3),\n[data-pmw-plugin=\"garmin_connect\"] .gc-corrected td:nth-child(5) { font-weight: 600; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart { margin: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart svg { width: 100%; height: auto; display: block; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-grid { stroke: var(--pmw-border, #e5e7eb); stroke-width: 1; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-axis { fill: var(--pmw-text-secondary, #6b7280); font-size: 11px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-bar { fill: var(--pmw-accent, #4b5563); opacity: 0.8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-bar:hover { opacity: 1; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-line {\n  padding: 8px 10px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-line figcaption { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); margin-bottom: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-line figcaption strong { color: var(--pmw-text, inherit); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-linepath { stroke: var(--pmw-accent, #4b5563); stroke-width: 1.5; stroke-linejoin: round; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-map {\n  position: relative; overflow: hidden; border: 1px solid var(--pmw-border, #e5e7eb);\n  border-radius: var(--pmw-radius, 8px); background: #e9ecef;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-tile { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-svg { position: absolute; left: 0; top: 0; pointer-events: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-route { stroke: #d9480f; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-route-halo { stroke: #fff; stroke-width: 6; stroke-linejoin: round; stroke-linecap: round; opacity: 0.8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pin-start { fill: #2b8a3e; stroke: #fff; stroke-width: 2; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pin-end { fill: #c92a2a; stroke: #fff; stroke-width: 2; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-zoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-zoom button {\n  width: 28px; height: 28px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px;\n  background: #fff; color: #111; font-size: 16px; line-height: 1; cursor: pointer;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-attr {\n  position: absolute; right: 4px; bottom: 2px; padding: 0 4px; font-size: 10px; color: #333; background: rgba(255, 255, 255, 0.7);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-all summary { cursor: pointer; font-weight: 600; padding: 6px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kv th { text-align: left; font-weight: 400; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kv code { font-size: 11px; }\n\n/* 0.4.0：详细数据分组、编辑表单、描述 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-group {\n  padding: 10px 12px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-group-title { margin: 0 0 6px; font-size: 13px; color: var(--pmw-text-secondary, #6b7280); font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl { margin: 0; display: flex; flex-direction: column; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl-row {\n  display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px dashed var(--pmw-border, #eceef1); font-size: 13px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl-row:last-child { border-bottom: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl dt { color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl dd { margin: 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl-others { columns: 2 280px; display: block; margin-top: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl-others .gc-dl-row { break-inside: avoid; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-edit {\n  display: flex; flex-direction: column; gap: 10px; max-width: 640px; padding: 12px;\n  border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-edit-row { display: flex; flex-wrap: wrap; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-edit-row .gc-field { flex: 1 1 200px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-field select,\n[data-pmw-plugin=\"garmin_connect\"] .gc-field textarea {\n  padding: 6px 8px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: var(--pmw-radius, 6px);\n  background: var(--pmw-panel, #fff); color: inherit; font: inherit;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-field textarea { resize: vertical; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-primary { font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-desc { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-note-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }\n\n/* 0.5.0：列表、详情 tab、图表（指标切换、叠加、读数、暂停与停下）、分段柱 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-list { display: flex; flex-direction: column; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stats-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-search {\n  padding: 4px 8px; min-width: 160px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: var(--pmw-radius, 6px);\n  background: var(--pmw-panel, #fff); color: inherit; font: inherit; font-size: 13px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-controls { align-items: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-table .num { text-align: right; font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-runs td { vertical-align: middle; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-runs .gc-date small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-runs .gc-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-month td {\n  padding-top: 14px; border-bottom: 1px solid var(--pmw-border, #e5e7eb); background: transparent; cursor: default;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-month strong { margin-right: 10px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-month span { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tag-in { background: #e0e7ff; color: #3730a3; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--pmw-border, #e5e7eb); overflow-x: auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tab {\n  padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;\n  background: transparent; color: var(--pmw-text-secondary, #6b7280); font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-tab.on { color: var(--pmw-text, #111); border-bottom-color: var(--pmw-accent, #2563eb); font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tab-body { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-chips { display: flex; flex-wrap: wrap; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chip {\n  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--pmw-border, #d1d5db);\n  border-radius: 999px; background: var(--pmw-panel, #fff); color: var(--pmw-text-secondary, #6b7280); font: inherit; font-size: 13px; cursor: pointer;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-chip.on { font-weight: 600; background: var(--pmw-panel, #fff); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chip:not(.on) .gc-dot { opacity: 0.35; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-readout {\n  display: flex; flex-wrap: wrap; gap: 6px 16px; min-height: 30px; align-items: center; padding: 4px 10px;\n  border-radius: var(--pmw-radius, 6px); background: var(--pmw-panel, #f9fafb); font-size: 13px; font-variant-numeric: tabular-nums;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart-box {\n  margin: 0; padding: 8px 10px 4px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart-title small { font-weight: 400; color: var(--pmw-text-secondary, #6b7280); margin-left: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart-svg { width: 100%; height: auto; display: block; cursor: crosshair; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cross { stroke: var(--pmw-text-secondary, #6b7280); stroke-width: 1; stroke-dasharray: 3 3; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pause { fill: #f59e0b; opacity: 0.22; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stop { fill: #94a3b8; opacity: 0.28; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-swatch { display: inline-block; width: 12px; height: 10px; margin-right: 4px; vertical-align: middle; border-radius: 2px; }\n[data-pmw-plugin=\"garmin_connect\"] i.gc-swatch.gc-pause { opacity: 0.6; background: #f59e0b; }\n[data-pmw-plugin=\"garmin_connect\"] i.gc-swatch.gc-stop { opacity: 0.7; background: #94a3b8; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-lapbar { fill: #64748b; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-warm { fill: #f59e0b; background: #f59e0b; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-work { fill: #2563eb; background: #2563eb; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-rec { fill: #10b981; background: #10b981; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-rest { fill: #94a3b8; background: #94a3b8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-cool { fill: #8b5cf6; background: #8b5cf6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-none { fill: #64748b; background: #64748b; }\n\n@media (max-width: 640px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-stats-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-stats-3 .gc-stat-value { font-size: 14px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-search { min-width: 0; flex: 1 1 120px; }\n}\n\n/* 窄屏卡片列表 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-cards { display: flex; flex-direction: column; gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-month-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 2px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-month-head span { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-row {\n  display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 2px;\n  border: 0; border-bottom: 1px solid var(--pmw-border, #eceef1); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-l, [data-pmw-plugin=\"garmin_connect\"] .gc-card-r { display: flex; flex-direction: column; gap: 2px; min-width: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-r { align-items: flex-end; flex: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-row small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; font-variant-numeric: tabular-nums; }\n\n/* 0.5.1：平均线、分段悬停与最快最慢、配速分秒输入 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-avgline { stroke: var(--pmw-text, #111); stroke-width: 1; stroke-dasharray: 5 4; opacity: 0.6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-avgtext { font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lapbar.dim { opacity: 0.45; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lapbar.on { stroke: var(--pmw-text, #111); stroke-width: 1.5; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lap-tag { font-weight: 600; fill: var(--pmw-text, #111); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lap-summary { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; padding: 4px 2px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lap-summary em {\n  font-style: normal; font-size: 12px; margin-right: 6px; padding: 0 6px; border-radius: 4px;\n  background: var(--pmw-panel-hover, #eef0f3); color: var(--pmw-text-secondary, #4b5563);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-overlay-avg { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-weight: 500; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pace-input { display: inline-flex; align-items: center; gap: 3px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pace-input input {\n  width: 46px; padding: 3px 4px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px; font: inherit; text-align: center;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-pace-input small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-link { border: 0; background: none; color: var(--pmw-accent, #2563eb); font: inherit; font-size: 13px; cursor: pointer; padding: 0 4px; }\n\n/* 0.6.0：波动区间说明、AI 分析、力量训练组、训练计划、训练日历 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-band-note { margin: 2px 0 4px; font-size: 12px; color: var(--pmw-text-secondary, #4b5563); line-height: 1.6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-band-note.gc-collapse { color: #b45309; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-analysis { display: flex; flex-direction: column; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-analysis-body { padding: 14px 18px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md { font-size: 14px; line-height: 1.75; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md p { margin: 4px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md ul, [data-pmw-plugin=\"garmin_connect\"] .gc-md ol { margin: 4px 0 8px; padding-left: 22px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md-h { margin: 14px 0 4px; font-size: 15px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md h4.gc-md-h { font-size: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md .gc-md-h:first-child { margin-top: 0; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-sub-name { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-k-run { background: #2563eb; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-k-strength { background: #ea580c; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-k-rest { background: #94a3b8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-k-other { background: #7c3aed; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-kind { display: inline-block; padding: 0 6px; border-radius: 4px; color: #fff; font-size: 12px; line-height: 18px; align-self: flex-start; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-plans { display: flex; flex-direction: column; gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card {\n  display: flex; flex-direction: column; gap: 4px; padding: 12px; text-align: left; cursor: pointer;\n  border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff); color: inherit; font: inherit;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card.on { border-color: var(--pmw-accent, #2563eb); box-shadow: 0 0 0 1px var(--pmw-accent, #2563eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-desc { font-size: 13px; line-height: 1.5; color: var(--pmw-text-secondary, #4b5563); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-apply { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; max-height: 420px; overflow: auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-week { padding: 8px 10px; border: 1px dashed var(--pmw-border, #e5e7eb); border-radius: 6px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-week ol { margin: 4px 0 0; padding-left: 18px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-week li { margin: 3px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-week li small { display: block; color: var(--pmw-text-secondary, #6b7280); font-size: 12px; line-height: 1.4; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal { display: flex; flex-direction: column; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-title { font-size: 15px; min-width: 110px; text-align: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-head { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); text-align: center; padding: 2px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell {\n  display: flex; flex-direction: column; gap: 2px; min-height: 92px; padding: 4px 6px; text-align: left; overflow: hidden; cursor: pointer;\n  border: 1px solid var(--pmw-border, #e5e7eb); border-radius: 6px; background: var(--pmw-panel, #fff); color: inherit; font: inherit;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell.out { opacity: 0.45; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell.today .gc-cal-day { background: var(--pmw-accent, #2563eb); color: #fff; border-radius: 10px; padding: 0 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell.sel { border-color: var(--pmw-accent, #2563eb); box-shadow: 0 0 0 1px var(--pmw-accent, #2563eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-day { font-size: 12px; font-weight: 600; align-self: flex-start; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-item {\n  display: block; padding: 1px 5px; border-radius: 3px; color: #fff; font-size: 11px; line-height: 16px;\n  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-item.done { opacity: 0.55; text-decoration: line-through; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-more { font-size: 11px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-act { font-size: 11px; color: #047857; font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-day-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-entry { padding: 8px 0; border-bottom: 1px dashed var(--pmw-border, #eceef1); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-entry-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-entry-head small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-plan { margin-bottom: 8px; }\n\n@media (max-width: 640px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell { min-height: 58px; padding: 3px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-cal-item { font-size: 10px; padding: 0 3px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-cal-act { font-size: 10px; }\n}\n\n/* 0.7.0：比赛与影像记忆 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-races { display: flex; flex-direction: column; gap: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat-btn { text-align: left; cursor: pointer; font: inherit; color: inherit; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-card {\n  display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; cursor: pointer;\n  border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 10px); background: var(--pmw-panel, #fff); color: inherit; font: inherit;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-card:hover { border-color: var(--pmw-accent, #2563eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-cover { display: block; height: 150px; background: #eef2f7; overflow: hidden; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-cover-empty {\n  display: flex; height: 100%; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; color: #94a3b8;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-body { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-body small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-result { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tag-pb { background: #fef3c7; color: #92400e; font-size: 12px; font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-empty { padding: 28px; text-align: center; border: 1px dashed var(--pmw-border, #e5e7eb); border-radius: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-form { max-width: 720px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-media { display: flex; flex-direction: column; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-group { padding: 10px 12px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: 8px; background: var(--pmw-panel, #fff); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-head { display: flex; align-items: baseline; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-head small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-head .gc-link { margin-left: auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-item { margin: 0; display: flex; flex-direction: column; gap: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-thumb {\n  display: block; width: 100%; aspect-ratio: 4 / 3; padding: 0; border: 0; border-radius: 6px; overflow: hidden; background: #eef2f7; cursor: zoom-in;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-icon { display: flex; height: 100%; align-items: center; justify-content: center; font-weight: 600; color: #475569; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-item figcaption { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-cap { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pmw-text-secondary, #4b5563); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-upload-queue { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-upload-row { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 10px; align-items: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-err { color: #b91c1c; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer {\n  position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.82);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-inner { display: flex; flex-direction: column; gap: 8px; max-width: 92vw; max-height: 92vh; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-inner img, [data-pmw-plugin=\"garmin_connect\"] .gc-viewer-inner video {\n  max-width: 92vw; max-height: 80vh; object-fit: contain; border-radius: 6px; background: #000;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-inner iframe { width: 80vw; height: 80vh; border: 0; background: #fff; border-radius: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: #fff; font-size: 13px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-bar .pmw-plugin-button { color: #111; background: #fff; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-bar .pmw-plugin-button:disabled { opacity: 0.45; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-video { position: relative; display: block; width: 100%; height: 100%; background: #0f172a; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-video video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-play {\n  position: absolute; left: 8px; bottom: 8px; padding: 1px 8px; border-radius: 10px; background: rgba(15, 23, 42, 0.7); color: #fff; font-size: 12px;\n}\n\n/* 0.8.0：我的计划、计划编辑器 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card { padding: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card-main {\n  display: flex; flex-direction: column; gap: 4px; padding: 12px 12px 6px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-actions { padding: 0 12px 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-editor { max-width: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-weeks { display: flex; flex-direction: column; gap: 10px; max-height: 560px; overflow: auto; padding-right: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-week { padding: 8px 10px; border: 1px dashed var(--pmw-border, #e5e7eb); border-radius: 6px; display: flex; flex-direction: column; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row input, [data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row select {\n  padding: 5px 7px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px; font: inherit; font-size: 13px; background: var(--pmw-panel, #fff); color: inherit; min-width: 0;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-link:disabled { opacity: 0.4; cursor: default; }\n@media (max-width: 760px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row { grid-template-columns: 80px minmax(0, 1fr); }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row > input:nth-of-type(2) { grid-column: 1 / -1; }\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-time-kind { font-size: 12px; font-weight: 500; color: var(--pmw-text-secondary, #6b7280); margin-left: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row.gc-video-row { grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) auto; }\n@media (max-width: 760px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row.gc-video-row { grid-template-columns: minmax(0, 1fr) auto; }\n}\n\n/* 0.8.0：来源标记、推荐视频 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card-more { padding-top: 2px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-source { padding: 0 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source { display: inline-flex; align-items: center; gap: 0; border-radius: 10px; overflow: hidden; font-size: 12px; border: 1px solid #fbcfe8; vertical-align: middle; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-type { padding: 1px 6px; background: #fce7f3; color: #9d174d; font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-name { padding: 1px 8px; color: #9d174d; text-decoration: none; }\n[data-pmw-plugin=\"garmin_connect\"] a.gc-source-name:hover { text-decoration: underline; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-coach, [data-pmw-plugin=\"garmin_connect\"] .gc-source-book, [data-pmw-plugin=\"garmin_connect\"] .gc-source-other { border-color: #c7d2fe; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-coach .gc-source-type, [data-pmw-plugin=\"garmin_connect\"] .gc-source-book .gc-source-type, [data-pmw-plugin=\"garmin_connect\"] .gc-source-other .gc-source-type { background: #e0e7ff; color: #3730a3; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-coach .gc-source-name, [data-pmw-plugin=\"garmin_connect\"] .gc-source-book .gc-source-name, [data-pmw-plugin=\"garmin_connect\"] .gc-source-other .gc-source-name { color: #3730a3; }\n[data-pmw-plugin=\"garmin_connect\"] a.gc-link { text-decoration: none; }\n[data-pmw-plugin=\"garmin_connect\"] a.gc-link:hover { text-decoration: underline; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-strong-link { font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-inline-video { font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-videos { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 4px 0 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-videos small { color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-group { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-group .gc-media-head .gc-link { margin-left: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-card { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: 8px; background: var(--pmw-panel, #fff); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-top { display: flex; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-title { font-weight: 600; color: inherit; text-decoration: none; line-height: 1.4; }\n[data-pmw-plugin=\"garmin_connect\"] a.gc-video-title:hover { color: var(--pmw-accent, #2563eb); text-decoration: underline; }\n\n/* =========================================================================\n * 0.9.0：浅色 / 深色主题\n * 组件都包在 .gc-root[data-gc-theme] 里。这里先定 --gc-* 主题 token，再把 --pmw-* 映射过去，\n * 前面按 --pmw-* 写的样式自动跟着主题走；下面只覆盖原来写死的颜色和需要变形态的组件。\n * 浅色 = 清新卡片（浮起白卡、指标分色）；深色 = 运动仪表盘（深底、橙色主色、等宽数字）。\n * ========================================================================= */\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-root {\n  --pmw-text: var(--gc-text);\n  --pmw-text-secondary: var(--gc-muted);\n  --pmw-border: var(--gc-border);\n  --pmw-panel: var(--gc-card);\n  --pmw-panel-hover: var(--gc-soft);\n  --pmw-accent: var(--gc-accent);\n  --pmw-danger: var(--gc-bad);\n  --pmw-radius: var(--gc-radius);\n  --line: var(--gc-border);\n  --hover: var(--gc-soft);\n  color: var(--gc-text);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] {\n  --gc-bg: transparent;\n  --gc-card: #ffffff;\n  --gc-border: #e7ecf3;\n  --gc-text: #172033;\n  --gc-muted: #6f7a8e;\n  --gc-soft: #eef2f8;\n  --gc-accent: #2f6bff;\n  --gc-on-accent: #ffffff;\n  --gc-good: #0e8a59;\n  --gc-warn: #b45309;\n  --gc-bad: #d92d3f;\n  --gc-radius: 12px;\n  --gc-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 14px rgba(16, 24, 40, 0.06);\n  --gc-shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.06), 0 8px 22px rgba(16, 24, 40, 0.1);\n  --gc-num-font: inherit;\n  --gc-cover: #eef2f8;\n  --gc-tag-in-bg: #e8f0ff; --gc-tag-in: #2f6bff;\n  --gc-tag-pb-bg: #fff4d6; --gc-tag-pb: #a86b00;\n  --gc-src-up-bg: #fde7f1; --gc-src-up: #b4235f; --gc-src-up-border: #f9c6dc;\n  --gc-src-bg: #e8edff; --gc-src: #3a46b5; --gc-src-border: #cdd6ff;\n  /* 指标色：距离蓝、配速青、心率红、步频紫 */\n  --gc-m-pace: #0fa5a0;\n  --gc-m-hr: #f0436a;\n  --gc-m-ele: #16a34a;\n  --gc-m-cad: #8b5cf6;\n  --gc-m-pow: #f97316;\n  --gc-m-gct: #0ea5e9;\n  --gc-m-vo: #ec4899;\n  --gc-m-stride: #65a30d;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] {\n  --gc-bg: #0d1117;\n  --gc-card: #151b24;\n  --gc-border: #243041;\n  --gc-text: #e8edf4;\n  --gc-muted: #8d99ab;\n  --gc-soft: #1d2531;\n  --gc-accent: #ff6a2b;\n  --gc-on-accent: #ffffff;\n  --gc-good: #3ddc97;\n  --gc-warn: #fbbf24;\n  --gc-bad: #ff5c6c;\n  --gc-radius: 10px;\n  --gc-shadow: none;\n  --gc-shadow-hover: 0 0 0 1px #34425a;\n  --gc-num-font: \"SF Mono\", \"JetBrains Mono\", ui-monospace, Menlo, monospace;\n  --gc-cover: #1a2230;\n  --gc-tag-in-bg: rgba(46, 196, 255, 0.14); --gc-tag-in: #5fd3ff;\n  --gc-tag-pb-bg: rgba(255, 106, 43, 0.16); --gc-tag-pb: #ff9a66;\n  --gc-src-up-bg: rgba(244, 114, 182, 0.16); --gc-src-up: #f9a8d4; --gc-src-up-border: rgba(244, 114, 182, 0.35);\n  --gc-src-bg: rgba(129, 140, 248, 0.16); --gc-src: #c7d2fe; --gc-src-border: rgba(129, 140, 248, 0.35);\n  --gc-m-pace: #2ec4ff;\n  --gc-m-hr: #ff4d6d;\n  --gc-m-ele: #3ddc97;\n  --gc-m-cad: #b18cff;\n  --gc-m-pow: #ff8a3d;\n  --gc-m-gct: #22d3ee;\n  --gc-m-vo: #f472b6;\n  --gc-m-stride: #a3e635;\n  color-scheme: dark;\n  background: var(--gc-bg);\n  border-radius: 14px;\n  padding: 16px;\n}\n\n/* ---- 卡片：浅色浮起白卡，深色描边深卡 ---- */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-group,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-line,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-chart-box,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-plan-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-media-group,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-video-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-edit,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-card {\n  border-color: var(--gc-border);\n  border-radius: var(--gc-radius);\n  background: var(--gc-card);\n  box-shadow: var(--gc-shadow);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-stat,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-group,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-chart-box,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-race-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-plan-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-video-card { border-color: transparent; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-card:hover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-plan-card:hover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat-btn:hover { box-shadow: var(--gc-shadow-hover); border-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-plan-card.on { border-color: var(--gc-accent); box-shadow: 0 0 0 1px var(--gc-accent), var(--gc-shadow); }\n\n/* 统计卡：数字更大；浅色顶部带一点主色渐变，深色左侧主色条 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat { padding: 10px 14px; position: relative; overflow: hidden; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat-value { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-stat { background: linear-gradient(165deg, color-mix(in srgb, var(--gc-accent) 7%, #fff) 0%, #fff 60%); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-stat { box-shadow: inset 3px 0 0 var(--gc-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-stat-value { color: #fff; }\n\n/* 数字列：深色用等宽字体 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-table .num,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-result,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-dl dd { font-family: var(--gc-num-font); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-result { font-size: 22px; }\n\n/* 主按钮用主色 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button { border-color: var(--gc-border); background: var(--gc-card); border-radius: calc(var(--gc-radius) - 4px); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button:hover { background: var(--gc-soft); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button.gc-primary { background: var(--gc-accent); border-color: var(--gc-accent); color: var(--gc-on-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button.gc-primary:hover { background: color-mix(in srgb, var(--gc-accent) 88%, #000); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button:disabled { opacity: 0.55; cursor: default; }\n\n/* 表格与列表 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-table th,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-table td { border-bottom-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-row:hover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-row:focus-visible { background: var(--gc-soft); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag { background: var(--gc-soft); color: var(--gc-muted); border-radius: 999px; padding: 0 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag-in { background: var(--gc-tag-in-bg); color: var(--gc-tag-in); font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag-pb { background: var(--gc-tag-pb-bg); color: var(--gc-tag-pb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-note { border-left-color: var(--gc-accent); background: var(--gc-soft); border-radius: 0 6px 6px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-readout { background: var(--gc-soft); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-subtotal td { background: var(--gc-soft); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-chip { border-color: var(--gc-border); background: var(--gc-card); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-lap-summary em { background: var(--gc-soft); color: var(--gc-muted); }\n\n/* 图表 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-grid { stroke: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-bar { fill: var(--gc-accent); opacity: 0.82; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-bar:hover { opacity: 1; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-avgline { stroke: var(--gc-m-hr); opacity: 0.9; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-lapbar.on,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-lap-tag { stroke: var(--gc-text); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-lap-tag { fill: var(--gc-text); stroke: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-band-note.gc-collapse { color: var(--gc-warn); }\n\n/* 地图：深色主题把瓦片反相成暗色底图，路线和起终点颜色不变 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-map { background: var(--gc-cover); border-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-tile { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-route { stroke: var(--gc-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-route-halo { stroke: #0d1117; opacity: 0.7; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-map-zoom button { background: var(--gc-card); color: var(--gc-text); border-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-map-attr { background: color-mix(in srgb, var(--gc-card) 75%, transparent); color: var(--gc-muted); }\n\n/* 日历 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-cell { border-color: var(--gc-border); background: var(--gc-card); border-radius: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-cell.today .gc-cal-day { background: var(--gc-accent); color: var(--gc-on-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-cell.sel { border-color: var(--gc-accent); box-shadow: 0 0 0 1px var(--gc-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-act { color: var(--gc-good); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-k-run, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-int-work { background: var(--gc-accent); fill: var(--gc-accent); }\n\n/* 比赛与影像 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-cover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-media-thumb { background: var(--gc-cover); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-cover-empty,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-media-icon { color: var(--gc-muted); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-race-cover-empty { background: linear-gradient(135deg, color-mix(in srgb, var(--gc-accent) 12%, #fff), #f4f7fb); color: color-mix(in srgb, var(--gc-accent) 70%, #6f7a8e); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-race-cover-empty { background: linear-gradient(135deg, rgba(255, 106, 43, 0.18), #151b24 70%); color: #ff9a66; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-empty { border-color: var(--gc-border); border-radius: var(--gc-radius); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-err { color: var(--gc-bad); }\n\n/* 来源标记 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source { border-color: var(--gc-src-up-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-type { background: var(--gc-src-up-bg); color: var(--gc-src-up); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-name { color: var(--gc-src-up); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-coach, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-book, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-other { border-color: var(--gc-src-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-coach .gc-source-type, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-book .gc-source-type, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-other .gc-source-type { background: var(--gc-src-bg); color: var(--gc-src); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-coach .gc-source-name, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-book .gc-source-name, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-other .gc-source-name { color: var(--gc-src); }\n\n/* 表单控件 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),\n[data-pmw-plugin=\"garmin_connect\"] .gc-root select,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root textarea { background: var(--gc-card); color: var(--gc-text); border-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] select,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] textarea { background: #0f141c; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root input[type=checkbox] { accent-color: var(--gc-accent); }\n\n/* 表格放进卡片（记录、统计明细、分段） */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-scroll {\n  background: var(--gc-card); border: 1px solid var(--gc-border); border-radius: var(--gc-radius); box-shadow: var(--gc-shadow); padding: 2px 10px 6px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-scroll { border-color: transparent; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-scroll .gc-table tr:last-child td { border-bottom: 0; }\n/* 深色主色是橙色，和力量训练的橙色撞了：跑步类改用蓝色 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-k-run,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-int-work { background: #3b82f6; fill: #3b82f6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat-value { white-space: nowrap; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-races .gc-stats { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }\n"
+    const __GC_STYLE = "/*\n * PMW 外部插件的样式只允许写在 [data-pmw-plugin=\"<id>\"] 作用域下。\n * 宿主会渲染 <div data-pmw-plugin=\"<id>\"> 包住插件组件；不要改宿主全局样式、\n * 不要给 body/html 设样式、不要用 !important 覆盖别人。\n *\n * 颜色优先用宿主暴露的 --pmw-* token，取不到时给中性兜底，别硬编码品牌色。\n */\n\n[data-pmw-plugin=\"garmin_connect\"] {\n  color: var(--pmw-text, inherits);\n  font-size: var(--pmw-font-size, 14px);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-header h2 {\n  margin: 0;\n  font-size: 18px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-hint {\n  margin: 0;\n  color: var(--pmw-text-secondary, #6b7280);\n  font-size: 12px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-card {\n  padding: 12px;\n  border: 1px solid var(--pmw-border, #e5e7eb);\n  border-radius: var(--pmw-radius, 8px);\n  background: var(--pmw-panel, #ffffff);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-card h4 {\n  margin: 0 0 6px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-button {\n  align-self: flex-start;\n  padding: 6px 12px;\n  border: 1px solid var(--pmw-border, #d1d5db);\n  border-radius: var(--pmw-radius, 6px);\n  background: var(--pmw-panel, #f9fafb);\n  color: inherit;\n  cursor: pointer;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-button:hover {\n  background: var(--pmw-panel-hover, #f3f4f6);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-error {\n  padding: 10px;\n  border: 1px solid var(--pmw-danger, #ef4444);\n  border-radius: var(--pmw-radius, 6px);\n  color: var(--pmw-danger, #b91c1c);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .pmw-plugin-check {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-table {\n  width: 100%;\n  border-collapse: collapse;\n  font-size: var(--pmw-font-size, 14px);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-table th,\n[data-pmw-plugin=\"garmin_connect\"] .gc-table td {\n  padding: 6px 8px;\n  text-align: left;\n  border-bottom: 1px solid var(--pmw-border, #e5e7eb);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-table th {\n  color: var(--pmw-text-secondary, #6b7280);\n  font-weight: 600;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-field {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--pmw-text-secondary, #6b7280);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-field input {\n  padding: 6px 8px;\n  border: 1px solid var(--pmw-border, #d1d5db);\n  border-radius: var(--pmw-radius, 6px);\n  background: var(--pmw-panel, #ffffff);\n  color: inherit;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-main {\n  margin: 0;\n  font-size: 16px;\n  font-weight: 600;\n}\n\n/* 0.2.0：列表可点、跑步详情、登录表单 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-row { cursor: pointer; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-row:hover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-row:focus-visible { background: var(--pmw-panel-hover, #f3f4f6); outline: none; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-detail-bar { display: flex; gap: 8px; flex-wrap: wrap; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-sub { margin: 8px 0 6px; font-size: 15px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-stats {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));\n  gap: 8px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat {\n  display: flex; flex-direction: column; gap: 2px;\n  padding: 8px 10px;\n  border: 1px solid var(--pmw-border, #e5e7eb);\n  border-radius: var(--pmw-radius, 8px);\n  background: var(--pmw-panel, #ffffff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat-label { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-zones { display: flex; flex-direction: column; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-zone { display: grid; grid-template-columns: 110px 1fr 120px; align-items: center; gap: 8px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-zone-bar { height: 10px; border-radius: 5px; background: var(--pmw-border, #e5e7eb); overflow: hidden; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-zone-fill { display: block; height: 100%; background: var(--pmw-accent, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z1 { opacity: 0.35; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z2 { opacity: 0.5; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z3 { opacity: 0.65; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z4 { opacity: 0.8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-z5 { opacity: 1; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-zone-time { font-variant-numeric: tabular-nums; color: var(--pmw-text-secondary, #6b7280); }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-login,\n[data-pmw-plugin=\"garmin_connect\"] .gc-account { display: flex; flex-direction: column; gap: 8px; max-width: 420px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-account p { margin: 0; }\n\n/* 统计口径设置：忽略短活动 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-stats-prefs { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--pmw-border, #e5e7eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stats-prefs h4 { margin: 0; font-size: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stats-prefs-thresholds .gc-field { flex: 0 1 160px; }\n\n@media (max-width: 560px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-zone { grid-template-columns: 80px 1fr; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-zone-time { grid-column: 1 / -1; }\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-scroll { overflow-x: auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-scroll .gc-table th,\n[data-pmw-plugin=\"garmin_connect\"] .gc-scroll .gc-table td { white-space: nowrap; }\n\n/* 0.3.0：标题行兜底、分段按钮、统计图、曲线、地图、分段归类、跑步机校正 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-header > div:first-child { flex: 1 1 auto; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-controls { display: flex; flex-wrap: wrap; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tag {\n  display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 12px; line-height: 18px;\n  background: var(--pmw-panel-hover, #eef0f3); color: var(--pmw-text-secondary, #4b5563);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-mark { font-size: 11px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-note {\n  margin: 0; padding: 6px 10px; border-left: 3px solid var(--pmw-border, #d1d5db);\n  background: var(--pmw-panel, #f9fafb); font-size: 13px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-speed { width: 78px; padding: 3px 6px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px; font: inherit; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-subtotal td { font-weight: 600; background: var(--pmw-panel, #f9fafb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-corrected td:nth-child(3),\n[data-pmw-plugin=\"garmin_connect\"] .gc-corrected td:nth-child(5) { font-weight: 600; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart { margin: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart svg { width: 100%; height: auto; display: block; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-grid { stroke: var(--pmw-border, #e5e7eb); stroke-width: 1; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-axis { fill: var(--pmw-text-secondary, #6b7280); font-size: 11px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-bar { fill: var(--pmw-accent, #4b5563); opacity: 0.8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-bar:hover { opacity: 1; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-line {\n  padding: 8px 10px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-line figcaption { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); margin-bottom: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-line figcaption strong { color: var(--pmw-text, inherit); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-linepath { stroke: var(--pmw-accent, #4b5563); stroke-width: 1.5; stroke-linejoin: round; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-map {\n  position: relative; overflow: hidden; border: 1px solid var(--pmw-border, #e5e7eb);\n  border-radius: var(--pmw-radius, 8px); background: #e9ecef;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-tile { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-svg { position: absolute; left: 0; top: 0; pointer-events: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-route { stroke: #d9480f; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-route-halo { stroke: #fff; stroke-width: 6; stroke-linejoin: round; stroke-linecap: round; opacity: 0.8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pin-start { fill: #2b8a3e; stroke: #fff; stroke-width: 2; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pin-end { fill: #c92a2a; stroke: #fff; stroke-width: 2; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-split { pointer-events: auto; cursor: pointer; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-split circle { fill: #fff; stroke: #d9480f; stroke-width: 2; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-split text {\n  font-size: 10px; font-weight: 600; fill: #111; stroke: #fff; stroke-width: 3px; paint-order: stroke fill;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-split.key circle { fill: #d9480f; stroke: #fff; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-split.on circle { fill: #ffd43b; stroke: #d9480f; stroke-width: 3; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-split.on text { fill: #d9480f; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-table tr.gc-lap-active { background: rgba(217, 72, 15, 0.12); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-zoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-zoom button {\n  width: 28px; height: 28px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px;\n  background: #fff; color: #111; font-size: 16px; line-height: 1; cursor: pointer;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-map-attr {\n  position: absolute; right: 4px; bottom: 2px; padding: 0 4px; font-size: 10px; color: #333; background: rgba(255, 255, 255, 0.7);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-all summary { cursor: pointer; font-weight: 600; padding: 6px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kv th { text-align: left; font-weight: 400; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kv code { font-size: 11px; }\n\n/* 0.4.0：详细数据分组、编辑表单、描述 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-group {\n  padding: 10px 12px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-group-title { margin: 0 0 6px; font-size: 13px; color: var(--pmw-text-secondary, #6b7280); font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl { margin: 0; display: flex; flex-direction: column; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl-row {\n  display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px dashed var(--pmw-border, #eceef1); font-size: 13px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl-row:last-child { border-bottom: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl dt { color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl dd { margin: 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl-others { columns: 2 280px; display: block; margin-top: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dl-others .gc-dl-row { break-inside: avoid; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-edit {\n  display: flex; flex-direction: column; gap: 10px; max-width: 640px; padding: 12px;\n  border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-edit-row { display: flex; flex-wrap: wrap; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-edit-row .gc-field { flex: 1 1 200px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-field select,\n[data-pmw-plugin=\"garmin_connect\"] .gc-field textarea {\n  padding: 6px 8px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: var(--pmw-radius, 6px);\n  background: var(--pmw-panel, #fff); color: inherit; font: inherit;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-field textarea { resize: vertical; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-primary { font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-desc { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-note-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }\n\n/* 0.5.0：列表、详情 tab、图表（指标切换、叠加、读数、暂停与停下）、分段柱 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-list { display: flex; flex-direction: column; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stats-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-search {\n  padding: 4px 8px; min-width: 160px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: var(--pmw-radius, 6px);\n  background: var(--pmw-panel, #fff); color: inherit; font: inherit; font-size: 13px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-controls { align-items: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-table .num { text-align: right; font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-runs td { vertical-align: middle; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-runs .gc-date small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-runs .gc-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-month td {\n  padding-top: 14px; border-bottom: 1px solid var(--pmw-border, #e5e7eb); background: transparent; cursor: default;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-month strong { margin-right: 10px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-month span { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tag-in { background: #e0e7ff; color: #3730a3; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--pmw-border, #e5e7eb); overflow-x: auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tab {\n  padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;\n  background: transparent; color: var(--pmw-text-secondary, #6b7280); font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-tab.on { color: var(--pmw-text, #111); border-bottom-color: var(--pmw-accent, #2563eb); font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tab-body { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-chips { display: flex; flex-wrap: wrap; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chip {\n  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--pmw-border, #d1d5db);\n  border-radius: 999px; background: var(--pmw-panel, #fff); color: var(--pmw-text-secondary, #6b7280); font: inherit; font-size: 13px; cursor: pointer;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-chip.on { font-weight: 600; background: var(--pmw-panel, #fff); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chip:not(.on) .gc-dot { opacity: 0.35; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-readout {\n  display: flex; flex-wrap: wrap; gap: 6px 16px; min-height: 30px; align-items: center; padding: 4px 10px;\n  border-radius: var(--pmw-radius, 6px); background: var(--pmw-panel, #f9fafb); font-size: 13px; font-variant-numeric: tabular-nums;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart-box {\n  margin: 0; padding: 8px 10px 4px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart-title small { font-weight: 400; color: var(--pmw-text-secondary, #6b7280); margin-left: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-chart-svg { width: 100%; height: auto; display: block; cursor: crosshair; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cross { stroke: var(--pmw-text-secondary, #6b7280); stroke-width: 1; stroke-dasharray: 3 3; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pause { fill: #f59e0b; opacity: 0.22; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stop { fill: #94a3b8; opacity: 0.28; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-swatch { display: inline-block; width: 12px; height: 10px; margin-right: 4px; vertical-align: middle; border-radius: 2px; }\n[data-pmw-plugin=\"garmin_connect\"] i.gc-swatch.gc-pause { opacity: 0.6; background: #f59e0b; }\n[data-pmw-plugin=\"garmin_connect\"] i.gc-swatch.gc-stop { opacity: 0.7; background: #94a3b8; }\n[data-pmw-plugin=\"garmin_connect\"] i.gc-swatch.gc-raw { height: 2px; border-radius: 0; opacity: 0.55; background: var(--gc-axis, #94a3b8); }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-lapbar { fill: #64748b; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-warm { fill: #f59e0b; background: #f59e0b; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-work { fill: #2563eb; background: #2563eb; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-rec { fill: #10b981; background: #10b981; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-rest { fill: #94a3b8; background: #94a3b8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-cool { fill: #8b5cf6; background: #8b5cf6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-int-none { fill: #64748b; background: #64748b; }\n\n@media (max-width: 640px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-stats-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-stats-3 .gc-stat-value { font-size: 14px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-search { min-width: 0; flex: 1 1 120px; }\n}\n\n/* 窄屏卡片列表 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-cards { display: flex; flex-direction: column; gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-month-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 2px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-month-head span { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-row {\n  display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 2px;\n  border: 0; border-bottom: 1px solid var(--pmw-border, #eceef1); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-l, [data-pmw-plugin=\"garmin_connect\"] .gc-card-r { display: flex; flex-direction: column; gap: 2px; min-width: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-r { align-items: flex-end; flex: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-card-row small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; font-variant-numeric: tabular-nums; }\n\n/* 0.5.1：平均线、分段悬停与最快最慢、配速分秒输入 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-avgline { stroke: var(--pmw-text, #111); stroke-width: 1; stroke-dasharray: 5 4; opacity: 0.6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-avgtext { font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lapbar.dim { opacity: 0.45; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lapbar.on { stroke: var(--pmw-text, #111); stroke-width: 1.5; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lap-tag { font-weight: 600; fill: var(--pmw-text, #111); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lap-summary { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; padding: 4px 2px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-lap-summary em {\n  font-style: normal; font-size: 12px; margin-right: 6px; padding: 0 6px; border-radius: 4px;\n  background: var(--pmw-panel-hover, #eef0f3); color: var(--pmw-text-secondary, #4b5563);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-overlay-avg { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-weight: 500; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pace-input { display: inline-flex; align-items: center; gap: 3px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-pace-input input {\n  width: 46px; padding: 3px 4px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px; font: inherit; text-align: center;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-pace-input small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-link { border: 0; background: none; color: var(--pmw-accent, #2563eb); font: inherit; font-size: 13px; cursor: pointer; padding: 0 4px; }\n\n/* 0.6.0：波动区间说明、AI 分析、力量训练组、训练计划、训练日历 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-band-note { margin: 2px 0 4px; font-size: 12px; color: var(--pmw-text-secondary, #4b5563); line-height: 1.6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-band-note.gc-collapse { color: #b45309; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-analysis { display: flex; flex-direction: column; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-analysis-body { padding: 14px 18px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md { font-size: 14px; line-height: 1.75; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md p { margin: 4px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md ul, [data-pmw-plugin=\"garmin_connect\"] .gc-md ol { margin: 4px 0 8px; padding-left: 22px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md-h { margin: 14px 0 4px; font-size: 15px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md h4.gc-md-h { font-size: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-md .gc-md-h:first-child { margin-top: 0; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-sub-name { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-k-run { background: #2563eb; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-k-strength { background: #ea580c; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-k-rest { background: #94a3b8; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-k-other { background: #7c3aed; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-kind { display: inline-block; padding: 0 6px; border-radius: 4px; color: #fff; font-size: 12px; line-height: 18px; align-self: flex-start; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-plans { display: flex; flex-direction: column; gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card {\n  display: flex; flex-direction: column; gap: 4px; padding: 12px; text-align: left; cursor: pointer;\n  border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 8px); background: var(--pmw-panel, #fff); color: inherit; font: inherit;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card.on { border-color: var(--pmw-accent, #2563eb); box-shadow: 0 0 0 1px var(--pmw-accent, #2563eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-desc { font-size: 13px; line-height: 1.5; color: var(--pmw-text-secondary, #4b5563); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-apply { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; max-height: 420px; overflow: auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-week { padding: 8px 10px; border: 1px dashed var(--pmw-border, #e5e7eb); border-radius: 6px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-week ol { margin: 4px 0 0; padding-left: 18px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-week li { margin: 3px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-week li small { display: block; color: var(--pmw-text-secondary, #6b7280); font-size: 12px; line-height: 1.4; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal { display: flex; flex-direction: column; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-title { font-size: 15px; min-width: 110px; text-align: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-head { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); text-align: center; padding: 2px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell {\n  display: flex; flex-direction: column; gap: 2px; min-height: 92px; padding: 4px 6px; text-align: left; overflow: hidden; cursor: pointer;\n  border: 1px solid var(--pmw-border, #e5e7eb); border-radius: 6px; background: var(--pmw-panel, #fff); color: inherit; font: inherit;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell.out { opacity: 0.45; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell.today .gc-cal-day { background: var(--pmw-accent, #2563eb); color: #fff; border-radius: 10px; padding: 0 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell.sel { border-color: var(--pmw-accent, #2563eb); box-shadow: 0 0 0 1px var(--pmw-accent, #2563eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-day { font-size: 12px; font-weight: 600; align-self: flex-start; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-item {\n  display: block; padding: 1px 5px; border-radius: 3px; color: #fff; font-size: 11px; line-height: 16px;\n  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-session { border-bottom: 1px dashed var(--pmw-border, #eceef1); padding-bottom: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-target-row { grid-template-columns: 68px minmax(0, 1fr) minmax(0, 1fr) auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-target-row > small { color: var(--pmw-text-secondary, #6b7280); font-size: 11px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-target-row .gc-field { font-size: 11px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell.gc-cal-miss { border-color: #dc2626; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell.gc-cal-partial { border-color: #d97706; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-item.gc-st-done { opacity: 0.72; color: #fff; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-item.gc-st-partial { opacity: 1; color: #fff; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-item.gc-st-miss { opacity: 1; color: #fff; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-item.gc-st-none { opacity: 0.65; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-more { font-size: 11px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-act { font-size: 11px; color: #047857; font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-day-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-entry { padding: 8px 0; border-bottom: 1px dashed var(--pmw-border, #eceef1); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-entry-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-entry-head small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-cal-compare { margin: 4px 0 0; font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag.gc-st-done { background: #d1fae5; color: #065f46; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag.gc-st-partial { background: #fef3c7; color: #92400e; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag.gc-st-miss { background: #fee2e2; color: #991b1b; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag.gc-st-none { background: var(--gc-soft); color: var(--gc-muted); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-plan { margin-bottom: 8px; }\n\n@media (max-width: 640px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-cal-cell { min-height: 58px; padding: 3px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-cal-item { font-size: 10px; padding: 0 3px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-cal-act { font-size: 10px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-target-row { grid-template-columns: 56px minmax(0, 1fr); }\n}\n\n/* 0.7.0：比赛与影像记忆 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-races { display: flex; flex-direction: column; gap: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat-btn { text-align: left; cursor: pointer; font: inherit; color: inherit; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-card {\n  display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; cursor: pointer;\n  border: 1px solid var(--pmw-border, #e5e7eb); border-radius: var(--pmw-radius, 10px); background: var(--pmw-panel, #fff); color: inherit; font: inherit;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-card:hover { border-color: var(--pmw-accent, #2563eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-cover { display: block; height: 150px; background: #eef2f7; overflow: hidden; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-cover-empty {\n  display: flex; height: 100%; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; color: #94a3b8;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-body { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-body small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-result { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-tag-pb { background: #fef3c7; color: #92400e; font-size: 12px; font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-empty { padding: 28px; text-align: center; border: 1px dashed var(--pmw-border, #e5e7eb); border-radius: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-race-form { max-width: 720px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-media { display: flex; flex-direction: column; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-group { padding: 10px 12px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: 8px; background: var(--pmw-panel, #fff); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-head { display: flex; align-items: baseline; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-head small { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-head .gc-link { margin-left: auto; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-item { margin: 0; display: flex; flex-direction: column; gap: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-thumb {\n  display: block; width: 100%; aspect-ratio: 4 / 3; padding: 0; border: 0; border-radius: 6px; overflow: hidden; background: #eef2f7; cursor: zoom-in;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-icon { display: flex; height: 100%; align-items: center; justify-content: center; font-weight: 600; color: #475569; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-item figcaption { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-cap { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pmw-text-secondary, #4b5563); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-upload-queue { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-upload-row { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 10px; align-items: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-err { color: #b91c1c; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer {\n  position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.82);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-inner { display: flex; flex-direction: column; gap: 8px; max-width: 92vw; max-height: 92vh; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-inner img, [data-pmw-plugin=\"garmin_connect\"] .gc-viewer-inner video {\n  max-width: 92vw; max-height: 80vh; object-fit: contain; border-radius: 6px; background: #000;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-inner iframe { width: 80vw; height: 80vh; border: 0; background: #fff; border-radius: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: #fff; font-size: 13px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-bar .pmw-plugin-button { color: #111; background: #fff; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-viewer-bar .pmw-plugin-button:disabled { opacity: 0.45; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-video { position: relative; display: block; width: 100%; height: 100%; background: #0f172a; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-video video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-media-play {\n  position: absolute; left: 8px; bottom: 8px; padding: 1px 8px; border-radius: 10px; background: rgba(15, 23, 42, 0.7); color: #fff; font-size: 12px;\n}\n\n/* 0.8.0：我的计划、计划编辑器 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card { padding: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card-main {\n  display: flex; flex-direction: column; gap: 4px; padding: 12px 12px 6px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-actions { padding: 0 12px 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-editor { max-width: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-weeks { display: flex; flex-direction: column; gap: 10px; max-height: 560px; overflow: auto; padding-right: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-week { padding: 8px 10px; border: 1px dashed var(--pmw-border, #e5e7eb); border-radius: 6px; display: flex; flex-direction: column; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row input, [data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row select {\n  padding: 5px 7px; border: 1px solid var(--pmw-border, #d1d5db); border-radius: 4px; font: inherit; font-size: 13px; background: var(--pmw-panel, #fff); color: inherit; min-width: 0;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-link:disabled { opacity: 0.4; cursor: default; }\n@media (max-width: 760px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row { grid-template-columns: 80px minmax(0, 1fr); }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row > input:nth-of-type(2) { grid-column: 1 / -1; }\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-time-kind { font-size: 12px; font-weight: 500; color: var(--pmw-text-secondary, #6b7280); margin-left: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row.gc-video-row { grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) auto; }\n@media (max-width: 760px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-plan-edit-row.gc-video-row { grid-template-columns: minmax(0, 1fr) auto; }\n}\n\n/* 0.8.0：来源标记、推荐视频 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-card-more { padding-top: 2px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-source { padding: 0 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source { display: inline-flex; align-items: center; gap: 0; border-radius: 10px; overflow: hidden; font-size: 12px; border: 1px solid #fbcfe8; vertical-align: middle; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-type { padding: 1px 6px; background: #fce7f3; color: #9d174d; font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-name { padding: 1px 8px; color: #9d174d; text-decoration: none; }\n[data-pmw-plugin=\"garmin_connect\"] a.gc-source-name:hover { text-decoration: underline; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-coach, [data-pmw-plugin=\"garmin_connect\"] .gc-source-book, [data-pmw-plugin=\"garmin_connect\"] .gc-source-other { border-color: #c7d2fe; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-coach .gc-source-type, [data-pmw-plugin=\"garmin_connect\"] .gc-source-book .gc-source-type, [data-pmw-plugin=\"garmin_connect\"] .gc-source-other .gc-source-type { background: #e0e7ff; color: #3730a3; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-source-coach .gc-source-name, [data-pmw-plugin=\"garmin_connect\"] .gc-source-book .gc-source-name, [data-pmw-plugin=\"garmin_connect\"] .gc-source-other .gc-source-name { color: #3730a3; }\n[data-pmw-plugin=\"garmin_connect\"] a.gc-link { text-decoration: none; }\n[data-pmw-plugin=\"garmin_connect\"] a.gc-link:hover { text-decoration: underline; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-strong-link { font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-inline-video { font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-videos { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 4px 0 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-plan-videos small { color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-group { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-group .gc-media-head .gc-link { margin-left: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-card { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--pmw-border, #e5e7eb); border-radius: 8px; background: var(--pmw-panel, #fff); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-top { display: flex; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-video-title { font-weight: 600; color: inherit; text-decoration: none; line-height: 1.4; }\n[data-pmw-plugin=\"garmin_connect\"] a.gc-video-title:hover { color: var(--pmw-accent, #2563eb); text-decoration: underline; }\n\n/* =========================================================================\n * 0.9.0：浅色 / 深色主题\n * 组件都包在 .gc-root[data-gc-theme] 里。这里先定 --gc-* 主题 token，再把 --pmw-* 映射过去，\n * 前面按 --pmw-* 写的样式自动跟着主题走；下面只覆盖原来写死的颜色和需要变形态的组件。\n * 浅色 = 清新卡片（浮起白卡、指标分色）；深色 = 运动仪表盘（深底、橙色主色、等宽数字）。\n * ========================================================================= */\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-root {\n  --pmw-text: var(--gc-text);\n  --pmw-text-secondary: var(--gc-muted);\n  --pmw-border: var(--gc-border);\n  --pmw-panel: var(--gc-card);\n  --pmw-panel-hover: var(--gc-soft);\n  --pmw-accent: var(--gc-accent);\n  --pmw-danger: var(--gc-bad);\n  --pmw-radius: var(--gc-radius);\n  --line: var(--gc-border);\n  --hover: var(--gc-soft);\n  color: var(--gc-text);\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] {\n  --gc-bg: transparent;\n  --gc-card: #ffffff;\n  --gc-border: #e7ecf3;\n  --gc-text: #172033;\n  --gc-muted: #6f7a8e;\n  --gc-soft: #eef2f8;\n  --gc-accent: #2f6bff;\n  --gc-on-accent: #ffffff;\n  --gc-good: #0e8a59;\n  --gc-warn: #b45309;\n  --gc-bad: #d92d3f;\n  --gc-radius: 12px;\n  --gc-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 14px rgba(16, 24, 40, 0.06);\n  --gc-shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.06), 0 8px 22px rgba(16, 24, 40, 0.1);\n  --gc-num-font: inherit;\n  --gc-cover: #eef2f8;\n  --gc-tag-in-bg: #e8f0ff; --gc-tag-in: #2f6bff;\n  --gc-tag-pb-bg: #fff4d6; --gc-tag-pb: #a86b00;\n  --gc-src-up-bg: #fde7f1; --gc-src-up: #b4235f; --gc-src-up-border: #f9c6dc;\n  --gc-src-bg: #e8edff; --gc-src: #3a46b5; --gc-src-border: #cdd6ff;\n  /* 指标色：距离蓝、配速青、心率红、步频紫 */\n  --gc-m-pace: #0fa5a0;\n  --gc-m-hr: #f0436a;\n  --gc-m-ele: #16a34a;\n  --gc-m-cad: #8b5cf6;\n  --gc-m-pow: #f97316;\n  --gc-m-gct: #0ea5e9;\n  --gc-m-vo: #ec4899;\n  --gc-m-stride: #65a30d;\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] {\n  --gc-bg: #0d1117;\n  --gc-card: #151b24;\n  --gc-border: #243041;\n  --gc-text: #e8edf4;\n  --gc-muted: #8d99ab;\n  --gc-soft: #1d2531;\n  --gc-accent: #ff6a2b;\n  --gc-on-accent: #ffffff;\n  --gc-good: #3ddc97;\n  --gc-warn: #fbbf24;\n  --gc-bad: #ff5c6c;\n  --gc-radius: 10px;\n  --gc-shadow: none;\n  --gc-shadow-hover: 0 0 0 1px #34425a;\n  --gc-num-font: \"SF Mono\", \"JetBrains Mono\", ui-monospace, Menlo, monospace;\n  --gc-cover: #1a2230;\n  --gc-tag-in-bg: rgba(46, 196, 255, 0.14); --gc-tag-in: #5fd3ff;\n  --gc-tag-pb-bg: rgba(255, 106, 43, 0.16); --gc-tag-pb: #ff9a66;\n  --gc-src-up-bg: rgba(244, 114, 182, 0.16); --gc-src-up: #f9a8d4; --gc-src-up-border: rgba(244, 114, 182, 0.35);\n  --gc-src-bg: rgba(129, 140, 248, 0.16); --gc-src: #c7d2fe; --gc-src-border: rgba(129, 140, 248, 0.35);\n  --gc-m-pace: #2ec4ff;\n  --gc-m-hr: #ff4d6d;\n  --gc-m-ele: #3ddc97;\n  --gc-m-cad: #b18cff;\n  --gc-m-pow: #ff8a3d;\n  --gc-m-gct: #22d3ee;\n  --gc-m-vo: #f472b6;\n  --gc-m-stride: #a3e635;\n  color-scheme: dark;\n  background: var(--gc-bg);\n  border-radius: 14px;\n  padding: 16px;\n}\n\n/* ---- 卡片：浅色浮起白卡，深色描边深卡 ---- */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-group,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-line,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-chart-box,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-plan-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-media-group,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-video-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-edit,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-card {\n  border-color: var(--gc-border);\n  border-radius: var(--gc-radius);\n  background: var(--gc-card);\n  box-shadow: var(--gc-shadow);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-stat,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-group,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-chart-box,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-race-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-plan-card,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-video-card { border-color: transparent; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-card:hover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-plan-card:hover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat-btn:hover { box-shadow: var(--gc-shadow-hover); border-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-plan-card.on { border-color: var(--gc-accent); box-shadow: 0 0 0 1px var(--gc-accent), var(--gc-shadow); }\n\n/* 统计卡：数字更大；浅色顶部带一点主色渐变，深色左侧主色条 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat { padding: 10px 14px; position: relative; overflow: hidden; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-stat-value { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-stat { background: linear-gradient(165deg, color-mix(in srgb, var(--gc-accent) 7%, #fff) 0%, #fff 60%); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-stat { box-shadow: inset 3px 0 0 var(--gc-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-stat-value { color: #fff; }\n\n/* 数字列：深色用等宽字体 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-table .num,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-result,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-dl dd { font-family: var(--gc-num-font); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-result { font-size: 22px; }\n\n/* 主按钮用主色 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button { border-color: var(--gc-border); background: var(--gc-card); border-radius: calc(var(--gc-radius) - 4px); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button:hover { background: var(--gc-soft); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button.gc-primary { background: var(--gc-accent); border-color: var(--gc-accent); color: var(--gc-on-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button.gc-primary:hover { background: color-mix(in srgb, var(--gc-accent) 88%, #000); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .pmw-plugin-button:disabled { opacity: 0.55; cursor: default; }\n\n/* 表格与列表 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-table th,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-table td { border-bottom-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-row:hover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-row:focus-visible { background: var(--gc-soft); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag { background: var(--gc-soft); color: var(--gc-muted); border-radius: 999px; padding: 0 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag-in { background: var(--gc-tag-in-bg); color: var(--gc-tag-in); font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag-pb { background: var(--gc-tag-pb-bg); color: var(--gc-tag-pb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-note { border-left-color: var(--gc-accent); background: var(--gc-soft); border-radius: 0 6px 6px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-readout { background: var(--gc-soft); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-subtotal td { background: var(--gc-soft); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-chip { border-color: var(--gc-border); background: var(--gc-card); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-lap-summary em { background: var(--gc-soft); color: var(--gc-muted); }\n\n/* 图表 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-grid { stroke: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-bar { fill: var(--gc-accent); opacity: 0.82; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-bar:hover { opacity: 1; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-avgline { stroke: var(--gc-m-hr); opacity: 0.9; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-lapbar.on,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-lap-tag { stroke: var(--gc-text); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-lap-tag { fill: var(--gc-text); stroke: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-band-note.gc-collapse { color: var(--gc-warn); }\n\n/* 地图：深色主题把瓦片反相成暗色底图，路线和起终点颜色不变 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-map { background: var(--gc-cover); border-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-tile { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-route { stroke: var(--gc-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-route-halo { stroke: #0d1117; opacity: 0.7; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-map-split text { fill: #f1f3f5; stroke: #0d1117; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-map-split circle { fill: #0d1117; stroke: var(--gc-accent, #ff922b); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-table tr.gc-lap-active { background: rgba(255, 146, 43, 0.18); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-map-zoom button { background: var(--gc-card); color: var(--gc-text); border-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-map-attr { background: color-mix(in srgb, var(--gc-card) 75%, transparent); color: var(--gc-muted); }\n\n/* 日历 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-cell { border-color: var(--gc-border); background: var(--gc-card); border-radius: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-cell.today .gc-cal-day { background: var(--gc-accent); color: var(--gc-on-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-cell.sel { border-color: var(--gc-accent); box-shadow: 0 0 0 1px var(--gc-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-act { color: var(--gc-good); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-k-run, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-int-work { background: var(--gc-accent); fill: var(--gc-accent); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-cell.gc-cal-miss { border-color: var(--gc-bad, #dc2626); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-cal-cell.gc-cal-partial { border-color: var(--gc-warn, #d97706); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag.gc-st-done { background: rgba(16, 185, 129, 0.16); color: var(--gc-good, #34d399); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag.gc-st-partial { background: var(--gc-tag-pb-bg); color: var(--gc-tag-pb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-tag.gc-st-miss { background: rgba(239, 68, 68, 0.16); color: var(--gc-bad, #f87171); }\n\n/* 比赛与影像 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-cover,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-media-thumb { background: var(--gc-cover); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-race-cover-empty,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-media-icon { color: var(--gc-muted); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-race-cover-empty { background: linear-gradient(135deg, color-mix(in srgb, var(--gc-accent) 12%, #fff), #f4f7fb); color: color-mix(in srgb, var(--gc-accent) 70%, #6f7a8e); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-race-cover-empty { background: linear-gradient(135deg, rgba(255, 106, 43, 0.18), #151b24 70%); color: #ff9a66; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-empty { border-color: var(--gc-border); border-radius: var(--gc-radius); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-err { color: var(--gc-bad); }\n\n/* 来源标记 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source { border-color: var(--gc-src-up-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-type { background: var(--gc-src-up-bg); color: var(--gc-src-up); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-name { color: var(--gc-src-up); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-coach, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-book, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-other { border-color: var(--gc-src-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-coach .gc-source-type, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-book .gc-source-type, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-other .gc-source-type { background: var(--gc-src-bg); color: var(--gc-src); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-coach .gc-source-name, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-book .gc-source-name, [data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-source-other .gc-source-name { color: var(--gc-src); }\n\n/* 表单控件 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),\n[data-pmw-plugin=\"garmin_connect\"] .gc-root select,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root textarea { background: var(--gc-card); color: var(--gc-text); border-color: var(--gc-border); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] select,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] textarea { background: #0f141c; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root input[type=checkbox] { accent-color: var(--gc-accent); }\n\n/* 表格放进卡片（记录、统计明细、分段） */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-scroll {\n  background: var(--gc-card); border: 1px solid var(--gc-border); border-radius: var(--gc-radius); box-shadow: var(--gc-shadow); padding: 2px 10px 6px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] .gc-scroll { border-color: transparent; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-scroll .gc-table tr:last-child td { border-bottom: 0; }\n/* 深色主色是橙色，和力量训练的橙色撞了：跑步类改用蓝色 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-k-run,\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] .gc-int-work { background: #3b82f6; fill: #3b82f6; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-races .gc-stat-btn .gc-stat-value { white-space: nowrap; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-root .gc-races .gc-stats { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }\n\n/* 统计、图表、视频这几个视图原来没有容器样式，子组件贴在一起：统一纵向间距 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-stats-view,\n[data-pmw-plugin=\"garmin_connect\"] .gc-charts-tab,\n[data-pmw-plugin=\"garmin_connect\"] .gc-videos { display: flex; flex-direction: column; gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-charts-tab .gc-legend { margin: -4px 0 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-sync { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }\n/* 同步状态常驻在模块页顶部：失败用警示色整条标出，不能只藏在一行小字里 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-sync-status {\n  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px;\n  margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--pmw-border, #d1d5db);\n  border-radius: 6px; background: var(--pmw-panel, #f9fafb); font-size: 13px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-sync-status-main { color: var(--pmw-text, inherit); font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-sync-status-meta { color: var(--pmw-text-secondary, #6b7280); font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-sync-status-error {\n  border-color: var(--pmw-danger, #ef4444); background: color-mix(in srgb, var(--pmw-danger, #ef4444) 10%, transparent);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-sync-status-error .gc-sync-status-main { color: var(--pmw-danger, #b91c1c); }\n\n/* 记录页汇总卡片：力量训练次数与时长 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat-sub { display: flex; align-items: center; gap: 2px; margin-top: 2px; font-size: 12px; color: var(--pmw-text-secondary, #6b7280); font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-stat-sub .gc-dot { width: 7px; height: 7px; }\n\n/* =========================================================================\n * 数据中心版式（参考 Keep 数据中心）：灰底白卡、分段切换、指标块、环形图、堆叠柱、占比条\n * 记录页概览与活动详情用；类型配色：室外跑绿、室内跑蓝、力量深灰紫、其他红\n * ========================================================================= */\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] {\n  --gc-bg: #f4f5f7;\n  --gc-shadow: none;\n  --gc-shadow-hover: 0 2px 10px rgba(16, 24, 40, 0.08);\n  --gc-tile: #f6f7f9;\n  --gc-seg-bg: #eceef2;\n  --gc-seg-on: #ffffff;\n  --gc-c-out: #26c281; --gc-c-in: #4f86f7; --gc-c-str: #4b4453; --gc-c-oth: #f2606f;\n  --gc-pref: #9fd356;\n  background: var(--gc-bg);\n  border-radius: 14px;\n  padding: 16px;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"dark\"] {\n  --gc-tile: #1b2230;\n  --gc-seg-bg: #0d1117;\n  --gc-seg-on: #26303f;\n  --gc-c-out: #3ddc97; --gc-c-in: #5b8def; --gc-c-str: #a99fc0; --gc-c-oth: #ff6b7a;\n  --gc-pref: #8fcf4f;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-c-out { --c: var(--gc-c-out, #26c281); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-c-in { --c: var(--gc-c-in, #4f86f7); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-c-str { --c: var(--gc-c-str, #4b4453); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-c-oth { --c: var(--gc-c-oth, #f2606f); }\n[data-pmw-plugin=\"garmin_connect\"] i.gc-swatch[class*=\"gc-c-\"] { background: var(--c); width: 10px; height: 10px; border-radius: 2px; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-list,\n[data-pmw-plugin=\"garmin_connect\"] .gc-overview,\n[data-pmw-plugin=\"garmin_connect\"] .gc-kdata { display: flex; flex-direction: column; gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-list { gap: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ksection { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 4px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ksection h2 { margin: 0; font-size: 18px; font-weight: 500; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ksection .gc-controls { flex: 1 1 auto; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-kgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kgrid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kgrid-detail { grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kgrid-nomap { grid-template-columns: minmax(0, 1fr); }\n@media (max-width: 860px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-kgrid-detail { grid-template-columns: minmax(0, 1fr); }\n}\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-kpanel {\n  display: flex; flex-direction: column; gap: 14px; min-width: 0;\n  padding: 16px 18px; border: 1px solid var(--gc-card-border, transparent); border-radius: var(--gc-radius, 10px);\n  background: var(--gc-card, #fff); box-shadow: var(--gc-shadow, none);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-kpanel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kpanel-title { margin: 0; font-size: 15px; font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kempty { margin: 28px 0; text-align: center; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-kseg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--gc-seg-bg, #eceef2); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kseg button {\n  padding: 3px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--pmw-text-secondary, #6b7280);\n  font: inherit; font-size: 13px; line-height: 20px; cursor: pointer; white-space: nowrap;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-kseg button:hover { color: var(--pmw-text, #111); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kseg button.on { background: var(--gc-seg-on, #fff); color: var(--pmw-text, #111); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }\n\n/* 指标块：选中的顶部一条深色粗线 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktile {\n  position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 14px 12px 12px;\n  border: 1px solid transparent; border-radius: 4px; background: var(--gc-tile, #f6f7f9); color: inherit; font: inherit; text-align: left;\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktile.on::before { content: \"\"; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--pmw-text, #111); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktile-btn { cursor: pointer; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktile-btn:not(.on):hover { border-color: var(--pmw-border, #e5e7eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktile-label { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktile-value {\n  font-size: 20px; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;\n  font-variant-numeric: tabular-nums; font-family: var(--gc-num-font, inherit);\n}\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktile-value small { margin-left: 3px; font-size: 12px; font-weight: 500; color: var(--pmw-text-secondary, #6b7280); letter-spacing: 0; font-family: inherit; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ksummary .gc-ktile-value { font-size: 28px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktiles-sm .gc-ktile { padding: 10px 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktiles-sm .gc-ktile-value { font-size: 18px; }\n\n/* 详情：大字指标下面的次要指标 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-kmetrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0 16px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kmetric { display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-top: 1px solid var(--pmw-border, #e5e7eb); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kmetric span { font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kmetric b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--gc-num-font, inherit); white-space: nowrap; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kmetric small { margin-left: 3px; font-size: 11px; font-weight: 500; color: var(--pmw-text-secondary, #6b7280); font-family: inherit; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kmap .gc-map { border: 0; border-radius: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kpanel .gc-dl-row:first-child { padding-top: 0; }\n\n/* 环形图 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px 28px; padding: 4px 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-svg { width: 150px; height: 150px; flex: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-track { fill: none; stroke: var(--gc-tile, #f1f2f4); stroke-width: 18; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-seg { fill: none; stroke: var(--c); stroke-width: 18; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-num { font-size: 24px; font-weight: 700; fill: var(--pmw-text, #111); font-family: var(--gc-num-font, inherit); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-cap { font-size: 11px; fill: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-legend { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-legend li { display: grid; grid-template-columns: 12px 48px minmax(56px, auto) 36px; align-items: center; gap: 6px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-legend span { color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-legend b { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-legend em { font-style: normal; text-align: right; color: var(--pmw-text-secondary, #6b7280); font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-donut-legend .gc-dim { opacity: 0.45; }\n\n/* 堆叠柱 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-ktrend { display: flex; flex-direction: column; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kbars { width: 100%; height: auto; display: block; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kaxis { font-size: 11px; fill: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kgrid-line { stroke: var(--pmw-border, #e5e7eb); stroke-dasharray: 3 3; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kgrid-line.base { stroke-dasharray: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kbar { fill: var(--c); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kbar-hit { fill: transparent; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-kbars g:hover .gc-kbar-hit { fill: var(--gc-tile, #f6f7f9); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-klegend { justify-content: center; font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n\n/* 占比条 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-hbars { display: flex; flex-direction: column; gap: 13px; padding-top: 2px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-hbar { display: grid; grid-template-columns: 36px minmax(0, 1fr) 40px 34px; align-items: center; gap: 10px; font-size: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-hbar-label { color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-hbar-track { height: 10px; border-radius: 5px; background: var(--gc-tile, #f1f2f4); overflow: hidden; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-hbar-track i { display: block; height: 100%; border-radius: 5px; background: var(--gc-pref, #9fd356); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-hbar-num,\n[data-pmw-plugin=\"garmin_connect\"] .gc-hbar-pct { text-align: right; color: var(--pmw-text-secondary, #6b7280); font-variant-numeric: tabular-nums; }\n\n/* 详情 tab：大一号字，选中下方短粗线 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-detail .gc-tabs { gap: 22px; border-bottom: 0; padding: 0 2px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-detail .gc-tab { position: relative; padding: 6px 2px 10px; border-bottom: 0; margin: 0; font-size: 16px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-detail .gc-tab.on { color: var(--pmw-text, #111); font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-detail .gc-tab.on::after {\n  content: \"\"; position: absolute; left: 50%; bottom: 2px; width: 24px; height: 3px; border-radius: 2px; background: var(--pmw-text, #111); transform: translateX(-50%);\n}\n@media (max-width: 640px) {\n  [data-pmw-plugin=\"garmin_connect\"] .gc-root[data-gc-theme=\"light\"] { padding: 10px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-kpanel { padding: 14px; }\n  [data-pmw-plugin=\"garmin_connect\"] .gc-ksummary .gc-ktile-value { font-size: 22px; }\n}\n\n/* AI 分析的建议安排：可勾选的课表，排进日历或存为我的计划 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan { padding: 14px 18px; margin-top: 12px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-list { list-style: none; margin: 10px 0; padding: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-list li { border-top: 1px solid var(--gc-border, rgba(0,0,0,.08)); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-list li:first-child { border-top: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-list label { display: flex; align-items: flex-start; gap: 8px; padding: 8px 2px; cursor: pointer; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-list input { margin-top: 3px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-list .gc-dot { margin-top: 6px; flex: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-list li.off { opacity: 0.45; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-date { flex: none; width: 76px; font-variant-numeric: tabular-nums; color: var(--gc-muted, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-ai-plan-title small { color: var(--gc-muted, #6b7280); }\n\n/* =========================================================================\n * 恢复 / 体能趋势（0.10.0）：状态横幅、趋势图、今日卡片\n * ========================================================================= */\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-status { border-left: 3px solid var(--pmw-border, #ccc); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-status.gc-rec-good { border-left-color: #2ea36b; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-status.gc-rec-moderate { border-left-color: #d99125; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-status.gc-rec-low { border-left-color: #d6484f; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-status-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 600; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-status-badge i,\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-badge i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-suggest { margin: 0; font-size: 14px; line-height: 1.5; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-progress { display: flex; align-items: center; gap: 10px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-progress-track { flex: 1; height: 8px; border-radius: 4px; background: var(--gc-tile, #eef0f3); overflow: hidden; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-progress-track i { display: block; height: 100%; border-radius: 4px; background: var(--gc-pref, #9fd356); }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-chart-wrap { display: flex; flex-direction: column; gap: 8px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-chart { width: 100%; height: auto; display: block; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-week { stroke: var(--gc-border, rgba(127,127,127,.18)); stroke-width: 1; stroke-dasharray: 3 3; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-bar { fill: var(--gc-c-in, #4f86f7); opacity: 0.75; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-bar.high { fill: var(--gc-c-oth, #f2606f); opacity: 0.9; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-line { fill: none; stroke: var(--gc-c-out, #26c281); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-dot { fill: var(--gc-c-out, #26c281); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-dot.high,\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-high { fill: var(--gc-c-oth, #f2606f); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-legend .gc-rec-high { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }\n\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-list { display: flex; flex-direction: column; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 7px 0; border-top: 1px solid var(--gc-border, rgba(0,0,0,.07)); font-size: 13px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-row:first-child { border-top: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-date { flex: none; width: 42px; color: var(--pmw-text-secondary, #6b7280); font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-name { flex: 1 1 120px; min-width: 0; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-dim { color: var(--pmw-text-secondary, #6b7280); font-variant-numeric: tabular-nums; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-tag { padding: 1px 6px; border-radius: 4px; font-size: 11px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-rec-tag.high { color: var(--gc-c-oth, #f2606f); background: color-mix(in srgb, var(--gc-c-oth, #f2606f) 14%, transparent); }\n\n/* 今日卡片 */\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-status { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 8px; border-left: 3px solid var(--pmw-border, #ccc); background: var(--gc-tile, rgba(127,127,127,.06)); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-status.gc-rec-good { border-left-color: #2ea36b; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-status.gc-rec-moderate { border-left-color: #d99125; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-status.gc-rec-low { border-left-color: #d6484f; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-week { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--pmw-text-secondary, #6b7280); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-week b { color: var(--pmw-text, inherit); }\n[data-pmw-plugin=\"garmin_connect\"] .gc-today-last { margin-top: 2px; }\n"
     const __GC_DSH_CSS = `
 [data-pmw-plugin="garmin_connect"] {
   --pmw-text: var(--dsw-alias-label-primary, #1f2329);
@@ -53,6 +53,59 @@ window.__ModuleLoader__.load({
 .gc-dsh-banner { margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; background: color-mix(in srgb, var(--pmw-danger) 10%, transparent); color: var(--pmw-danger); }
 .gc-dsh-banner code { font-size: 12px; }
 .gc-dsh-settings { max-width: 520px; }
+
+/* ---- 配色跟随 dsh：主题 token 全部取 --dsw-*，明暗随 body[data-ds-dark-theme] 切换 ---- */
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] {
+  --gc-bg: transparent;
+  --gc-card: var(--dsw-alias-card-fill, var(--dsw-alias-bg-layer-1));
+  --gc-card-border: transparent;
+  --gc-border: var(--dsw-alias-border-l2);
+  --gc-text: var(--dsw-alias-label-primary);
+  --gc-muted: var(--dsw-alias-label-secondary);
+  --gc-soft: var(--dsw-alias-interactive-bg-hover);
+  --gc-accent: var(--dsw-alias-state-business-primary);
+  --gc-on-accent: var(--dsw-alias-label-on-color, #fff);
+  --gc-good: var(--dsw-alias-state-success-primary);
+  --gc-bad: var(--dsw-alias-state-error-primary);
+  --gc-warn: var(--dsw-static-amber-600, #d97706);
+  --gc-radius: var(--dsw-radius-lg, 12px);
+  --gc-shadow: none;
+  --gc-shadow-hover: none;
+  --gc-num-font: inherit;
+  --gc-tile: color-mix(in srgb, var(--gc-text) 4%, transparent);
+  --gc-seg-bg: color-mix(in srgb, var(--gc-text) 7%, transparent);
+  --gc-seg-on: var(--dsw-alias-bg-layer-1, #fff);
+  --gc-cover: var(--dsw-alias-card-fill-hover, var(--dsw-alias-bg-layer-2));
+  --gc-tag-in-bg: color-mix(in srgb, var(--gc-accent) 14%, transparent); --gc-tag-in: var(--gc-accent);
+  --gc-tag-pb-bg: color-mix(in srgb, var(--dsw-static-amber-500, #f59e0b) 18%, transparent); --gc-tag-pb: var(--dsw-static-amber-600, #b45309);
+  --gc-src-up-bg: color-mix(in srgb, var(--dsw-alias-state-done-primary, #7c3aed) 14%, transparent); --gc-src-up: var(--dsw-alias-state-done-primary, #7c3aed);
+  --gc-src-up-border: color-mix(in srgb, var(--dsw-alias-state-done-primary, #7c3aed) 35%, transparent);
+  --gc-src-bg: color-mix(in srgb, var(--gc-accent) 12%, transparent); --gc-src: var(--gc-accent); --gc-src-border: color-mix(in srgb, var(--gc-accent) 32%, transparent);
+  background: transparent; padding: 0; border-radius: 0;
+}
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-stat,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-group,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-chart-box,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-race-card,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-plan-card,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-video-card,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-kpanel,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-scroll { background: var(--gc-card); border-color: var(--gc-card-border); box-shadow: none; }
+/* 浅色：dsh 底色是白，卡片用浅灰底加细边框（旧版 dsh 没有 card-fill 变量） */
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="light"] { --gc-card: var(--dsw-alias-card-fill, var(--dsw-static-neutral-bluish-50, #f9fafb)); --gc-card-border: var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1)); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-race-card:hover,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-plan-card:hover,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-stat-btn:hover { background: var(--dsw-alias-card-fill-hover, var(--gc-soft)); box-shadow: none; }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-stat-value { color: var(--gc-text); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-stat { box-shadow: none; }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .gc-race-cover-empty { background: color-mix(in srgb, var(--gc-accent) 10%, var(--gc-cover)); color: var(--gc-accent); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] select,
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] textarea { background: var(--dsw-alias-bg-layer-1); color: var(--gc-text); border-color: var(--gc-border); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .pmw-plugin-button { background: var(--dsw-alias-bg-layer-1); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .pmw-plugin-button:hover { background: var(--gc-soft); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme] .pmw-plugin-button.gc-primary { background: var(--gc-accent); color: var(--gc-on-accent); }
+.gc-dsh-page[data-pmw-plugin="garmin_connect"] .gc-root[data-gc-theme="dark"] .gc-route-halo { stroke: var(--dsw-alias-bg-base, #0d1117); }
 `
 
     /** 页面调 Host：在 apply 里接上 ctx.connection */
@@ -211,14 +264,18 @@ window.__ModuleLoader__.load({
     // 选项存 localStorage；所有插件组件包在 .gc-root[data-gc-theme] 里，样式按它切换 token。
     // ---------------------------------------------------------------------------
 
+    /** 宿主类型：PMW 工作台为 "pmw"；dsh 版构建时替换成 "dsh"，明暗只跟随 dsh 应用（body[data-ds-dark-theme]），不给手动切换 */
+    const THEME_HOST = "dsh";
     const THEME_KEY = "gc-theme";
     const THEME_OPTIONS = [["auto", "跟随系统"], ["light", "浅色"], ["dark", "深色"]];
     let themePref = (function () {
+      if (THEME_HOST === "dsh") return "auto";
       try { const v = window.localStorage.getItem(THEME_KEY); return v === "light" || v === "dark" ? v : "auto"; } catch (e) { return "auto"; }
     })();
     const themeSubs = new Set();
 
     function hostTheme() {
+      if (THEME_HOST === "dsh") return document.body && document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
       const t = document.documentElement.getAttribute("data-theme");
       if (t === "dark" || t === "light") return t;
       return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -238,6 +295,7 @@ window.__ModuleLoader__.load({
         themeSubs.add(f);
         const ob = new MutationObserver(f);
         ob.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+        if (document.body) ob.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme"] });
         const mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
         if (mq && mq.addEventListener) mq.addEventListener("change", f);
         return function () {
@@ -255,8 +313,60 @@ window.__ModuleLoader__.load({
 
     /** 标题栏上的快速切换：当前深色就给「浅色」，反之亦然（切换后不再跟随） */
     function themeAction(theme) {
+      if (THEME_HOST === "dsh") return null;
       return { label: theme === "dark" ? "浅色" : "深色", title: "切换浅色 / 深色主题（在设置里可改回跟随系统）",
         onClick: function () { setThemePref(theme === "dark" ? "light" : "dark"); } };
+    }
+
+    // ---------------------------------------------------------------------------
+    // 统计口径：忽略短活动。只作用于统计数字（概览 + 统计页），不动运动记录列表。
+    // 默认跑步 < 1 km、力量 < 10 min 不计入；阈值可在设置里改，存 localStorage。
+    // ---------------------------------------------------------------------------
+
+    const STATS_PREFS_KEY = "gc-stats-prefs";
+    const STATS_DEFAULTS = { ignoreShort: true, minRunM: 1000, minStrengthS: 600 };
+
+    function loadStatsPrefs() {
+      const d = STATS_DEFAULTS;
+      try {
+        const v = JSON.parse(window.localStorage.getItem(STATS_PREFS_KEY) || "{}");
+        const m = Number(v.minRunM), sec = Number(v.minStrengthS);
+        return {
+          ignoreShort: typeof v.ignoreShort === "boolean" ? v.ignoreShort : d.ignoreShort,
+          minRunM: isFinite(m) && m >= 0 ? m : d.minRunM,
+          minStrengthS: isFinite(sec) && sec >= 0 ? sec : d.minStrengthS,
+        };
+      } catch (e) {
+        return { ignoreShort: d.ignoreShort, minRunM: d.minRunM, minStrengthS: d.minStrengthS };
+      }
+    }
+
+    let statsPrefs = loadStatsPrefs();
+    const statsSubs = new Set();
+
+    function setStatsPrefs(patch) {
+      statsPrefs = Object.assign({}, statsPrefs, patch);
+      try { window.localStorage.setItem(STATS_PREFS_KEY, JSON.stringify(statsPrefs)); } catch (e) { /* 存不了就只在本次生效 */ }
+      statsSubs.forEach(function (f) { f(); });
+    }
+
+    /** 订阅统计口径变化，返回当前偏好 */
+    function useStatsPrefs() {
+      const [, force] = useState(0);
+      useEffect(function () {
+        const f = function () { force(function (n) { return n + 1; }); };
+        statsSubs.add(f);
+        return function () { statsSubs.delete(f); };
+      }, []);
+      return statsPrefs;
+    }
+
+    /** 单条活动是否计入统计：力量按时长，其余按距离；关掉开关则全计入 */
+    function statEligible(r, prefs) {
+      const p = prefs || statsPrefs;
+      if (!p.ignoreShort) return true;
+      if (isStrengthType(r.type_key)) return (Number(r.duration_s) || 0) >= p.minStrengthS;
+      return (runView(r).dist || 0) >= p.minRunM;
     }
 
     /** @param {string} path @param {RequestInit} [init] @returns {Promise<any>} */
@@ -298,13 +408,37 @@ window.__ModuleLoader__.load({
         : mm + ":" + String(ss).padStart(2, "0");
     }
 
+    // 配速偏好：内部一律存秒/公里，只在展示层换算；订阅让所有已挂载的页面跟着切换。
+    const PACE_UNIT_KEY = "gc-pace-unit";
+    let paceUnit = (function () {
+      try { return window.localStorage.getItem(PACE_UNIT_KEY) === "mile" ? "mile" : "km"; } catch (e) { return "km"; }
+    })();
+    const paceSubs = new Set();
+    function paceUnitLabel() { return paceUnit === "mile" ? "/mile" : "/km"; }
+    function setPaceUnit(v) {
+      paceUnit = v === "mile" ? "mile" : "km";
+      try { window.localStorage.setItem(PACE_UNIT_KEY, paceUnit); } catch (e) { /* 存不了就只在本次生效 */ }
+      paceSubs.forEach(function (f) { f(); });
+    }
+    function usePaceUnit() {
+      const [, force] = useState(0);
+      useEffect(function () {
+        const f = function () { force(function (n) { return n + 1; }); };
+        paceSubs.add(f);
+        return function () { paceSubs.delete(f); };
+      }, []);
+      return paceUnit;
+    }
     /** @param {number|null|undefined} secPerKm @returns {string} */
     function fmtPace(secPerKm) {
       if (typeof secPerKm !== "number" || !isFinite(secPerKm) || secPerKm <= 0) return "-";
-      const m = Math.floor(secPerKm / 60);
-      const s = Math.round(secPerKm % 60);
-      return s === 60 ? (m + 1) + "'00\"/km" : m + "'" + String(s).padStart(2, "0") + "\"/km";
+      const v = secPerKm * (paceUnit === "mile" ? 1.609344 : 1);
+      const m = Math.floor(v / 60);
+      const s = Math.round(v % 60);
+      return (s === 60 ? (m + 1) + "'00\"" : m + "'" + String(s).padStart(2, "0") + "\"") + paceUnitLabel();
     }
+    /** 不带单位的配速文本，用于紧凑标签 */
+    function paceText(secPerKm) { return fmtPace(secPerKm).replace(/\/km|\/mile/, ""); }
 
     /** 米/秒 → 配速 */
     function paceFromSpeed(mps) {
@@ -369,6 +503,7 @@ window.__ModuleLoader__.load({
 
     function guarded(Inner) {
       return function Guarded(props) {
+        usePaceUnit(); // 单位切换时重渲染整棵子树
         return h(ThemeRoot, null, h(ErrorBoundary, null, h(Inner, props)));
       };
     }
@@ -409,21 +544,22 @@ window.__ModuleLoader__.load({
     }
 
     /** 分段按钮组（可能渲染进宿主顶栏、在插件样式作用域之外，所以用行内样式） */
-    const SEG_WRAP = { display: "inline-flex", alignSelf: "flex-start", border: "1px solid var(--line, #d1d5db)", borderRadius: "6px", overflow: "hidden" };
-    function segBtn(on, last) {
+    const SEG_WRAP = { display: "inline-flex", alignSelf: "flex-start", gap: "2px", padding: "3px", borderRadius: "8px", background: "var(--gc-seg-bg, var(--hover, rgba(127,127,127,0.12)))" };
+    function segBtn(on) {
       return {
-        padding: "3px 10px", border: 0, borderRight: last ? 0 : "1px solid var(--line, #d1d5db)",
-        background: on ? "var(--hover, #eef0f3)" : "transparent", color: "inherit", font: "inherit",
-        fontSize: "13px", fontWeight: on ? 600 : 400, cursor: "pointer",
+        padding: "3px 12px", border: 0, borderRadius: "6px",
+        background: on ? "var(--gc-seg-on, var(--panel, #fff))" : "transparent", color: on ? "inherit" : "var(--gc-muted, var(--muted, inherit))", font: "inherit",
+        fontSize: "13px", fontWeight: on ? 600 : 400, cursor: "pointer", opacity: on ? 1 : 0.8,
+        boxShadow: on ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
       };
     }
 
     function Seg(props) {
       return h("div", { style: SEG_WRAP, role: "radiogroup", "aria-label": props.label },
-        props.options.map(function (o, i) {
+        props.options.map(function (o) {
           return h("button", {
             key: o[0], type: "button", role: "radio", "aria-checked": props.value === o[0],
-            style: segBtn(props.value === o[0], i === props.options.length - 1),
+            style: segBtn(props.value === o[0]),
             onClick: function () { props.onChange(o[0]); },
           }, o[1]);
         }));
@@ -439,11 +575,10 @@ window.__ModuleLoader__.load({
       const [runs, setRuns] = useState([]);
       const [indoorTypes, setIndoorTypes] = useState(DEFAULT_INDOOR);
       const [hint, setHint] = useState("正在加载跑步记录…");
-      const [busy, setBusy] = useState(false);
       const [open, setOpen] = useState(null);
       const [full, setFull] = useState(null);
       const [statsKey, setStatsKey] = useState(0);
-      const [syncErr, setSyncErr] = useState("");
+      const [status, setStatus] = useState(null);
       const [calFocus, setCalFocus] = useState("");
 
       async function load() {
@@ -452,18 +587,26 @@ window.__ModuleLoader__.load({
           const list = Array.isArray(data.runs) ? data.runs : [];
           setRuns(list);
           if (Array.isArray(data.indoor_types)) setIndoorTypes(data.indoor_types);
-          setHint(list.length ? "" : "还没有跑步记录：先在「账号与同步」里登录 Garmin，再点「立即同步」或「同步全部历史」。");
+          setHint(list.length ? "" : "还没有跑步记录：先在「账号与同步」里登录 Garmin，再点「同步全部历史」。");
         } catch (err) {
           setHint("读取失败：" + errText(err));
         }
       }
 
+      function refreshStatus() {
+        return api("/status").then(function (st) {
+          setStatus(st);
+          if (st.full_sync && st.full_sync.running) setFull(st.full_sync);
+          return st;
+        }).catch(function () { return null; });
+      }
+
+      // 状态每分钟刷新一次：后台每 6 小时同步，失败不能只藏在小字里
       useEffect(function () {
         load();
-        api("/status").then(function (st) {
-          if (st.full_sync && st.full_sync.running) setFull(st.full_sync);
-          setSyncErr(st.last_sync_error || "");
-        }).catch(function () {});
+        refreshStatus();
+        const t = setInterval(refreshStatus, 60000);
+        return function () { clearInterval(t); };
       }, []);
 
       // 全部历史同步在后台跑：每 2 秒看一次进度，结束后刷新列表和统计
@@ -483,32 +626,6 @@ window.__ModuleLoader__.load({
         return function () { clearInterval(t); };
       }, [full && full.running]);
 
-      async function syncNow() {
-        setBusy(true);
-        setHint("正在同步最近的跑步…");
-        try {
-          const res = await api("/sync", { method: "POST" });
-          setHint("同步完成，写入 " + res.written + " 条。");
-          setSyncErr("");
-          await load();
-          setStatsKey(function (k) { return k + 1; });
-        } catch (err) {
-          setHint("同步失败：" + errText(err));
-        } finally {
-          setBusy(false);
-        }
-      }
-
-      async function syncAll() {
-        try {
-          const res = await api("/sync?full=1", { method: "POST" });
-          setFull(res.full_sync || { running: true, pages: 0, written: 0 });
-          setHint("");
-        } catch (err) {
-          setHint("同步全部历史失败：" + errText(err));
-        }
-      }
-
       if (open) {
         return h(RunDetail, {
           id: open.activity_id, title: open.activity_name, start: open.start_time,
@@ -519,7 +636,14 @@ window.__ModuleLoader__.load({
       const fullRunning = Boolean(full && full.running);
       // 窄屏顶栏放不下切换标签，挪回页面里
       const narrow = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
-      const viewSeg = h(Seg, { label: "视图", value: view, onChange: setView, options: [["runs", "记录"], ["stats", "统计"], ["calendar", "日历"], ["plans", "计划"], ["videos", "视频"]] });
+      // PMW 版「比赛」是这里的一个视图；dsh 版在外层页签里，不重复放
+      const viewOpts = [["runs", "记录"], ["recovery", "体能"], ["stats", "统计"], ["calendar", "日历"], ["plans", "计划"], ["videos", "视频"]];
+      if (THEME_HOST !== "dsh") viewOpts.push(["races", "比赛"]);
+      const viewSeg = h(Seg, { label: "视图", value: view, onChange: setView, options: viewOpts });
+      // 比赛视图有自己的标题栏操作（添加比赛）和详情页，整页交给它，视图切换放进它的标题栏
+      if (view === "races" && THEME_HOST !== "dsh") {
+        return h(RacesPage, { embedded: true, tabs: narrow ? null : viewSeg, belowTitle: narrow ? viewSeg : null });
+      }
       const total = runs.reduce(function (sum, r) { return sum + (runView(r).dist || 0); }, 0);
       const progress = fullRunning
         ? "正在同步全部历史：已翻 " + (full.pages || 0) + " 页，写入 " + (full.written || 0) + " 条…"
@@ -530,18 +654,15 @@ window.__ModuleLoader__.load({
           title: PLUGIN_NAME,
           desc: "最近 " + runs.length + " 次，累计 " + fmtDistance(total),
           tabs: narrow ? null : viewSeg,
-          actions: [
-            { label: busy ? "同步中…" : "立即同步", primary: true, disabled: busy || fullRunning, onClick: syncNow },
-            { label: fullRunning ? "历史同步中…" : (narrow ? "全部历史" : "同步全部历史"), disabled: busy || fullRunning, onClick: syncAll,
-              title: "把 Garmin 上所有跑步记录都拉下来（统计用），在后台进行" },
-            themeAction(theme),
-          ],
+          // 两端统一：同步按钮只在设置页 / 「账号与同步」里，标题栏不再重复
+          actions: [themeAction(theme)],
         }),
         narrow ? viewSeg : null,
-        progress ? h("p", { className: "pmw-plugin-hint", role: "status" }, progress) : null,
-        syncErr && !busy ? h("p", { className: "gc-note", role: "alert" }, "最近一次同步失败：" + syncErr) : null,
+        h(SyncStatus, { status: status, progress: progress }),
         hint ? h("p", { className: "pmw-plugin-hint" }, hint) : null,
-        view === "stats"
+        view === "recovery"
+          ? h(RecoveryView)
+          : view === "stats"
           ? h(StatsView, { key: statsKey })
           : view === "calendar"
           ? h(CalendarView, { key: "cal-" + calFocus, focus: calFocus, onOpen: setOpen })
@@ -559,40 +680,510 @@ window.__ModuleLoader__.load({
       return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
     }
 
-    /** 本周（周一起）、本月的跑量，从列表算；今年用统计接口（列表最多 200 条） */
-    function periodTotals(runs) {
-      const now = new Date();
-      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const t = { week: { n: 0, d: 0 }, month: { n: 0, d: 0 } };
-      runs.forEach(function (r) {
-        const d = parseLocal(r.start_time);
-        if (!d) return;
-        if (isStrengthType(r.type_key)) return;
-        const dist = runView(r).dist || 0;
-        if (d >= monday) { t.week.n++; t.week.d += dist; }
-        if (d >= monthStart) { t.month.n++; t.month.d += dist; }
+
+    // ---------------------------------------------------------------------------
+    // 数据中心风格组件：白卡面板、分段切换、指标块、环形图、堆叠柱、横向占比条
+    // ---------------------------------------------------------------------------
+
+    /** 白卡面板：标题行（左标题、右操作），下面放内容 */
+    function KPanel(props) {
+      return h("section", { className: "gc-kpanel" + (props.className ? " " + props.className : "") },
+        props.title || props.extra
+          ? h("div", { className: "gc-kpanel-head" },
+              props.title ? h("h3", { className: "gc-kpanel-title" }, props.title) : h("span"),
+              props.extra || null)
+          : null,
+        props.children);
+    }
+
+    /** 分区标题：灰色大字，右侧可放切换 */
+    function KSection(props) {
+      return h("div", { className: "gc-ksection" }, h("h2", null, props.title), props.extra || null);
+    }
+
+    /** 指标块：数字大、单位小；选中的块顶部一条深色粗线 */
+    function KTiles(props) {
+      return h("div", { className: "gc-ktiles" + (props.small ? " gc-ktiles-sm" : "") }, props.items.map(function (t, i) {
+        const on = props.active === (t.key != null ? t.key : i);
+        const attrs = {
+          key: t.key != null ? t.key : t.label, className: "gc-ktile" + (on ? " on" : "") + (props.onPick ? " gc-ktile-btn" : ""),
+        };
+        if (props.onPick) {
+          attrs.type = "button";
+          attrs["aria-pressed"] = on;
+          attrs.onClick = function () { props.onPick(t.key != null ? t.key : i); };
+        }
+        return h(props.onPick ? "button" : "div", attrs,
+          h("span", { className: "gc-ktile-label" }, t.label),
+          h("span", { className: "gc-ktile-value" }, t.value, t.unit ? h("small", null, t.unit) : null));
+      }));
+    }
+
+    /** "10.02 km" → ["10.02", "km"]；配速 5'30"/km → ["5'30\"", "/km"] */
+    function splitUnit(text) {
+      const m = /^(.*?)\s*(km\/h|\/km|\/mile|km|bpm|kcal|kg|步\/分|次|组|°C|%|m)$/.exec(String(text || ""));
+      return m && m[1] ? [m[1], m[2]] : [String(text == null ? "-" : text), ""];
+    }
+
+    // 活动分类：室外跑 / 室内跑 / 力量 / 其他
+    const KCATS = [["out", "室外跑"], ["in", "室内跑"], ["str", "力量"], ["oth", "其他"]];
+    function actCat(r, indoorTypes) {
+      if (isStrengthType(r.type_key)) return "str";
+      if (isIndoor(r.type_key, indoorTypes)) return "in";
+      return /run/.test(String(r.type_key || "")) || !r.type_key ? "out" : "oth";
+    }
+
+    /** 环形图：parts = [{ key, label, value }] */
+    function Donut(props) {
+      const total = props.parts.reduce(function (t, p) { return t + p.value; }, 0);
+      const r = 52;
+      const c = 2 * Math.PI * r;
+      let acc = 0;
+      return h("div", { className: "gc-donut" },
+        h("svg", { viewBox: "0 0 140 140", className: "gc-donut-svg", role: "img", "aria-label": props.label },
+          h("circle", { cx: 70, cy: 70, r: r, className: "gc-donut-track" }),
+          total > 0 ? props.parts.filter(function (p) { return p.value > 0; }).map(function (p) {
+            const len = (p.value / total) * c;
+            // 段与段之间留 1.5 的缝
+            const gap = props.parts.filter(function (x) { return x.value > 0; }).length > 1 ? Math.min(1.5, len / 2) : 0;
+            const el = h("circle", {
+              key: p.key, cx: 70, cy: 70, r: r, className: "gc-donut-seg gc-c-" + p.key,
+              strokeDasharray: (len - gap) + " " + (c - len + gap), strokeDashoffset: -acc,
+              transform: "rotate(-90 70 70)",
+            }, h("title", null, p.label + " " + p.text));
+            acc += len;
+            return el;
+          }) : null,
+          h("text", { x: 70, y: 66, className: "gc-donut-num", textAnchor: "middle" }, props.center),
+          h("text", { x: 70, y: 86, className: "gc-donut-cap", textAnchor: "middle" }, props.caption)),
+        h("ul", { className: "gc-donut-legend" }, props.parts.map(function (p) {
+          return h("li", { key: p.key, className: p.value > 0 ? "" : "gc-dim" },
+            h("i", { className: "gc-swatch gc-c-" + p.key }),
+            h("span", null, p.label),
+            h("b", null, p.text),
+            h("em", null, total > 0 ? Math.round((p.value / total) * 100) + "%" : "-"));
+        })));
+    }
+
+    function niceMax(v) {
+      if (!(v > 0)) return 1;
+      const p = Math.pow(10, Math.floor(Math.log10(v)));
+      const f = v / p;
+      return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 4 ? 4 : f <= 5 ? 5 : 10) * p;
+    }
+
+    /** 堆叠柱：buckets = [{ key, label, parts: { out, in, str, oth } }] */
+    function StackBars(props) {
+      const W = 380, H = 220, L = 30, R = 4, T = 22, B = 24;
+      const keys = props.cats;
+      const totals = props.buckets.map(function (b) { return keys.reduce(function (t, k) { return t + (b.parts[k] || 0); }, 0); });
+      const max = niceMax(Math.max.apply(null, totals.concat([0])) * props.scale);
+      const n = props.buckets.length || 1;
+      const step = (W - L - R) / n;
+      const bw = Math.max(2, Math.min(16, step * 0.62));
+      const sy = function (v) { return T + (H - T - B) * (1 - (v * props.scale) / max); };
+      const ticks = [0, 0.25, 0.5, 0.75, 1].map(function (f) { return max * f; });
+      const every = Math.max(1, Math.ceil(n / 6));
+      return h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-kbars", role: "img", "aria-label": props.label },
+        h("text", { x: 4, y: 12, className: "gc-kaxis" }, props.unit),
+        ticks.map(function (t, i) {
+          const y = T + (H - T - B) * (1 - t / max);
+          return h("g", { key: i },
+            h("line", { x1: L, x2: W - R, y1: y, y2: y, className: "gc-kgrid-line" + (i === 0 ? " base" : "") }),
+            h("text", { x: L - 6, y: y + 4, className: "gc-kaxis", textAnchor: "end" }, String(Math.round(t * 10) / 10)));
+        }),
+        props.buckets.map(function (b, i) {
+          const x = L + step * i + (step - bw) / 2;
+          let base = 0;
+          const tip = b.label + "：" + props.fmt(totals[i]) +
+            keys.filter(function (k) { return b.parts[k]; }).map(function (k) { return "\n" + props.names[k] + " " + props.fmt(b.parts[k]); }).join("");
+          return h("g", { key: b.key },
+            h("title", null, tip),
+            // 整列透明命中区，悬停更容易
+            h("rect", { x: L + step * i, y: T, width: step, height: H - T - B, className: "gc-kbar-hit" }),
+            keys.map(function (k) {
+              const v = b.parts[k] || 0;
+              if (!v) return null;
+              const y1 = sy(base + v), y0 = sy(base);
+              base += v;
+              return h("rect", { key: k, x: x, y: y1, width: bw, height: Math.max(1, y0 - y1), className: "gc-kbar gc-c-" + k });
+            }),
+            i % every === 0 || i === n - 1
+              ? h("text", { x: x + bw / 2, y: H - 6, className: "gc-kaxis", textAnchor: "middle" }, b.label)
+              : null);
+        }));
+    }
+
+    /** 横向占比条：rows = [{ label, value, text }] */
+    function HBars(props) {
+      const total = props.rows.reduce(function (t, r) { return t + r.value; }, 0);
+      const max = Math.max.apply(null, props.rows.map(function (r) { return r.value; }).concat([0]));
+      return h("div", { className: "gc-hbars" }, props.rows.map(function (r) {
+        return h("div", { className: "gc-hbar", key: r.label },
+          h("span", { className: "gc-hbar-label" }, r.label),
+          h("span", { className: "gc-hbar-track" }, h("i", { style: { width: (max > 0 ? (r.value / max) * 100 : 0) + "%" } })),
+          h("span", { className: "gc-hbar-num" }, r.text),
+          h("span", { className: "gc-hbar-pct" }, total > 0 ? Math.round((r.value / total) * 100) + "%" : "-"));
+      }));
+    }
+
+    // ---- 记录页概览 ----
+
+    const KRANGES = [["week", "本周"], ["month", "本月"], ["7d", "近 7 日"], ["30d", "近 30 日"], ["half", "近半年"], ["year", "近 1 年"]];
+    const KMETRICS = [["n", "跑步次数"], ["str", "力量次数"], ["dur", "时长"], ["dist", "距离"]];
+    const DAYPARTS = [[0, 5, "凌晨"], [5, 8, "晨练"], [8, 11, "上午"], [11, 14, "午间"], [14, 17, "下午"], [17, 19, "傍晚"], [19, 24, "晚上"]];
+    const PREF_TABS = [["time", "时段"], ["week", "星期"]];
+
+    function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+    function mondayOf(d) { const x = dayStart(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+
+    /** 区间起点和柱子分桶：本周 / 本月 / 近 7 / 近 30 日按天，近半年按周，近 1 年按月 */
+    function rangeBuckets(range) {
+      const today = dayStart(new Date());
+      const out = [];
+      if (range === "week" || range === "month") {
+        const start = range === "week" ? mondayOf(today) : new Date(today.getFullYear(), today.getMonth(), 1);
+        for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+          out.push({ key: ymd(d), label: (d.getMonth() + 1) + "/" + d.getDate(), start: new Date(d) });
+        }
+      } else if (range === "7d" || range === "30d") {
+        const n = range === "7d" ? 7 : 30;
+        for (let i = n - 1; i >= 0; i--) {
+          const d = new Date(today); d.setDate(d.getDate() - i);
+          out.push({ key: ymd(d), label: (d.getMonth() + 1) + "/" + d.getDate(), start: d });
+        }
+      } else if (range === "half") {
+        const mon = mondayOf(today);
+        for (let i = 25; i >= 0; i--) {
+          const d = new Date(mon); d.setDate(d.getDate() - i * 7);
+          out.push({ key: ymd(d), label: (d.getMonth() + 1) + "/" + d.getDate(), start: d });
+        }
+      } else {
+        for (let i = 11; i >= 0; i--) {
+          const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+          out.push({ key: d.getFullYear() + "-" + pad2(d.getMonth() + 1), label: (d.getMonth() + 1) + "月", start: d });
+        }
+      }
+      return out;
+    }
+
+    function bucketOf(range, d) {
+      if (range === "half") return ymd(mondayOf(d));
+      if (range === "year") return d.getFullYear() + "-" + pad2(d.getMonth() + 1);
+      return ymd(d);
+    }
+
+    function runMetric(metric, r) {
+      const strength = isStrengthType(r.type_key);
+      if (metric === "n") return strength ? 0 : 1;
+      if (metric === "str") return strength ? 1 : 0;
+      if (metric === "dur") return Number(r.duration_s) || 0;
+      return strength ? 0 : (runView(r).dist || 0);
+    }
+
+    function metricFmt(metric, v) {
+      if (metric === "n" || metric === "str") return Math.round(v) + " 次";
+      if (metric === "dur") return fmtDuration(v);
+      return num(v / 1000, 1) + " km";
+    }
+
+    function Overview(props) {
+      const prefs = useStatsPrefs();
+      const [range, setRange] = useState("30d");
+      const [tile, setTile] = useState("n");
+      const [trend, setTrend] = useState("n");
+      const [pref, setPref] = useState("time");
+      const [all, setAll] = useState(null);
+      const [err, setErr] = useState("");
+
+      // 一次取近 1 年（最长区间）的全部记录，切换区间只在前端过滤
+      useEffect(function () {
+        let alive = true;
+        const first = rangeBuckets("year")[0].start;
+        api("/runs?from=" + ymd(first)).then(function (d) {
+          if (alive) { setAll(Array.isArray(d.runs) ? d.runs : []); setErr(""); }
+        }).catch(function (e) { if (alive) setErr(errText(e)); });
+        return function () { alive = false; };
+      }, [props.version]);
+
+      const buckets = rangeBuckets(range);
+      const from = buckets[0].start;
+      const runs = (all || []).map(function (r) { return { r: r, d: parseLocal(r.start_time) }; })
+        .filter(function (x) { return x.d && x.d >= from && statEligible(x.r, prefs); });
+      const cats = KCATS.map(function (c) { return c[0]; });
+      const names = {};
+      KCATS.forEach(function (c) { names[c[0]] = c[1]; });
+      const present = cats.filter(function (k) { return k !== "oth" || runs.some(function (x) { return actCat(x.r, props.indoorTypes) === "oth"; }); });
+
+      const sum = function (metric, pick) {
+        return runs.reduce(function (t, x) { return t + (!pick || pick(x) ? runMetric(metric, x.r) : 0); }, 0);
+      };
+      const runN = sum("n"), strN = sum("str");
+      const tiles = [
+        { key: "n", label: "跑步次数", value: String(runN), unit: "次" },
+        { key: "str", label: "力量次数", value: String(strN), unit: "次" },
+        // 大数字要放得下：跑量过百公里不带小数，总时长用小时
+        { key: "dist", label: "跑量", value: num(sum("dist") / 1000, sum("dist") >= 100000 ? 0 : 1), unit: "km" },
+        { key: "dur", label: "总时长", value: num(sum("dur") / 3600, 1), unit: "h" },
+      ];
+      const parts = present.map(function (k) {
+        const v = sum(tile, function (x) { return actCat(x.r, props.indoorTypes) === k; });
+        return { key: k, label: names[k], value: v, text: metricFmt(tile, v).replace(" ", "") };
       });
-      return t;
+      const tileTotal = sum(tile);
+      const center = tile === "dur" ? num(tileTotal / 3600, 1) : tile === "dist" ? num(tileTotal / 1000, 1) : String(Math.round(tileTotal));
+      const caption = tile === "dur" ? "小时" : tile === "dist" ? "公里" : "次";
+
+      const byKey = {};
+      const bars = buckets.map(function (b) { const x = { key: b.key, label: b.label, parts: {} }; byKey[b.key] = x; return x; });
+      runs.forEach(function (x) {
+        const b = byKey[bucketOf(range, x.d)];
+        if (!b) return;
+        const k = actCat(x.r, props.indoorTypes);
+        b.parts[k] = (b.parts[k] || 0) + runMetric(trend, x.r);
+      });
+      const maxBar = Math.max.apply(null, bars.map(function (b) { return cats.reduce(function (t, k) { return t + (b.parts[k] || 0); }, 0); }).concat([0]));
+      const durHours = maxBar >= 3 * 3600;
+      const scale = trend === "dur" ? (durHours ? 1 / 3600 : 1 / 60) : trend === "dist" ? 1 / 1000 : 1;
+      const unitText = trend === "dur" ? (durHours ? "小时" : "分钟") : trend === "dist" ? "km" : "次";
+
+      let prefRows;
+      if (pref === "time") {
+        prefRows = DAYPARTS.map(function (p) {
+          const n = runs.filter(function (x) { const hr = x.d.getHours(); return hr >= p[0] && hr < p[1]; }).length;
+          return { label: p[2], value: n, text: n + "次" };
+        });
+      } else {
+        prefRows = [1, 2, 3, 4, 5, 6, 0].map(function (wd) {
+          const n = runs.filter(function (x) { return x.d.getDay() === wd; }).length;
+          return { label: WEEKDAYS[wd], value: n, text: n + "次" };
+        });
+      }
+
+      const empty = all && !runs.length ? h("p", { className: "pmw-plugin-hint gc-kempty" }, "这段时间没有运动记录") : null;
+      const loading = !all ? h("p", { className: "pmw-plugin-hint gc-kempty" }, err ? "读取失败：" + err : "正在统计…") : null;
+
+      return h("div", { className: "gc-overview" },
+        h(KSection, { title: "运动概览", extra: h(KSeg, { label: "时间范围", value: range, onChange: setRange, options: KRANGES }) }),
+        h("div", { className: "gc-kgrid" },
+          h(KPanel, { title: "运动总览" },
+            h(KTiles, { items: tiles, active: tile, onPick: setTile }),
+            loading || empty || h(Donut, { parts: parts, center: center, caption: caption, label: "按类型分布" })),
+          h(KPanel, { title: "趋势分布", extra: h(KSeg, { label: "趋势指标", value: trend, onChange: setTrend, options: KMETRICS }) },
+            loading || h("div", { className: "gc-ktrend" },
+              h(StackBars, { buckets: bars, cats: present, names: names, scale: scale, unit: unitText, label: "趋势分布",
+                fmt: function (v) { return metricFmt(trend, v); } }),
+              h("div", { className: "gc-legend gc-klegend" }, present.map(function (k) {
+                return h("span", { key: k }, h("i", { className: "gc-swatch gc-c-" + k }), names[k]);
+              })))),
+          h(KPanel, { title: "运动偏好", extra: h(KSeg, { label: "偏好维度", value: pref, onChange: setPref, options: PREF_TABS }) },
+            loading || empty || h(HBars, { rows: prefRows }))));
+    }
+
+    /** 面板里的小号分段切换（插件样式作用域内，用 class） */
+    function KSeg(props) {
+      return h("div", { className: "gc-kseg", role: "radiogroup", "aria-label": props.label },
+        props.options.map(function (o) {
+          return h("button", {
+            key: o[0], type: "button", role: "radio", "aria-checked": props.value === o[0],
+            className: props.value === o[0] ? "on" : "", onClick: function () { props.onChange(o[0]); },
+          }, o[1]);
+        }));
+    }
+
+    // ---------------------------------------------------------------------------
+    // 恢复 / 体能趋势（0.10.0）：跨天的训练负荷、训练效果、身体电量、恢复/静息心率、跑量。
+    // 数据来自 /recovery；缺失指标为 null，图表按 null 断线，不把「没数据」画成 0。
+    // ---------------------------------------------------------------------------
+
+    const REC_METRICS = [
+      ["load", "训练负荷"], ["effect", "训练效果"], ["body_battery", "身体电量"],
+      ["recovery_hr", "恢复心率"], ["resting_hr", "静息心率"], ["stamina", "体能储备"],
+    ];
+    const REC_LEVEL = {
+      good: { cls: "good", dot: "#2ea36b" },
+      moderate: { cls: "moderate", dot: "#d99125" },
+      low: { cls: "low", dot: "#d6484f" },
+      unknown: { cls: "unknown", dot: "#9aa0aa" },
+    };
+
+    function recNum(v) { return typeof v === "number" && isFinite(v); }
+
+    /** 恢复趋势折线 / 柱状混合图：有 load 画柱，其余画折线；高强度日用竖标记，缺失断线。 */
+    function RecoveryChart(props) {
+      const W = 620, H = 240, L = 36, R = 8, T = 20, B = 40;
+      const metric = props.metric;
+      const days = props.days || [];
+      const vals = days.map(function (d) { return d[metric]; });
+      const present = vals.filter(recNum);
+      let max = 1, min = 0;
+      if (present.length) {
+        max = Math.max.apply(null, present);
+        min = Math.min.apply(null, present);
+        if (metric === "body_battery") {
+          max = Math.max(max, 0); min = Math.min(min, 0);
+        } else if (max === min) {
+          min = Math.max(0, min - 1); max = max + 1;
+        } else {
+          min = Math.max(0, min - (max - min) * 0.15);
+        }
+      }
+      const span = max - min || 1;
+      const n = days.length || 1;
+      const step = (W - L - R) / n;
+      const bw = Math.max(2, Math.min(14, step * 0.6));
+      const x = function (i) { return L + step * i + step / 2; };
+      const y = function (v) { return T + (H - T - B) * (1 - (v - min) / span); };
+      const ticks = [0, 0.5, 1].map(function (f) { return min + span * f; });
+      const every = Math.max(1, Math.ceil(n / 8));
+      const unit = metric === "load" ? "" : "";
+      const fmt = function (v) { return num(v, metric === "effect" || metric === "body_battery" ? 1 : 0); };
+
+      // 折线：按连续段分组，null 断开
+      const segments = [];
+      let seg = [];
+      vals.forEach(function (v, i) {
+        if (recNum(v)) seg.push(i);
+        else if (seg.length) { segments.push(seg); seg = []; }
+      });
+      if (seg.length) segments.push(seg);
+
+      return h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-rec-chart", role: "img", "aria-label": props.label },
+        ticks.map(function (t, i) {
+          const yy = y(t);
+          return h("g", { key: i },
+            h("line", { x1: L, x2: W - R, y1: yy, y2: yy, className: "gc-kgrid-line" + (i === 0 ? " base" : "") }),
+            h("text", { x: L - 5, y: yy + 4, className: "gc-kaxis", textAnchor: "end" }, fmt(t)));
+        }),
+        // 周分隔与日期标签
+        days.map(function (d, i) {
+          const dow = parseLocal(d.date + " 00:00");
+          const isMon = dow && dow.getDay() === 1;
+          return h("g", { key: d.date },
+            isMon ? h("line", { x1: x(i) - step / 2, x2: x(i) - step / 2, y1: T, y2: H - B, className: "gc-rec-week" }) : null,
+            (i % every === 0 || i === n - 1)
+              ? h("text", { x: x(i), y: H - 20, className: "gc-kaxis", textAnchor: "middle" }, d.date.slice(5).replace("-", "/"))
+              : null,
+            d.High ? h("circle", { cx: x(i), cy: T + 3, r: 3, className: "gc-rec-high" }) : null,
+            h("title", null, d.date + (recNum(vals[i]) ? "：" + fmt(vals[i]) + unit : "：无数据") + (d.High ? "（高强度）" : "")));
+        }),
+        metric === "load"
+          ? days.map(function (d, i) {
+              return recNum(vals[i])
+                ? h("rect", { key: d.date, x: x(i) - bw / 2, y: y(vals[i]), width: bw,
+                    height: Math.max(1, y(min) - y(vals[i])), className: "gc-rec-bar" + (d.High ? " high" : "") })
+                : null;
+            })
+          : segments.map(function (seg, si) {
+              return h("polyline", { key: si, className: "gc-rec-line",
+                points: seg.map(function (i) { return x(i) + "," + y(vals[i]); }).join(" ") });
+            }).concat(segments.map(function (seg, si) {
+              return seg.map(function (i) {
+                return h("circle", { key: si + "-" + i, cx: x(i), cy: y(vals[i]), r: 2.5,
+                  className: "gc-rec-dot" + (days[i].High ? " high" : "") });
+              });
+            })));
+    }
+
+    function RecoveryView() {
+      const [range, setRange] = useState("28");
+      const [metric, setMetric] = useState("load");
+      const [data, setData] = useState(null);
+      const [err, setErr] = useState("");
+      const [busy, setBusy] = useState(false);
+
+      async function load() {
+        try {
+          setData(await api("/recovery?days=" + range));
+          setErr("");
+        } catch (e) { setErr(errText(e)); }
+      }
+      useEffect(function () { load(); }, [range]);
+
+      const backfill = data && data.backfill || {};
+      // 回填中：每 1.5 秒刷新一次进度，结束后拉一次数据
+      useEffect(function () {
+        if (!backfill.running) return undefined;
+        const t = setInterval(function () {
+          api("/recovery?days=" + range).then(function (d) {
+            setData(d);
+            if (!d.backfill || !d.backfill.running) load();
+          }).catch(function () {});
+        }, 1500);
+        return function () { clearInterval(t); };
+      }, [backfill.running, range]);
+
+      async function backfillNow() {
+        setBusy(true);
+        try { await api("/recovery/backfill", { method: "POST" }); await load(); }
+        catch (e) { setErr(errText(e)); }
+        finally { setBusy(false); }
+      }
+
+      const sum = data && data.summary || {};
+      const st = sum.status || {};
+      const tone = REC_LEVEL[st.level] || REC_LEVEL.unknown;
+      const days = data && Array.isArray(data.days) ? data.days : [];
+      const active = days.filter(function (d) { return d.load != null || d.effect != null || d.distance_m > 0; });
+
+      const recPanels = [
+        h(KPanel, { className: "gc-rec-status gc-rec-" + tone.cls },
+          h("div", { className: "gc-rec-status-head" },
+            h("span", { className: "gc-rec-status-badge" }, h("i", { style: { background: tone.dot } }), st.label || "—"),
+            h("span", { className: "pmw-plugin-hint" }, st.reason || "")),
+          h("p", { className: "gc-rec-suggest" }, st.suggestion || ""),
+          st.level === "unknown" ? null : h(KTiles, { small: true, items: [
+            { label: "本周跑量", value: num(sum.week_km, 1), unit: "km" },
+            { label: "近 4 周周均", value: num(sum.baseline_km, 1), unit: "km" },
+            { label: "本周进度", value: sum.progress == null ? "-" : sum.progress, unit: "%" },
+            { label: "距上次跑步", value: sum.days_since == null ? "-" : sum.days_since, unit: "天" },
+            { label: "近 7 天负荷", value: num(sum.load_7d, 0), unit: "" },
+            { label: "近 7 天高强度", value: sum.high_days || 0, unit: "天" },
+          ] }),
+          h("div", { className: "gc-rec-progress" },
+            h("span", { className: "gc-rec-progress-track" },
+              h("i", { style: { width: Math.min(100, Math.max(0, sum.progress || 0)) + "%" } })),
+            h("span", { className: "pmw-plugin-hint" }, "本周 / 近 4 周周均")),
+          sum.effect_label ? h("p", { className: "pmw-plugin-hint" }, "最近训练效益：" + (teText(sum.effect_label) || sum.effect_label)) : null),
+        h(KPanel, { title: "体能趋势", extra: h(KSeg, { label: "指标", value: metric, onChange: setMetric, options: REC_METRICS }) },
+          active.length === 0
+            ? h("p", { className: "pmw-plugin-hint gc-kempty" }, "暂无训练指标：点开任意一次跑步详情，或点上方「补全训练指标」")
+            : h("div", { className: "gc-rec-chart-wrap" },
+                h(RecoveryChart, { days: days, metric: metric, label: "恢复趋势" }),
+                h("div", { className: "gc-legend gc-klegend" },
+                  h("span", null, h("i", { className: "gc-rec-high" }), "高强度日"),
+                  h("span", null, "空白 = 无数据")))),
+        h(KPanel, { title: "最近训练" },
+          active.length === 0
+            ? h("p", { className: "pmw-plugin-hint gc-kempty" }, "暂无记录")
+            : h("div", { className: "gc-rec-list" }, active.slice(-8).reverse().map(function (d) {
+                return h("div", { key: d.date + (d.activity_id || ""), className: "gc-rec-row" },
+                  h("span", { className: "gc-rec-date" }, d.date.slice(5)),
+                  h("span", { className: "gc-rec-name" }, d.name || (d.strength ? "力量训练" : "跑步")),
+                  d.distance_m > 0 ? h("span", { className: "gc-rec-dim" }, fmtDistance(d.distance_m)) : null,
+                  d.load != null ? h("span", { className: "gc-rec-dim" }, "负荷 " + num(d.load, 0)) : null,
+                  d.effect != null ? h("span", { className: "gc-rec-dim" }, "效果 " + num(d.effect, 1)) : null,
+                  d.High ? h("span", { className: "gc-rec-tag high" }, "高强度") : null);
+              })))
+      ];
+      return h("div", { className: "gc-overview gc-recovery" },
+        h(KSection, { title: "恢复与体能", extra: h("div", { className: "gc-rec-controls" },
+          h(KSeg, { label: "时间范围", value: range, onChange: setRange,
+            options: [["14", "14 天"], ["28", "28 天"], ["56", "8 周"], ["90", "90 天"]] }),
+          h("button", { className: "pmw-plugin-button", type: "button", disabled: busy || backfill.running, onClick: backfillNow },
+            backfill.running ? "补全中 " + (backfill.done || 0) + "/" + (backfill.total || "?") : "补全训练指标")) }),
+        err ? h("p", { className: "pmw-plugin-hint" }, "读取失败：" + err) : null,
+        backfill.running
+          ? h("p", { className: "pmw-plugin-hint" }, "正在补全最近 4 周的训练指标（后台进行，不阻塞使用）…")
+          : backfill.error ? h("p", { className: "pmw-plugin-hint" }, "指标补全：" + backfill.error) : null,
+        !data
+          ? h("p", { className: "pmw-plugin-hint gc-kempty" }, "正在读取恢复数据…")
+          : h("div", { className: "gc-kdata" }, recPanels));
     }
 
     function RunList(props) {
       const [kind, setKind] = useState("all");
       const [q, setQ] = useState("");
-      const [year, setYear] = useState(null);
-
-      useEffect(function () {
-        let alive = true;
-        api("/stats?period=year&kind=all").then(function (d) {
-          if (!alive) return;
-          const y = String(new Date().getFullYear());
-          const b = (d.buckets || []).find(function (x) { return x.bucket === y; });
-          setYear(b || { runs: 0, distance_m: 0 });
-        }).catch(function () {});
-        return function () { alive = false; };
-      }, [props.runs.length]);
-
-      const totals = periodTotals(props.runs);
       const word = q.trim().toLowerCase();
       const list = props.runs.filter(function (r) {
         const indoor = isIndoor(r.type_key, props.indoorTypes);
@@ -613,19 +1204,14 @@ window.__ModuleLoader__.load({
         if (isStrengthType(r.type_key)) g.strength = (g.strength || 0) + 1;
       });
 
+      const first = props.runs[0];
       return h("div", { className: "gc-list" },
-        h("div", { className: "gc-stats gc-stats-3" },
-          [["本周", totals.week.n, totals.week.d], ["本月", totals.month.n, totals.month.d],
-           ["今年", year ? year.runs : null, year ? year.distance_m : null]].map(function (c) {
-            return h("div", { className: "gc-stat", key: c[0] },
-              h("span", { className: "gc-stat-label" }, c[0] + (c[1] != null ? " · " + c[1] + " 次" : "")),
-              h("span", { className: "gc-stat-value" }, c[2] != null ? fmtDistance(c[2]) : "-"));
-          })),
-        h("div", { className: "gc-controls" },
-          h(Seg, { label: "类型", value: kind, onChange: setKind, options: [["all", "全部"], ["outdoor", "室外"], ["indoor", "室内"], ["strength", "力量"]] }),
+        h(Overview, { indoorTypes: props.indoorTypes, version: props.runs.length + ":" + (first ? runKey(first) : "") }),
+        h(KSection, { title: "运动记录", extra: h("div", { className: "gc-controls" },
+          h(KSeg, { label: "类型", value: kind, onChange: setKind, options: [["all", "全部"], ["outdoor", "室外"], ["indoor", "室内"], ["strength", "力量"]] }),
           h("input", { className: "gc-search", type: "search", placeholder: "按名称搜索", value: q, "aria-label": "按名称搜索",
             onChange: function (e) { setQ(e.target.value); } }),
-          h("span", { className: "pmw-plugin-hint" }, list.length + " 次" + (props.runs.length >= 200 ? "（列表显示最近 200 次）" : ""))),
+          h("span", { className: "pmw-plugin-hint" }, list.length + " 次" + (props.runs.length >= 200 ? "（显示最近 200 次）" : ""))) }),
         list.length && isNarrow()
           ? h("div", { className: "gc-cards" }, groups.map(function (g) {
               return h("section", { key: g.month },
@@ -734,6 +1320,7 @@ window.__ModuleLoader__.load({
     }
 
     function StatsView() {
+      const prefs = useStatsPrefs();
       const [period, setPeriod] = useState("week");
       const [kind, setKind] = useState("all");
       const [metric, setMetric] = useState("distance");
@@ -743,11 +1330,15 @@ window.__ModuleLoader__.load({
       useEffect(function () {
         let alive = true;
         setHint("正在统计…");
-        api("/stats?period=" + period + "&kind=" + kind)
+        let path = "/stats?period=" + period + "&kind=" + kind;
+        if (prefs.ignoreShort) {
+          path += "&min_run_m=" + prefs.minRunM + "&min_strength_s=" + prefs.minStrengthS;
+        }
+        api(path)
           .then(function (d) { if (alive) { setData(d); setHint(""); } })
           .catch(function (err) { if (alive) setHint("统计失败：" + errText(err)); });
         return function () { alive = false; };
-      }, [period, kind]);
+      }, [period, kind, prefs]);
 
       const rows = (data && data.buckets) || [];
       const byKey = {};
@@ -778,6 +1369,10 @@ window.__ModuleLoader__.load({
           h(Seg, { label: "类型", value: kind, onChange: setKind, options: KINDS }),
           h(Seg, { label: "周期", value: period, onChange: setPeriod, options: PERIODS }),
           h(Seg, { label: "指标", value: m, onChange: setMetric, options: metricOpts })),
+        prefs.ignoreShort
+          ? h("p", { className: "pmw-plugin-hint" },
+              "统计已忽略短活动：跑步 < " + num(prefs.minRunM / 1000, 1) + " km、力量 < " + num(prefs.minStrengthS / 60, 0) + " 分钟（设置里可改）。")
+          : null,
         hint ? h("p", { className: "pmw-plugin-hint" }, hint) : null,
         data && data.unknown_type > 0 && !strength
           ? h("p", { className: "pmw-plugin-hint" },
@@ -829,7 +1424,7 @@ window.__ModuleLoader__.load({
             return h("g", { key: "t" + i },
               h("line", { x1: padL, x2: W - 4, y1: y(t), y2: y(t), className: "gc-grid" }),
               h("text", { x: padL - 6, y: y(t) + 4, className: "gc-axis", textAnchor: "end" },
-                props.metric === "pace" ? fmtPace(t).replace("/km", "") : (props.metric === "runs" ? Math.round(t) : t.toFixed(t >= 10 ? 0 : 1))));
+                props.metric === "pace" ? paceText(t) : (props.metric === "runs" ? Math.round(t) : t.toFixed(t >= 10 ? 0 : 1))));
           }),
           props.items.map(function (x, i) {
             const v = vals[i];
@@ -1026,11 +1621,10 @@ window.__ModuleLoader__.load({
         return [g[0], g[1].map(function (row) { return [row[0], row[1](s)]; }).filter(function (r) { return r[1]; })];
       }).filter(function (g) { return g[1].length; });
       const others = Object.keys(props.raw || {}).filter(function (k) { return !GROUPED_KEYS[k]; }).sort();
-      return h("section", null,
-        h("h3", { className: "gc-sub" }, "详细数据"),
-        h("div", { className: "gc-groups" }, groups.map(function (g) {
-          return h("div", { className: "gc-group", key: g[0] },
-            h("h4", { className: "gc-group-title" }, g[0]),
+      return h("section", { className: "gc-kdata" },
+        h(KSection, { title: "详细数据" }),
+        h("div", { className: "gc-kgrid" }, groups.map(function (g) {
+          return h(KPanel, { key: g[0], title: g[0] },
             h("dl", { className: "gc-dl" }, g[1].map(function (r) {
               return h("div", { className: "gc-dl-row", key: r[0] }, h("dt", null, r[0]), h("dd", null, r[1]));
             })));
@@ -1165,6 +1759,7 @@ window.__ModuleLoader__.load({
       const [editing, setEditing] = useState(null);
       const [tab, setTab] = useState("overview");
       const [marking, setMarking] = useState(false);
+      const [activeLap, setActiveLap] = useState(-1);
 
       async function load(refresh) {
         setBusy(true);
@@ -1251,19 +1846,24 @@ window.__ModuleLoader__.load({
         setResp(Object.assign({}, resp, { detail: d }));
         setEditing(null);
         setHint("已保存到 Garmin。");
+        // 类别改成「比赛」时同步收录到比赛（后端按活动去重，重复改不会多出一场）
+        if (body.event_type === "race") markRace(d, "已保存到 Garmin，并收录到「比赛」。");
       }
 
       /** 收录为比赛：名称、日期、类别（按距离猜）、成绩（计时用时）从这次活动带出，影像到「比赛」里补 */
-      async function markRace() {
+      async function markRace(src, okText) {
+        const d = src && src.activity_id ? src : detail;
         setMarking(true);
         try {
-          await api("/races", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-            name: detail.name || "比赛", date: String(detail.start_local || props.start || "").slice(0, 10),
-            category: guessCategory(s.distance || 0, detail.type_key), status: "finished",
+          const res = await api("/races", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+            name: d.name || "比赛", date: String(d.start_local || props.start || "").slice(0, 10),
+            category: guessCategory(s.distance || 0, d.type_key), status: "finished",
             // 手表计时从过起点开始，更接近净计时
-            net_s: s.duration || 0, activity_id: detail.activity_id,
+            net_s: s.duration || 0, activity_id: d.activity_id,
           }) });
-          setHint("已收录到侧边栏「比赛」，可以在那里补充成绩证书、奖牌、照片等影像。");
+          setHint(res && res.existing
+            ? (okText ? "已保存到 Garmin；这次活动已经在「比赛」里了。" : "这次活动已经收录在「比赛」里了。")
+            : (okText || "已收录到「比赛」，可以在那里补充成绩证书、奖牌、照片等影像。"));
         } catch (err) {
           setHint("收录失败：" + errText(err));
         } finally { setMarking(false); }
@@ -1303,27 +1903,40 @@ window.__ModuleLoader__.load({
         : null;
       const correctionNote = corrected
         ? h("div", { className: "gc-note gc-note-row" },
-            h("span", null, "已按跑步机速度校正：距离 " + fmtDistance(s.distance) + "（Garmin 原始 " + fmtDistance(s._origDistance) + "），配速随之重算。这只改本地，Garmin 上还是原始数据。"),
+            h("span", null, "已按跑步机速度校正：距离 " + fmtDistance(s.distance) + "（Garmin 原始 " + fmtDistance(s._origDistance) + "）；概要、分段、曲线和 AI 分析同口径。这只改本地，Garmin 上还是原始数据。"),
             h("button", { className: "pmw-plugin-button", type: "button", onClick: presetCorrection,
               title: "Garmin 不允许改距离；可以把校正结果写进描述，并把类型改成跑步机" }, "写入 Garmin 描述"))
         : null;
 
       let body = null;
       if (detail && tab === "overview") {
-        // 先图（路线），后数据（关键指标、天气、描述）
+        // 数据中心版式：左路线、右总览（前三项大字指标块 + 其余指标），下面天气、描述、分组详细数据
+        const hasMap = detail.track && detail.track.length > 1;
+        const top = shownCards.slice(0, 3).map(function (c) { const p = splitUnit(c[1]); return { label: c[0], value: p[0], unit: p[1] }; });
+        const rest = shownCards.slice(3);
+        const summaryPanel = h(KPanel, { title: "运动总览", className: "gc-ksummary" },
+          h(KTiles, { items: top, active: 0 }),
+          rest.length ? h("div", { className: "gc-kmetrics" }, rest.map(function (c) {
+            const p = splitUnit(c[1]);
+            return h("div", { className: "gc-kmetric", key: c[0] },
+              h("span", null, c[0]), h("b", null, p[0], p[1] ? h("small", null, p[1]) : null));
+          })) : null,
+          !hasMap && !strength ? h("p", { className: "pmw-plugin-hint" }, indoor ? "室内跑步没有路线。" : "这次活动没有 GPS 轨迹。") : null);
         body = h("div", { className: "gc-tab-body" },
-          detail.track && detail.track.length > 1
-            ? h(RouteMap, { track: detail.track, source: resp.map_source || "amap" })
-            : (strength ? null : h("p", { className: "gc-note" }, indoor ? "室内跑步没有路线。" : "这次活动没有 GPS 轨迹。")),
           correctionNote,
-          h("div", { className: "gc-stats" },
-            shownCards.map(function (c) {
-              return h("div", { className: "gc-stat", key: c[0] },
-                h("span", { className: "gc-stat-label" }, c[0]),
-                h("span", { className: "gc-stat-value" }, c[1]));
-            })),
-          detail.weather ? h(WeatherCard, { w: detail.weather }) : null,
-          detail.description ? h("section", null, h("h3", { className: "gc-sub" }, "描述"), h("p", { className: "gc-desc" }, detail.description)) : null,
+          h("div", { className: "gc-kgrid gc-kgrid-detail" + (hasMap ? "" : " gc-kgrid-nomap") },
+            hasMap ? h(KPanel, { title: "路线", className: "gc-kmap" }, h(RouteMap, {
+              track: detail.track, source: resp.map_source || "amap",
+              laps: corrected ? [] : lapViews, rawLaps: laps, totalDist: s.distance,
+              activeLap: activeLap,
+              onPick: function (i) { setActiveLap(i); setTab("laps"); },
+            })) : null,
+            summaryPanel),
+          detail.weather || detail.description
+            ? h("div", { className: "gc-kgrid gc-kgrid-2" },
+                detail.weather ? h(WeatherCard, { w: detail.weather }) : null,
+                detail.description ? h(KPanel, { title: "描述" }, h("p", { className: "gc-desc" }, detail.description)) : null)
+            : null,
           h(DataGroups, { summary: s, raw: detail.summary || {} }),
           fetched);
       } else if (detail && tab === "sets") {
@@ -1332,7 +1945,8 @@ window.__ModuleLoader__.load({
         body = h("div", { className: "gc-tab-body" }, h(AnalysisTab, { detail: detail, indoor: indoor || corrected }));
       } else if (detail && tab === "charts") {
         body = h("div", { className: "gc-tab-body" },
-          h(ChartsTab, { key: detail.activity_id, series: detail.series, indoor: indoor || corrected, zones: detail.hr_zones || [] }));
+          h(ChartsTab, { key: detail.activity_id, series: detail.series, indoor: indoor || corrected,
+            zones: resp.hr_zones_effective || detail.hr_zones || [], zoneSource: resp.hr_zone_source }));
       } else if (detail && tab === "laps") {
         body = h("div", { className: "gc-tab-body" },
           h(LapBars, { laps: laps, lapViews: lapViews }),
@@ -1341,6 +1955,7 @@ window.__ModuleLoader__.load({
             laps: laps, lapViews: lapViews, indoor: indoor, edit: edit, saving: saving, corrected: corrected,
             allSpeed: allSpeed, setAllSpeed: setAllSpeed, applyAll: applyAll,
             setEdit: setEdit, startEdit: startEdit, submitEdit: submitEdit,
+            activeLap: activeLap, onPick: function (i) { setActiveLap(i); },
             clear: function () { saveSpeeds({ clear: true }); },
           }));
       }
@@ -1353,7 +1968,7 @@ window.__ModuleLoader__.load({
           actions: [
             { label: narrow ? "返回" : "返回列表", onClick: props.onBack },
             detail ? { label: "编辑", disabled: Boolean(editing), onClick: function () { setEditing({}); } } : null,
-            detail && !strength ? { label: "标记为比赛", disabled: marking, onClick: markRace, title: "收录到「比赛」菜单，带出名称、日期、类别和成绩" } : null,
+            detail && !strength ? { label: "标记为比赛", disabled: marking, onClick: function () { markRace(); }, title: "收录到「比赛」，带出名称、日期、类别和成绩" } : null,
             { label: busy ? "读取中…" : (narrow ? "重新拉取" : "从 Garmin 重新拉取"), disabled: busy, onClick: function () { load(true); } },
           ],
         }),
@@ -1391,7 +2006,11 @@ window.__ModuleLoader__.load({
       function row(i) {
         const l = laps[i];
         const v = p.lapViews[i];
-        return h("tr", { key: i, className: v.corrected ? "gc-corrected" : undefined },
+        return h("tr", {
+          key: i,
+          className: (v.corrected ? "gc-corrected " : "") + (p.activeLap === i ? "gc-lap-active" : ""),
+          onClick: function () { if (p.onPick) p.onPick(i); },
+        },
           h("td", null, String(i + 1)),
           h("td", null, h("span", { className: "gc-tag" }, intensityLabel(l.intensityType))),
           h("td", null, fmtDistance(v.dist)),
@@ -1453,7 +2072,8 @@ window.__ModuleLoader__.load({
       const zones = props.zones;
       const total = zones.reduce(function (t, z) { return t + (z.secsInZone || 0); }, 0);
       return h("section", null,
-        h("h3", { className: "gc-sub" }, "心率区间"),
+        h("h3", { className: "gc-sub" }, "心率区间",
+          h("small", { className: "pmw-plugin-hint" }, props.zoneSource === "calibrated" ? "（本地校准）" : "（Garmin 原值）")),
         total > 0
           ? h("div", { className: "gc-zones" }, zones.map(function (z) {
               const pct = Math.round(((z.secsInZone || 0) / total) * 100);
@@ -1492,12 +2112,8 @@ window.__ModuleLoader__.load({
         ["风", typeof w.windSpeed === "number" ? (w.windDirectionCompassPoint ? String(w.windDirectionCompassPoint).toUpperCase() + " " : "") + num(w.windSpeed * 1.609) + " km/h" : null],
       ].filter(function (x) { return x[1]; });
       if (!items.length) return null;
-      return h("section", null,
-        h("h3", { className: "gc-sub" }, "天气"),
-        h("div", { className: "gc-stats" }, items.map(function (x) {
-          return h("div", { className: "gc-stat", key: x[0] },
-            h("span", { className: "gc-stat-label" }, x[0]), h("span", { className: "gc-stat-value" }, x[1]));
-        })));
+      return h(KPanel, { title: "天气" },
+        h(KTiles, { small: true, items: items.map(function (x) { const p = splitUnit(x[1]); return { label: x[0], value: p[0], unit: p[1] }; }) }));
     }
 
     // ---------------------------------------------------------------------------
@@ -1631,6 +2247,8 @@ window.__ModuleLoader__.load({
           if (d.moving && !moving(i)) return null;
           return v * factor;
         });
+        // 清洗前的同口径值，供「原始数据 vs 清洗后」叠加对比；配速同样换算成秒/公里
+        const rawVals = opts.keepRaw ? (d.pace ? raw.map(function (v) { return isNum(v) && v > 0 ? 1000 / v : null; }) : raw.slice()) : null;
         let fixed = 0;
         if (opts.clean) {
           let lo = d.lo, hi = d.hi;
@@ -1647,7 +2265,7 @@ window.__ModuleLoader__.load({
         // 平均：配速按平均速度换算（不是配速的算术平均），其余取算术平均
         const ok = raw.filter(isNum);
         const avg = !ok.length ? NaN : d.pace ? 1000 / (ok.reduce(function (t, v) { return t + v; }, 0) / ok.length) : ok.reduce(function (t, v) { return t + v; }, 0) / ok.length;
-        metrics.push({ def: d, vals: vals, fixed: fixed, avg: avg });
+        metrics.push({ def: d, vals: vals, rawVals: rawVals, fixed: fixed, avg: avg });
       });
       if (opts.bands) {
         const w = pointWeights(series, n);
@@ -1765,7 +2383,7 @@ window.__ModuleLoader__.load({
     function bandSummary(m, prep) {
       const segs = m.bands || [];
       if (!segs.length) return "";
-      const u = m.def.pace ? "/km" : " " + m.def.unit;
+      const u = m.def.pace ? paceUnitLabel() : " " + m.def.unit;
       if (segs.length === 1) {
         const b = segs[0];
         return "主要区间 " + bandText(m.def, b, u) + "，占 " + Math.round(b.inBand / b.total * 100) + "% 时间（" + fmtDuration(b.inBand) + "）";
@@ -1774,15 +2392,29 @@ window.__ModuleLoader__.load({
       return segs.map(function (b, j) {
         const range = xText(prep.axis, prep.x[b.i0]) + "～" + xText(prep.axis, prep.x[Math.min(prep.n - 1, b.i1)]);
         let s = "第 " + (j + 1) + " 段（" + range + "）" + bandText(m.def, b, u) + "，平均 " + fmtMetric(m.def, b.mean) + u + "，" + fmtDuration(b.total);
-        if (j === col) s += "；跑崩：比上一段慢 " + fmtPace(b.mean - segs[j - 1].mean).replace("/km", "") + "/km";
+        if (j === col) s += "；跑崩：比上一段慢 " + paceText(b.mean - segs[j - 1].mean) + paceUnitLabel();
         return s;
       }).join("；");
     }
 
+    /**
+     * 去毛刺的配速上限：按这次数据的快端 P5 和目标配速自动算，不再写死 150 秒/公里（2'30"/km）。
+     * 目标配速更快的，按目标留 10 秒余量；没有逐点数据时给一个宽松上限。
+     */
+    function autoFastPace(series, goalPaceSec) {
+      const speeds = ((series && series.directSpeed) || []).filter(function (v) { return isNum(v) && v >= STOP_SPEED; });
+      const paces = speeds.map(function (v) { return 1000 / v; }).sort(function (a, b) { return a - b; });
+      let fast = paces.length ? paces[Math.min(paces.length - 1, Math.floor(paces.length * 0.05))] - 10 : 300;
+      if (isNum(goalPaceSec) && goalPaceSec > 0) fast = Math.min(fast, goalPaceSec - 10);
+      return Math.round(Math.max(180, Math.min(900, fast)));
+    }
+
     /** 给 AI 分析的曲线摘要：配速、心率、步频等的区间与分段，加暂停和停下 */
-    function chartInsights(series, indoor) {
+    function chartInsights(series, indoor, goalPaceSec) {
       if (!series) return "";
-      const prep = prepareChart(series, { axis: indoor || !series.sumDistance ? "time" : "distance", clean: true, fast: 150, slow: 0, bands: true });
+      // 和图表同口径：跑步机默认不清洗，避免 Hampel 把匀速中的真实波动抹平后再喂给模型
+      const clean = indoor ? loadPrefs().cleanIndoor === true : loadPrefs().clean !== false;
+      const prep = prepareChart(series, { axis: indoor || !seriesHasDistance(series) ? "time" : "distance", clean: clean, fast: autoFastPace(series, goalPaceSec), slow: 0, bands: true });
       if (!prep) return "";
       const lines = prep.metrics.filter(function (m) { return m.def.key !== "ele" || true; }).map(function (m) {
         const s = bandSummary(m, prep);
@@ -1796,7 +2428,7 @@ window.__ModuleLoader__.load({
 
     function fmtMetric(d, v) {
       if (!isNum(v)) return "-";
-      if (d.pace) return fmtPace(v).replace("/km", "");
+      if (d.pace) return paceText(v);
       return num(v, d.digits);
     }
 
@@ -1901,7 +2533,10 @@ window.__ModuleLoader__.load({
             !props.overlay ? h("text", { x: W - padR - 2, y: y - 4, className: "gc-axis gc-avgtext", textAnchor: "end", fill: m.def.color }, "平均 " + fmtMetric(m.def, m.avg)) : null);
         }),
         h("g", { clipPath: "url(#" + clipId + ")" }, ms.map(function (m, j) {
-          return h("path", { key: m.def.key, d: pathFor(prep, m.vals, sx, scales[j]), fill: "none", stroke: m.def.color, strokeWidth: 1.6, strokeLinejoin: "round" });
+          // 原始数据先画、细灰线；清洗后的线盖在上面，差异一眼能看见
+          return h("g", { key: m.def.key },
+            props.showRaw && m.rawVals ? h("path", { d: pathFor(prep, m.rawVals, sx, scales[j]), fill: "none", stroke: "var(--gc-axis, #94a3b8)", strokeWidth: 1, opacity: 0.55 }) : null,
+            h("path", { d: pathFor(prep, m.vals, sx, scales[j]), fill: "none", stroke: m.def.color, strokeWidth: 1.6, strokeLinejoin: "round" }));
         })),
         hv != null && isNum(prep.x[hv]) ? h("g", null,
           h("line", { x1: sx(prep.x[hv]), x2: sx(prep.x[hv]), y1: padT, y2: H - padB, className: "gc-cross" }),
@@ -1914,14 +2549,25 @@ window.__ModuleLoader__.load({
         h("text", { x: W - padR, y: H - 6, className: "gc-axis", textAnchor: "end" }, xText(prep.axis, xmax)));
     }
 
+    /** 有没有真实的距离数据：力量训练等没有 GPS / 步数距离的活动 sumDistance 是一串 0，不能按距离画 */
+    function seriesHasDistance(series) {
+      const d = series && series.sumDistance;
+      if (!Array.isArray(d) || !d.length) return false;
+      let max = 0;
+      for (let i = 0; i < d.length; i++) if (isNum(d[i]) && d[i] > max) max = d[i];
+      return max > 50;
+    }
+
     function ChartsTab(props) {
       const series = props.series || {};
-      const hasDist = Boolean(series.sumDistance);
+      const hasDist = seriesHasDistance(series);
       const prefs0 = loadPrefs();
       const [sel, setSel] = useState(prefs0.sel || ["pace", "hr", "ele"]);
       const [mode, setMode] = useState(prefs0.mode || "split");
       const [axis, setAxis] = useState(props.indoor || !hasDist ? "time" : (prefs0.axis || "distance"));
-      const [clean, setClean] = useState(prefs0.clean !== false);
+      // 跑步机匀速场景下 Hampel 去毛刺容易把真实波动当异常抹平，室内默认不清洗
+      const [clean, setClean] = useState(props.indoor ? prefs0.cleanIndoor === true : prefs0.clean !== false);
+      const [showRaw, setShowRaw] = useState(prefs0.showRaw === true);
       const [showBands, setShowBands] = useState(prefs0.bands !== false);
       // 配速范围存成秒/公里（0 表示不限）；旧版本存过 "4'30" 文本的，忽略
       const [fast, setFast] = useState(typeof prefs0.fastSec === "number" ? prefs0.fastSec : 0);
@@ -1929,10 +2575,12 @@ window.__ModuleLoader__.load({
       const [hover, setHover] = useState(null);
 
       useEffect(function () {
-        savePrefs({ sel: sel, mode: mode, axis: props.indoor ? prefs0.axis : axis, clean: clean, fastSec: fast, slowSec: slow, bands: showBands });
-      }, [sel, mode, axis, clean, fast, slow, showBands]);
+        savePrefs({ sel: sel, mode: mode, axis: props.indoor ? prefs0.axis : axis,
+          clean: props.indoor ? prefs0.clean : clean, cleanIndoor: props.indoor ? clean : prefs0.cleanIndoor,
+          showRaw: showRaw, fastSec: fast, slowSec: slow, bands: showBands });
+      }, [sel, mode, axis, clean, showRaw, fast, slow, showBands]);
 
-      const prep = prepareChart(series, { axis: axis, clean: clean, fast: fast || 150, slow: slow || 0, bands: true });
+      const prep = prepareChart(series, { axis: axis, clean: clean, keepRaw: showRaw, fast: fast || autoFastPace(series), slow: slow || 0, bands: true });
       if (!prep || !prep.metrics.length) return h("p", { className: "pmw-plugin-hint" }, "这次活动没有逐点数据，画不了曲线。");
 
       const avail = prep.metrics.map(function (m) { return m.def.key; });
@@ -1960,11 +2608,13 @@ window.__ModuleLoader__.load({
           hasDist ? h(Seg, { label: "横轴", value: axis, onChange: setAxis, options: [["distance", "按距离"], ["time", "按时间"]] }) : null,
           h("label", { className: "pmw-plugin-check gc-inline" },
             h("input", { type: "checkbox", checked: clean, onChange: function (e) { setClean(e.target.checked); } }), " 去除异常值"),
+          h("label", { className: "pmw-plugin-check gc-inline", title: "叠加未清洗的原始数据，和清洗后的线对比" },
+            h("input", { type: "checkbox", checked: showRaw, onChange: function (e) { setShowRaw(e.target.checked); } }), " 对比原始"),
           h("label", { className: "pmw-plugin-check gc-inline", title: "80% 时间所在的数值范围；前后水平差异明显时分段各算" },
             h("input", { type: "checkbox", checked: showBands, onChange: function (e) { setShowBands(e.target.checked); } }), " 波动区间"),
           clean && avail.indexOf("pace") >= 0 ? h("span", { className: "gc-inline" },
             "配速范围",
-            h(PaceInput, { label: "最快", value: fast, onChange: setFast, placeholder: "2 分 30 秒" }),
+            h(PaceInput, { label: "最快", value: fast, onChange: setFast, placeholder: "自动" }),
             "～",
             h(PaceInput, { label: "最慢", value: slow, onChange: setSlow, placeholder: "不限" }),
             fast || slow ? h("button", { type: "button", className: "gc-link", onClick: function () { setFast(0); setSlow(0); } }, "清空") : null) : null),
@@ -1973,55 +2623,59 @@ window.__ModuleLoader__.load({
           hover != null
             ? [h("strong", { key: "x" }, xText(prep.axis, prep.x[hover]))].concat(shown.map(function (m) {
                 return h("span", { key: m.def.key }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
-                  m.def.label + " " + fmtMetric(m.def, m.vals[hover]) + (m.def.pace ? "/km" : " " + m.def.unit));
+                  m.def.label + " " + fmtMetric(m.def, m.vals[hover]) + (m.def.pace ? paceUnitLabel() : " " + m.def.unit));
               }))
             : h("span", { className: "pmw-plugin-hint" }, isNarrow() ? "点图上任意位置看那一点的数值" : "把鼠标移到图上看每个点的数值")),
         mode === "overlay"
           ? h("div", { className: "gc-chart-box" },
               h("div", { className: "gc-chart-title gc-overlay-avg" }, shown.map(function (m) {
                 return h("span", { key: m.def.key }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
-                  m.def.label + " 平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? "/km" : " " + m.def.unit));
+                  m.def.label + " 平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? paceUnitLabel() : " " + m.def.unit));
               }), h("small", null, "虚线为平均值，各指标各用各的刻度")),
-              h(ChartSvg, { prep: prep, metrics: shown, overlay: true, height: 300, narrowHeight: 240, hover: hover, setHover: setHover }))
+              h(ChartSvg, { prep: prep, metrics: shown, overlay: true, height: 300, narrowHeight: 240, hover: hover, setHover: setHover, showRaw: showRaw }))
           : shown.map(function (m) {
               return h("div", { className: "gc-chart-box", key: m.def.key },
                 h("div", { className: "gc-chart-title" }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
-                  m.def.label + "  平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? "/km" : " " + m.def.unit),
+                  m.def.label + "  平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? paceUnitLabel() : " " + m.def.unit),
                   h("small", null, m.def.pace ? "（越靠上越快）" : "")),
-                h(ChartSvg, { prep: prep, metrics: [m], overlay: false, height: 140, narrowHeight: 150, hover: hover, setHover: setHover, showBands: showBands }),
+                h(ChartSvg, { prep: prep, metrics: [m], overlay: false, height: 140, narrowHeight: 150, hover: hover, setHover: setHover, showBands: showBands, showRaw: showRaw }),
                 showBands && bandSummary(m, prep) ? h("p", { className: "gc-band-note" + (m.def.pace && collapseIndex(m.bands, prep.n) >= 0 ? " gc-collapse" : "") }, bandSummary(m, prep)) : null);
             }),
         h("p", { className: "pmw-plugin-hint gc-legend" },
           h("span", null, h("i", { className: "gc-swatch gc-pause" }), "暂停 " + prep.pauses.length + " 次" + (pauseTotal ? "，共 " + fmtDuration(pauseTotal) : "")),
           h("span", null, h("i", { className: "gc-swatch gc-stop" }), "停下（计时未停） " + prep.stops.length + " 次" + (stopTotal ? "，共 " + fmtDuration(stopTotal) : "")),
           clean ? h("span", null, "已修正异常点 " + fixedTotal + " 个") : h("span", null, "显示原始数据"),
+          showRaw ? h("span", null, h("i", { className: "gc-swatch gc-raw" }), "细灰线为原始数据") : null,
           prep.axis === "distance" && (prep.pauses.length || prep.stops.length) ? h("span", null, "按距离看时暂停是一条竖线，切到按时间看能看到时长") : null),
         h(MetricTable, { metrics: shown, clean: clean, prep: prep }),
-        h(ZonesSection, { zones: props.zones || [] }));
+        h(ZonesSection, { zones: props.zones || [], zoneSource: props.zoneSource }));
     }
 
-    /** 配速输入：分、秒两个数字框，值是秒/公里，0 表示不限 */
+    /** 配速输入：分、秒两个数字框，状态值是秒/公里，0 表示不限 */
     function PaceInput(props) {
-      const v = props.value || 0;
+      usePaceUnit();
+      const scale = paceUnit === "mile" ? 1.609344 : 1;
+      const v = (props.value || 0) * scale;
       const [m, setM] = useState(v ? String(Math.floor(v / 60)) : "");
-      const [s, setS] = useState(v ? String(v % 60) : "");
+      const [s, setS] = useState(v ? String(Math.round(v % 60)) : "");
       useEffect(function () {
-        // 外部清空时同步
-        if (!props.value) { setM(""); setS(""); }
-      }, [props.value]);
+        // 外部清空或单位切换时同步显示值
+        if (v) { setM(String(Math.floor(v / 60))); setS(String(Math.round(v % 60))); }
+        else { setM(""); setS(""); }
+      }, [props.value, paceUnit]);
       const push = function (mm, ss) {
         const mi = parseInt(mm, 10), se = parseInt(ss, 10);
         const total = (isNaN(mi) ? 0 : mi) * 60 + (isNaN(se) ? 0 : Math.min(59, se));
-        props.onChange(total > 0 ? total : 0);
+        props.onChange(total > 0 ? Math.round(total / scale) : 0);
       };
-      return h("span", { className: "gc-pace-input", title: props.label + "配速，" + props.placeholder },
+      return h("span", { className: "gc-pace-input", title: props.label + "配速（" + paceUnitLabel() + "），" + props.placeholder },
         h("small", null, props.label),
         h("input", { type: "number", min: "1", max: "30", inputMode: "numeric", value: m, placeholder: props.label === "最快" ? "2" : "",
           "aria-label": props.label + "配速的分钟", onChange: function (e) { setM(e.target.value); push(e.target.value, s); } }),
         h("small", null, "分"),
         h("input", { type: "number", min: "0", max: "59", inputMode: "numeric", value: s, placeholder: props.label === "最快" ? "30" : "",
           "aria-label": props.label + "配速的秒", onChange: function (e) { setS(e.target.value); push(m, e.target.value); } }),
-        h("small", null, "秒"));
+        h("small", null, "秒" + paceUnitLabel()));
     }
 
     /** 各指标的最低 / 平均 / 最高（用去毛刺后的值） */
@@ -2033,7 +2687,7 @@ window.__ModuleLoader__.load({
           const a = m.vals.filter(isNum);
           const avg = a.length ? (m.def.pace ? 1000 / (a.reduce(function (t, v) { return t + 1000 / v; }, 0) / a.length) : a.reduce(function (t, v) { return t + v; }, 0) / a.length) : NaN;
           const lo = a.length ? Math.min.apply(null, a) : NaN, hi = a.length ? Math.max.apply(null, a) : NaN;
-          const u = m.def.pace ? "/km" : " " + m.def.unit;
+          const u = m.def.pace ? paceUnitLabel() : " " + m.def.unit;
           return h("tr", { key: m.def.key },
             h("td", null, h("span", { className: "gc-dot", style: { background: m.def.color } }), m.def.label),
             // 配速的数值是秒/公里，最小即最快
@@ -2139,7 +2793,7 @@ window.__ModuleLoader__.load({
     // ---------------------------------------------------------------------------
 
     const AGENT_KEY = "gc-agent";
-    /** 默认用工作台里的「跑步数据分析」Agent（在设置 → Agent 里可以改它的模型和指令）；没有这个 Agent 时留空用默认模型 */
+    /** 开箱即用：不指定 preset，直接用插件内置教练指令 + 工作台默认模型；只有需要自定义指令时才填 Agent 名称 */
     const DEFAULT_AGENT = "";
 
     function loadAgent() {
@@ -2188,8 +2842,14 @@ window.__ModuleLoader__.load({
       const d = props.detail;
       const [state, setState] = useState(null);
       const [agentName, setAgentName] = useState(loadAgent());
+      const [goalPace, setGoalPace] = useState(0);
+      const [hrUpdated, setHrUpdated] = useState("");
       const [msg, setMsg] = useState("");
 
+      useEffect(function () {
+        api("/goals").then(function (d) { setGoalPace(d.goal ? d.goal.target_pace_s || 0 : 0); }).catch(function () {});
+        api("/status").then(function (s) { setHrUpdated(s.hr_zones_updated_at || ""); }).catch(function () {});
+      }, []);
       async function refresh() {
         try {
           setState(await api("/runs/" + encodeURIComponent(d.activity_id) + "/analysis"));
@@ -2211,7 +2871,7 @@ window.__ModuleLoader__.load({
         try {
           await api("/runs/" + encodeURIComponent(d.activity_id) + "/analysis", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ agent: agentName.trim(), insights: chartInsights(d.series, props.indoor) }),
+            body: JSON.stringify({ agent: agentName.trim(), unit: paceUnit, insights: chartInsights(d.series, props.indoor, goalPace) }),
           });
           setState(Object.assign({}, state, { status: "running" }));
         } catch (err) {
@@ -2226,15 +2886,121 @@ window.__ModuleLoader__.load({
           h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: running, onClick: start },
             running ? "分析中…" : has ? "重新分析" : "生成分析"),
           null,
-          h("span", { className: "pmw-plugin-hint" }, "会把这次的数据和最近 4 周训练量发给 dsh 当前的默认模型（设置 → 模型）")),
+          h("span", { className: "pmw-plugin-hint" }, "默认内置可用；会把这次的数据、最近 4 周训练量、目标比赛和 PB 发给 dsh 当前默认模型")),
         running ? h("p", { className: "gc-note", role: "status" }, "正在分析，通常需要 20～60 秒，可以先看别的 tab。") : null,
         state && state.error ? h("p", { className: "gc-note", role: "alert" }, "上次分析失败：" + state.error) : null,
         msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
+        has && hrUpdated && state.created_at && state.created_at < hrUpdated
+          ? h("p", { className: "gc-note" }, "心率区间已校准，这份分析还是旧区间算的，点「重新分析」更新结论。")
+          : null,
         has
           ? h("article", { className: "gc-chart-box gc-analysis-body" },
               h(MiniMarkdown, { text: state.content }),
               h("p", { className: "pmw-plugin-hint" }, "生成于 " + shortTime(state.created_at) + (state.agent ? " · Agent：" + state.agent : " · 默认模型") + "。建议仅供参考，身体不适以实际感受为准。"))
+          : null,
+        has && !running
+          ? (state.plan && state.plan.length
+              ? h(AiPlanCard, { key: state.created_at, plan: state.plan, detail: d })
+              : h("p", { className: "pmw-plugin-hint" }, "这份分析里没有可以直接排进计划的课表（较早生成的分析没有）。点「重新分析」后，可以把建议的课加入训练计划。"))
+          : null,
+        has ? null
           : (!running ? h("p", { className: "pmw-plugin-hint" }, "还没有分析。点「生成分析」，模型会按教练的角度给出本次概况、问题和后续 1～2 周的训练建议。") : null));
+    }
+
+    /**
+     * AI 建议的课表：分析末尾的结构化课表（day 为从开始那天算起的第几天）。
+     * 选好开始日期和要哪几节，可以排进日历，或存成「我的计划」以后再排。
+     */
+    function AiPlanCard(props) {
+      const plan = props.plan;
+      const d = props.detail;
+      const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0); tomorrow.setDate(tomorrow.getDate() + 1);
+      const [start, setStart] = useState(toYMD(tomorrow));
+      const [off, setOff] = useState({});
+      const [busy, setBusy] = useState("");
+      const [msg, setMsg] = useState("");
+
+      const s0 = fromYMD(start);
+      const rows = plan.map(function (p, i) {
+        const dt = s0 ? new Date(s0) : null;
+        if (dt) dt.setDate(dt.getDate() + p.day - 1);
+        return { i: i, p: p, date: dt };
+      });
+      const chosen = rows.filter(function (r) { return !off[r.i] && r.date; });
+      const actName = (d.name || "活动").slice(0, 16);
+      const actDate = String(d.start_local || "").slice(0, 10);
+
+      async function toCalendar() {
+        if (!chosen.length) return;
+        setBusy("cal"); setMsg("");
+        try {
+          await api("/calendar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+            plan_key: "ai:" + d.activity_id, plan_name: "AI 建议 · " + actName,
+            items: chosen.map(function (r) { return { date: toYMD(r.date), kind: r.p.kind, title: r.p.title, detail: r.p.detail || "" }; }),
+          }) });
+          setMsg("已把 " + chosen.length + " 节课排进日历（" + toYMD(chosen[0].date) + " 起），可以在「日历」里逐条改，或按计划整批删除。");
+        } catch (err) { setMsg("没排进去：" + errText(err)); } finally { setBusy(""); }
+      }
+
+      /** 存成我的计划：所选开始日期就是第 1 天，day=N 保持原来的相对天数；空位补「休息」 */
+      async function toPlan() {
+        if (!chosen.length) return;
+        setBusy("plan"); setMsg("");
+        const byWeek = [];
+        const daySet = {};
+        chosen.forEach(function (r) {
+          const diff = Math.round((r.date - s0) / 86400000);
+          const w = Math.floor(diff / 7);
+          const wd = diff % 7 + 1;
+          daySet[wd] = true;
+          while (byWeek.length <= w) byWeek.push({});
+          const cur = byWeek[w][wd];
+          byWeek[w][wd] = cur
+            ? { kind: cur.kind === r.p.kind ? cur.kind : "other", title: (cur.title + " + " + r.p.title).slice(0, 60), detail: (cur.detail + "；" + (r.p.detail || "")).slice(0, 2000) }
+            : { kind: r.p.kind, title: r.p.title, detail: r.p.detail || "" };
+        });
+        const days = Object.keys(daySet).map(Number).sort(function (a, b) { return a - b; });
+        const weeks = byWeek.map(function (wk) {
+          const list = days.map(function (wd) { return wk[wd] || { kind: "rest", title: "休息", detail: "" }; });
+          while (list.length && list[list.length - 1].kind === "rest" && !wk[days[list.length - 1]]) list.pop();
+          return list;
+        });
+        const kinds = {};
+        chosen.forEach(function (r) { kinds[r.p.kind] = true; });
+        const kind = kinds.run && !kinds.strength && !kinds.other ? "run" : kinds.strength && !kinds.run && !kinds.other ? "strength" : "mixed";
+        const name = ("AI 建议 · " + actName).slice(0, 40);
+        try {
+          await api("/plans", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+            name: name, kind: kind, level: "AI 建议",
+            description: "根据 " + actDate + "「" + (d.name || "活动") + "」的 AI 分析生成，共 " + chosen.length + " 节课。",
+            days: days, weeks: weeks, videos: [], start_mode: "date",
+            source: { type: "other", name: "AI 分析", url: "", note: (actDate + " " + (d.name || "")).trim().slice(0, 200) },
+          }) });
+          setMsg("已存为「我的计划」里的「" + name + "」，第 1 天就是所选开始日期；到「计划」里可以编辑或重新排期。");
+        } catch (err) { setMsg("没存上：" + errText(err)); } finally { setBusy(""); }
+      }
+
+      return h("section", { className: "gc-chart-box gc-ai-plan" },
+        h("h3", { className: "gc-sub" }, "建议安排（" + plan.length + " 节课）"),
+        h("div", { className: "gc-controls" },
+          h("label", { className: "gc-inline" }, "从哪天开始",
+            h("input", { type: "date", className: "gc-search", value: start, onChange: function (e) { setStart(e.target.value); } })),
+          h("span", { className: "pmw-plugin-hint" }, "所选日期就是第 1 天；取消勾选的课不会加入。")),
+        h("ul", { className: "gc-ai-plan-list" }, rows.map(function (r) {
+          const on = !off[r.i];
+          return h("li", { key: r.i, className: on ? "" : "off" },
+            h("label", null,
+              h("input", { type: "checkbox", checked: on, onChange: function () { const n = Object.assign({}, off); n[r.i] = on; setOff(n); } }),
+              h("span", { className: "gc-ai-plan-date" }, r.date ? (r.date.getMonth() + 1) + "/" + r.date.getDate() + " " + DAY_NAMES[(r.date.getDay() + 6) % 7] : "第 " + r.p.day + " 天"),
+              h("span", { className: "gc-dot gc-k-" + r.p.kind }),
+              h("span", { className: "gc-ai-plan-title" }, r.p.title, r.p.detail ? h("small", null, r.p.detail) : null)));
+        })),
+        h("div", { className: "gc-detail-bar" },
+          h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: !!busy || !chosen.length, onClick: toCalendar },
+            busy === "cal" ? "排进日历中…" : "排进日历"),
+          h("button", { className: "pmw-plugin-button", type: "button", disabled: !!busy || !chosen.length, onClick: toPlan },
+            busy === "plan" ? "保存中…" : "存为我的计划")),
+        msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
     }
 
     // ---------------------------------------------------------------------------
@@ -2418,19 +3184,25 @@ window.__ModuleLoader__.load({
       return d;
     }
 
-    /** 把计划排成日期：开始日期所在周的周一为第 1 周，每周的课依次落到所选的星期几（1=周一…7=周日） */
+    /**
+     * 把计划排成日期。week：开始日期所在周的周一为第 1 周，day 是星期几（1=周一…7=周日）；
+     * date：开始日期就是第 1 天，day 是相对开始日期的第几天（AI 课表存成的计划用这个口径）。
+     */
     function planDates(plan, start, days) {
       const s = fromYMD(start);
       if (!s) return [];
-      const monday = new Date(s); monday.setDate(s.getDate() - ((s.getDay() + 6) % 7));
+      const anchored = plan.startMode === "date";
+      const base = new Date(s);
+      if (!anchored) base.setDate(s.getDate() - ((s.getDay() + 6) % 7));
       const ds = days.slice().sort(function (a, b) { return a - b; });
       const out = [];
       plan.sessions.forEach(function (week, w) {
         week.forEach(function (sess, j) {
           if (j >= ds.length) return;
-          const d = new Date(monday); d.setDate(monday.getDate() + w * 7 + ds[j] - 1);
-          if (d < s) return; // 开始日期之前的课不排
-          out.push({ date: toYMD(d), kind: sess[0], title: sess[1], detail: "第 " + (w + 1) + " 周 · " + sess[2], video: sess[3] || "" });
+          const d = new Date(base); d.setDate(base.getDate() + w * 7 + ds[j] - 1);
+          if (!anchored && d < s) return; // week 口径下开始日期之前的不排
+          out.push({ date: toYMD(d), kind: sess[0], title: sess[1], detail: "第 " + (w + 1) + " 周 · " + sess[2], video: sess[3] || "",
+            target_distance_m: sess[4] || 0, target_duration_s: sess[5] || 0 });
         });
       });
       return out;
@@ -2553,13 +3325,15 @@ window.__ModuleLoader__.load({
 
     /** 我的计划（后端 weeks:[[{kind,title,detail}]]）转成和预置计划一样的结构 */
     function customToPlan(c) {
-      const sessions = (c.weeks || []).map(function (w) { return (w || []).map(function (s) { return [s.kind, s.title, s.detail || "", s.video || ""]; }); });
+      const sessions = (c.weeks || []).map(function (w) { return (w || []).map(function (s) {
+        return [s.kind, s.title, s.detail || "", s.video || "", s.target_distance_m || 0, s.target_duration_s || 0];
+      }); });
       const perWeek = sessions.reduce(function (m, w) { return Math.max(m, w.length); }, 0);
       return {
         key: "custom:" + c.id, id: c.id, custom: true, kind: c.kind, name: c.name, level: c.level || "自定义",
         desc: c.description || "", weeks: sessions.length, perWeek: perWeek,
         days: (c.days && c.days.length ? c.days : [1, 2, 3, 4, 5, 6, 7].slice(0, perWeek)), sessions: sessions,
-        source: c.source || {}, videos: c.videos || [],
+        source: c.source || {}, videos: c.videos || [], startMode: c.start_mode || "week",
       };
     }
 
@@ -2568,9 +3342,11 @@ window.__ModuleLoader__.load({
       return {
         id: copy ? "" : (p.id || ""), name: copy ? p.name + "（我的）" : p.name, kind: p.kind === "strength" ? "strength" : p.kind === "mixed" ? "mixed" : "run",
         level: p.level === "自定义" ? "" : (p.level || ""), description: p.desc || "", days: (p.days || []).slice(),
-        weeks: p.sessions.map(function (w) { return w.map(function (s) { return { kind: s[0], title: s[1], detail: s[2] || "", video: s[3] || "" }; }); }),
+        weeks: p.sessions.map(function (w) { return w.map(function (s) {
+          return { kind: s[0], title: s[1], detail: s[2] || "", video: s[3] || "", target_distance_m: s[4] || 0, target_duration_s: s[5] || 0 };
+        }); }),
         source: copy && !p.custom ? { type: "self", name: "", url: "", note: "复制自预置计划「" + p.name + "」" } : Object.assign({ type: "self", name: "", url: "", note: "" }, p.source || {}),
-        videos: (p.videos || []).slice(),
+        videos: (p.videos || []).slice(), startMode: p.startMode || "week",
       };
     }
 
@@ -2588,7 +3364,12 @@ window.__ModuleLoader__.load({
       }
       useEffect(function () { loadCustom(); }, []);
 
-      function choose(p) { setOpen(p); setDraft(null); setDays(p.days.slice()); setMsg(""); }
+      function choose(p) {
+        const t = new Date(); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() + 1);
+        setOpen(p); setDraft(null); setDays(p.days.slice());
+        setStart(p.startMode === "date" ? toYMD(t) : toYMD(nextMonday()));
+        setMsg("");
+      }
       async function removeCustom(p) {
         if (!window.confirm("删除计划「" + p.name + "」？已经排进日历的安排不受影响。")) return;
         try { await api("/plans/" + p.id, { method: "DELETE" }); setOpen(null); await loadCustom(); } catch (err) { setMsg("删除失败：" + errText(err)); }
@@ -2633,7 +3414,7 @@ window.__ModuleLoader__.load({
           h("h3", { className: "gc-sub" }, "我的计划" + (mine.length ? "（" + mine.length + "）" : "")),
           h("button", { className: "pmw-plugin-button gc-primary", type: "button", onClick: function () {
             setOpen(null);
-            setDraft({ id: "", name: "", kind: "run", level: "", description: "", days: [2, 4, 7], weeks: [[{ kind: "run", title: "轻松跑 40 分钟", detail: "心率区间 2。" }]] });
+            setDraft({ id: "", name: "", kind: "run", level: "", description: "", days: [2, 4, 7], weeks: [[{ kind: "run", title: "轻松跑 40 分钟", detail: "心率区间 2。" }]], startMode: "week" });
           } }, "新建计划")),
         mine.length
           ? h("div", { className: "gc-plan-grid" }, mine.map(card))
@@ -2658,8 +3439,8 @@ window.__ModuleLoader__.load({
             open.videos.map(function (v, i) { return h(ExtLink, { key: i, href: v.url }, (v.title || "视频 " + (i + 1)) + (v.creator ? "（" + v.creator + "）" : "")); })) : null,
           h("div", { className: "gc-controls" },
             h("label", { className: "gc-inline" }, "开始日期", h("input", { type: "date", className: "gc-search", value: start, onChange: function (e) { setStart(e.target.value); } })),
-            h("span", { className: "gc-inline" }, "每周练",
-              DAY_NAMES.map(function (n, i) {
+            h("span", { className: "gc-inline" }, open.startMode === "date" ? "每周第几天" : "每周练",
+              (open.startMode === "date" ? ["第 1 天", "第 2 天", "第 3 天", "第 4 天", "第 5 天", "第 6 天", "第 7 天"] : DAY_NAMES).map(function (n, i) {
                 const on = days.indexOf(i + 1) >= 0;
                 return h("button", { key: n, type: "button", className: "gc-chip" + (on ? " on" : ""), "aria-pressed": on,
                   onClick: function () { setDays(on ? days.filter(function (x) { return x !== i + 1; }) : days.concat([i + 1])); } }, n);
@@ -2668,7 +3449,8 @@ window.__ModuleLoader__.load({
             ? h("p", { className: "gc-note" }, open.custom
                 ? "这个计划每周最多 " + open.perWeek + " 节课，请至少选 " + open.perWeek + " 天（现在选了 " + days.length + " 天）。每周的课按顺序排到所选日子。"
                 : "这个计划每周 " + open.perWeek + " 次，请选 " + open.perWeek + " 天（现在选了 " + days.length + " 天）。长距离会排在所选的最后一天。")
-            : h("p", { className: "pmw-plugin-hint" }, "共 " + preview.length + " 次训练，" + (preview[0] ? preview[0].date + " 至 " + preview[preview.length - 1].date : "") + "。排进去后可以在日历里逐条改。"),
+            : h("p", { className: "pmw-plugin-hint" }, "共 " + preview.length + " 次训练，" + (preview[0] ? preview[0].date + " 至 " + preview[preview.length - 1].date : "")
+              + "。" + (open.startMode === "date" ? "开始日期就是第 1 天。" : "") + "排进去后可以在日历里逐条改。"),
           h("div", { className: "gc-plan-weeks" }, open.sessions.map(function (week, w) {
             return h("div", { key: w, className: "gc-plan-week" }, h("strong", null, "第 " + (w + 1) + " 周" + (week.length ? "" : "（休息周）")),
               h("ol", null, week.map(function (s, j) {
@@ -2696,7 +3478,8 @@ window.__ModuleLoader__.load({
         setBusy(true); setMsg("");
         try {
           const body = JSON.stringify({ name: d.name, kind: d.kind, level: d.level, description: d.description, days: d.days.slice().sort(), weeks: d.weeks,
-            source: d.source || { type: "self" }, videos: (d.videos || []).filter(function (v) { return String(v.url || "").trim(); }) });
+            source: d.source || { type: "self" }, videos: (d.videos || []).filter(function (v) { return String(v.url || "").trim(); }),
+            start_mode: d.startMode || "week" });
           const res = d.id
             ? await api("/plans/" + d.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: body })
             : await api("/plans", { method: "POST", headers: { "Content-Type": "application/json" }, body: body });
@@ -2716,7 +3499,9 @@ window.__ModuleLoader__.load({
           h("label", { className: "gc-field" }, "计划名称", h("input", { value: d.name, maxLength: 40, placeholder: "如：春季半马备赛", onChange: function (e) { upd(function (n) { n.name = e.target.value; }); } })),
           h("label", { className: "gc-field" }, "类型", h("select", { value: d.kind, onChange: function (e) { upd(function (n) { n.kind = e.target.value; }); } },
             PLAN_KINDS.map(function (k) { return h("option", { key: k[0], value: k[0] }, k[1]); }))),
-          h("label", { className: "gc-field" }, "难度", h("input", { value: d.level, maxLength: 10, placeholder: "入门 / 进阶 / 高阶", onChange: function (e) { upd(function (n) { n.level = e.target.value; }); } }))),
+          h("label", { className: "gc-field" }, "难度", h("input", { value: d.level, maxLength: 10, placeholder: "入门 / 进阶 / 高阶", onChange: function (e) { upd(function (n) { n.level = e.target.value; }); } })),
+          h("label", { className: "gc-field" }, "排期口径", h("select", { value: d.startMode || "week", onChange: function (e) { upd(function (n) { n.startMode = e.target.value; }); } },
+            h("option", { value: "week" }, "按星期排（周一是第 1 周）"), h("option", { value: "date" }, "按开始日期排（第 1 天=开始日期）")))),
         h("label", { className: "gc-field" }, "说明", h("textarea", { rows: 2, value: d.description, maxLength: 500, placeholder: "目标、适合谁、注意事项…", onChange: function (e) { upd(function (n) { n.description = e.target.value; }); } })),
         h("div", { className: "gc-edit-row" },
           h("label", { className: "gc-field" }, "来源", h("select", { value: src.type || "self", onChange: function (e) { upd(function (n) { n.source = Object.assign({}, n.source || {}, { type: e.target.value }); }); } },
@@ -2755,19 +3540,27 @@ window.__ModuleLoader__.load({
                 h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks.splice(w + 1, 0, JSON.parse(JSON.stringify(n.weeks[w]))); }); } }, "复制本周"),
                 d.weeks.length > 1 ? h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks.splice(w, 1); }); } }, "删除本周") : null)),
             week.map(function (s, j) {
-              return h("div", { key: j, className: "gc-plan-edit-row" },
-                h("select", { value: s.kind, "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节类型", onChange: function (e) { upd(function (n) { n.weeks[w][j].kind = e.target.value; }); } },
-                  Object.keys(KIND_NAMES).map(function (k) { return h("option", { key: k, value: k }, KIND_NAMES[k]); })),
-                h("input", { value: s.title, maxLength: 60, placeholder: "标题，如：间歇 6×800 米", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节标题",
-                  onChange: function (e) { upd(function (n) { n.weeks[w][j].title = e.target.value; }); } }),
-                h("input", { value: s.detail, maxLength: 2000, placeholder: "内容：配速、心率区间、动作组数…", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节内容",
-                  onChange: function (e) { upd(function (n) { n.weeks[w][j].detail = e.target.value; }); } }),
-                h("input", { list: "gc-video-lib", value: s.video || "", placeholder: "视频链接（可选）", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节视频",
-                  onChange: function (e) { upd(function (n) { n.weeks[w][j].video = e.target.value; }); } }),
-                h("span", { className: "gc-detail-bar" },
-                  h("button", { type: "button", className: "gc-link", disabled: j === 0, title: "上移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j - 1]; a[j - 1] = a[j]; a[j] = t; }); } }, "上移"),
-                  h("button", { type: "button", className: "gc-link", disabled: j === week.length - 1, title: "下移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j + 1]; a[j + 1] = a[j]; a[j] = t; }); } }, "下移"),
-                  h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks[w].splice(j, 1); }); } }, "删除")));
+              return h("div", { key: j, className: "gc-plan-edit-session" },
+                h("div", { className: "gc-plan-edit-row" },
+                  h("select", { value: s.kind, "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节类型", onChange: function (e) { upd(function (n) { n.weeks[w][j].kind = e.target.value; }); } },
+                    Object.keys(KIND_NAMES).map(function (k) { return h("option", { key: k, value: k }, KIND_NAMES[k]); })),
+                  h("input", { value: s.title, maxLength: 60, placeholder: "标题，如：间歇 6×800 米", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节标题",
+                    onChange: function (e) { upd(function (n) { n.weeks[w][j].title = e.target.value; }); } }),
+                  h("input", { value: s.detail, maxLength: 2000, placeholder: "内容：配速、心率区间、动作组数…", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节内容",
+                    onChange: function (e) { upd(function (n) { n.weeks[w][j].detail = e.target.value; }); } }),
+                  h("input", { list: "gc-video-lib", value: s.video || "", placeholder: "视频链接（可选）", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节视频",
+                    onChange: function (e) { upd(function (n) { n.weeks[w][j].video = e.target.value; }); } }),
+                  h("span", { className: "gc-detail-bar" },
+                    h("button", { type: "button", className: "gc-link", disabled: j === 0, title: "上移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j - 1]; a[j - 1] = a[j]; a[j] = t; }); } }, "上移"),
+                    h("button", { type: "button", className: "gc-link", disabled: j === week.length - 1, title: "下移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j + 1]; a[j + 1] = a[j]; a[j] = t; }); } }, "下移"),
+                    h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks[w].splice(j, 1); }); } }, "删除"))),
+                h("div", { className: "gc-plan-edit-row gc-target-row" },
+                  h("small", null, "目标（可选）"),
+                  h("label", { className: "gc-field" }, "距离 km", h("input", { type: "number", min: "0", max: "1000", step: "0.1", value: s.target_distance_m ? String(s.target_distance_m / 1000) : "", placeholder: "留空按标题认", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节目标距离公里",
+                    onChange: function (e) { upd(function (n) { n.weeks[w][j].target_distance_m = Math.round((Number(e.target.value) || 0) * 1000); }); } })),
+                  h("label", { className: "gc-field" }, "时长 分钟", h("input", { type: "number", min: "0", max: "1440", step: "1", value: s.target_duration_s ? String(Math.round(s.target_duration_s / 60)) : "", placeholder: "留空按标题认", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节目标时长分钟",
+                    onChange: function (e) { upd(function (n) { n.weeks[w][j].target_duration_s = Math.round((Number(e.target.value) || 0) * 60); }); } })),
+                  h("span", null)));
             }));
         })),
         h("div", { className: "gc-detail-bar" },
@@ -2789,11 +3582,85 @@ window.__ModuleLoader__.load({
       ["strength", "核心训练", CORE_A], ["strength", "下肢力量", LEG(3)], ["rest", "休息", "完全休息或散步、拉伸。"],
     ];
 
-    function actDone(items, acts) {
-      // 当天有同类型的实际活动就算完成
-      const kinds = {};
-      acts.forEach(function (a) { kinds[isStrengthType(a.type_key) ? "strength" : "run"] = true; });
-      return function (it) { return Boolean(it.done) || (kinds[it.kind] === true); };
+    /** 文本里认目标：多段（如「热身 15 分钟 → 节奏跑 20 分钟」）取最大值，贴近主训练量。 */
+    function maxMatch(text, re, pick) {
+      let best = 0, m;
+      const reAll = new RegExp(re.source, re.flags.indexOf("g") < 0 ? re.flags + "g" : re.flags);
+      while ((m = reAll.exec(text)) !== null) {
+        const v = pick(m);
+        if (v > best) best = v;
+        if (!m[0]) reAll.lastIndex++;
+      }
+      return best;
+    }
+
+    /** 目标量：结构化字段优先，没填就从标题、内容文字里认（预置计划的量都写在标题里）。返回 {dist: 米, dur: 秒}。 */
+    function planTarget(it) {
+      let dist = Number(it.target_distance_m) || 0;
+      let dur = Number(it.target_duration_s) || 0;
+      if (!dist || !dur) {
+        const text = String(it.title || "") + " " + String(it.detail || "");
+        if (!dist) {
+          dist = maxMatch(text, /(\d+(?:\.\d+)?)\s*(×|x|X|\*)\s*(\d+(?:\.\d+)?)\s*米/, function (m) { return Number(m[1]) * Number(m[3]); }); // 6×800 米
+          if (!dist) dist = maxMatch(text, /(\d+(?:\.\d+)?)\s*(公里|km|千米)/i, function (m) { return Number(m[1]) * 1000; });
+          if (!dist) dist = maxMatch(text, /(\d{3,6})\s*米/, function (m) { return Number(m[1]); });
+        }
+        if (!dur) {
+          dur = maxMatch(text, /(\d+(?:\.\d+)?)\s*(小时|h)(?!\w)/i, function (m) { return Number(m[1]) * 3600; });
+          if (!dur) dur = maxMatch(text, /(\d+(?:\.\d+)?)\s*(分钟|min|分)(?!\w)/i, function (m) { return Number(m[1]) * 60; });
+        }
+      }
+      return { dist: dist, dur: dur };
+    }
+
+    const ACT_RATE_DONE = 0.95, ACT_RATE_PARTIAL = 0.6;
+    const ACT_STATES = [[
+      "done", "完成", "gc-st-done"
+    ], [
+      "partial", "部分完成", "gc-st-partial"
+    ], [
+      "miss", "未达", "gc-st-miss"
+    ], [
+      "none", "未设目标", "gc-st-none"
+    ]];
+
+    /** 计划 vs 实际：当天同类型活动累加，有距离比距离、有时长比时长，两项都有取达成率低的。
+     *  level: done(≥95%) / partial(≥60%) / miss(<60%) / none(当天无活动或未设目标)；手动 done 优先按完成显示。 */
+    function actStatus(it, acts) {
+      const target = planTarget(it);
+      const relevant = acts.filter(function (a) {
+        return it.kind === "strength" ? isStrengthType(a.type_key) : !isStrengthType(a.type_key);
+      });
+      const actual = {
+        dist: relevant.reduce(function (s, a) { return s + (Number(a.distance_m) || 0); }, 0),
+        dur: relevant.reduce(function (s, a) { return s + (Number(a.duration_s) || 0); }, 0),
+      };
+      const base = { target: target, actual: actual, rate: 0 };
+      if (it.done) return Object.assign({}, base, { level: "done", manual: true });
+      if (!relevant.length || (!target.dist && !target.dur)) return Object.assign({}, base, { level: "none" });
+      const rates = [];
+      if (target.dist > 0) rates.push(actual.dist / target.dist);
+      if (target.dur > 0) rates.push(actual.dur / target.dur);
+      const rate = Math.min.apply(null, rates);
+      const level = rate >= ACT_RATE_DONE ? "done" : rate >= ACT_RATE_PARTIAL ? "partial" : "miss";
+      return Object.assign({}, base, { level: level, rate: rate });
+    }
+
+    /** 完成度短标签，格子和详情共用："完成 100%" / "部分 72%" / "未达 12%" / "未设目标" */
+    function actLabel(st) {
+      const hit = ACT_STATES.find(function (s) { return s[0] === st.level; });
+      if (!hit || st.level === "none") return "未设目标";
+      if (st.manual) return "完成（手动）";
+      const short = st.level === "done" ? "完成" : st.level === "partial" ? "部分" : "未达";
+      return short + " " + Math.round(st.rate * 100) + "%";
+    }
+
+    /** 目标 / 实际的可读串，详情面板用 */
+    function actCompare(st) {
+      const bits = [];
+      if (st.target.dist > 0) bits.push("距离 " + fmtDistance(st.actual.dist) + " / " + fmtDistance(st.target.dist));
+      if (st.target.dur > 0) bits.push("时长 " + fmtDuration(Math.round(st.actual.dur)) + " / " + fmtDuration(st.target.dur));
+      return bits.join(" · ");
     }
 
     function CalendarView(props) {
@@ -2842,7 +3709,7 @@ window.__ModuleLoader__.load({
       }
 
       const day = byDay[sel] || { items: [], acts: [] };
-      const doneOf = actDone(day.items, day.acts);
+      const statusOf = function (it) { return actStatus(it, day.acts); };
       return h("div", { className: "gc-cal" },
         h("div", { className: "gc-controls" },
           h("button", { className: "pmw-plugin-button", type: "button", onClick: function () { shift(-1); } }, "上个月"),
@@ -2854,16 +3721,26 @@ window.__ModuleLoader__.load({
           DAY_NAMES.map(function (n) { return h("div", { key: n, className: "gc-cal-head" }, n); }),
           cells.map(function (c) {
             const info = byDay[c] || { items: [], acts: [] };
-            const done = actDone(info.items, info.acts);
             const out = fromYMD(c).getMonth() !== month.getMonth();
+            const worst = info.items.reduce(function (w, it) {
+              const rank = { none: 0, done: 1, partial: 2, miss: 3 };
+              const lv = actStatus(it, info.acts).level;
+              return rank[lv] > rank[w] ? lv : w;
+            }, "none");
             return h("button", {
               key: c, type: "button", role: "gridcell",
-              className: "gc-cal-cell" + (out ? " out" : "") + (c === today ? " today" : "") + (c === sel ? " sel" : ""),
+              className: "gc-cal-cell" + (out ? " out" : "") + (c === today ? " today" : "") + (c === sel ? " sel" : "") + " gc-cal-" + worst,
+              "aria-label": fromYMD(c).getDate() + " 日，完成度：" + (ACT_STATES.find(function (s) { return s[0] === worst; }) || [])[1],
               onClick: function () { setSel(c); setEditing(null); },
             },
               h("span", { className: "gc-cal-day" }, String(fromYMD(c).getDate())),
               info.items.slice(0, 3).map(function (it) {
-                return h("span", { key: it.id, className: "gc-cal-item gc-k-" + it.kind + (done(it) ? " done" : "") }, (done(it) ? "已完成 · " : "") + it.title);
+                const st = actStatus(it, info.acts);
+                return h("span", {
+                  key: it.id,
+                  className: "gc-cal-item gc-k-" + it.kind + " " + (ACT_STATES.find(function (s) { return s[0] === st.level; }) || [])[2],
+                  title: it.title + "：" + actLabel(st) + (st.target.dist || st.target.dur ? "（" + actCompare(st) + "）" : ""),
+                }, actLabel(st) + " · " + it.title);
               }),
               info.items.length > 3 ? h("span", { className: "gc-cal-more" }, "还有 " + (info.items.length - 3) + " 项") : null,
               info.acts.map(function (a) {
@@ -2877,12 +3754,15 @@ window.__ModuleLoader__.load({
             !editing ? h("button", { className: "pmw-plugin-button", type: "button", onClick: function () { setEditing({ date: sel, kind: "run", title: "", detail: "" }); } }, "添加训练") : null),
           day.items.length || day.acts.length ? null : h("p", { className: "pmw-plugin-hint" }, "这天没有安排。"),
           day.items.map(function (it) {
+            const st = statusOf(it);
+            const state = ACT_STATES.find(function (s) { return s[0] === st.level; }) || ACT_STATES[3];
             return h("div", { key: it.id, className: "gc-cal-entry" },
               h("div", { className: "gc-cal-entry-head" },
                 h("span", { className: "gc-plan-kind gc-k-" + it.kind }, KIND_NAMES[it.kind] || it.kind),
                 h("strong", null, it.title),
-                doneOf(it) ? h("span", { className: "gc-tag" }, it.done ? "已完成" : "已完成（有当天活动）") : null,
+                h("span", { className: "gc-tag " + state[2] }, actLabel(st)),
                 it.plan_name ? h("small", null, "来自计划「" + it.plan_name + "」") : null),
+              st.level !== "none" && (st.target.dist || st.target.dur) ? h("p", { className: "gc-cal-compare" }, "计划 vs 实际：" + actCompare(st)) : null,
               it.detail ? h("p", { className: "gc-desc" }, it.detail) : null,
               h("div", { className: "gc-detail-bar" },
                 it.video ? h(ExtLink, { href: it.video, className: "gc-link gc-strong-link" }, "看视频（" + videoPlatform(it.video) + "）") : null,
@@ -2907,7 +3787,16 @@ window.__ModuleLoader__.load({
       const [title, setTitle] = useState(it.title || "");
       const [detail, setDetail] = useState(it.detail || "");
       const [video, setVideo] = useState(it.video || "");
-      return h("form", { className: "gc-edit", onSubmit: function (e) { e.preventDefault(); props.onSave({ date: date, kind: kind, title: title, detail: detail, video: video }); } },
+      const [targetKm, setTargetKm] = useState(it.target_distance_m ? String(it.target_distance_m / 1000) : "");
+      const [targetMin, setTargetMin] = useState(it.target_duration_s ? String(Math.round(it.target_duration_s / 60)) : "");
+      return h("form", { className: "gc-edit", onSubmit: function (e) {
+        e.preventDefault();
+        props.onSave({
+          date: date, kind: kind, title: title, detail: detail, video: video,
+          target_distance_m: Math.round((Number(targetKm) || 0) * 1000),
+          target_duration_s: Math.round((Number(targetMin) || 0) * 60),
+        });
+      } },
         !it.id ? h("div", { className: "gc-chips" }, h("small", null, "常用："), QUICK_ITEMS.map(function (q) {
           return h("button", { key: q[1], type: "button", className: "gc-chip", onClick: function () { setKind(q[0]); setTitle(q[1]); setDetail(q[2]); } }, q[1]);
         })) : null,
@@ -2917,6 +3806,10 @@ window.__ModuleLoader__.load({
             Object.keys(KIND_NAMES).map(function (k) { return h("option", { key: k, value: k }, KIND_NAMES[k]); })))),
         h("label", { className: "gc-field" }, "标题", h("input", { value: title, maxLength: 60, placeholder: "如：轻松跑 8 公里", onChange: function (e) { setTitle(e.target.value); } })),
         h("label", { className: "gc-field" }, "内容", h("textarea", { rows: 3, value: detail, maxLength: 2000, placeholder: "配速、心率区间、动作组数…", onChange: function (e) { setDetail(e.target.value); } })),
+        h("div", { className: "gc-edit-row" },
+          h("label", { className: "gc-field" }, "目标距离（公里，可选）", h("input", { type: "number", min: "0", max: "1000", step: "0.1", value: targetKm, placeholder: "如：8", onChange: function (e) { setTargetKm(e.target.value); } })),
+          h("label", { className: "gc-field" }, "目标时长（分钟，可选）", h("input", { type: "number", min: "0", max: "1440", step: "1", value: targetMin, placeholder: "如：45", onChange: function (e) { setTargetMin(e.target.value); } }))),
+        h("p", { className: "pmw-plugin-hint" }, "留空时从标题、内容里认目标（如「长距离 16 公里」「间歇 6×800 米」）；两项都填时按达成率低的判定。"),
         h("label", { className: "gc-field" }, "视频链接（可选）", h("input", { value: video, placeholder: "https://…", onChange: function (e) { setVideo(e.target.value); } })),
         h("div", { className: "gc-detail-bar" },
           h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: !title.trim() }, "保存"),
@@ -2924,7 +3817,7 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------------------
-    // 比赛（独立菜单）：比赛信息、成绩、关联活动、影像记忆
+    // 比赛（PMW 版是主页面的「比赛」视图，dsh 版是外层「比赛」页签）：比赛信息、成绩、关联活动、影像记忆
     // ---------------------------------------------------------------------------
 
     const RACE_CATS = [["full", "全程马拉松"], ["half", "半程马拉松"], ["10k", "10 公里"], ["5k", "5 公里"], ["trail", "越野"], ["other", "其他"]];
@@ -2984,18 +3877,84 @@ window.__ModuleLoader__.load({
       return best;
     }
 
-    function RacesPage() {
+    /** 目标比赛/成绩：AI 分析用目标平均配速给训练建议，具体 PB 从已收录比赛里取 */
+    function GoalCard(props) {
+      const [g, setG] = useState({ race_name: "", category: "half", date: "", target_s: 0 });
+      const [msg, setMsg] = useState("");
+      const [busy, setBusy] = useState(false);
+      useEffect(function () {
+        api("/goals").then(function (d) { if (d.goal) setG(d.goal); }).catch(function () {});
+      }, []);
+      const set = function (k, v) { const n = Object.assign({}, g); n[k] = v; setG(n); };
+      const dist = RACE_DIST[g.category];
+      const pace = dist && g.target_s > 0 ? fmtPace(g.target_s / dist) : "";
+      const pb = personalBests(props.races || [])[g.category];
+
+      async function save(e) {
+        e.preventDefault();
+        setBusy(true); setMsg("");
+        try {
+          await api("/goals", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ race_name: g.race_name, category: g.category, date: g.date, target_s: g.target_s || 0 }) });
+          setMsg("已保存。AI 分析会按这个目标配速区间给建议。");
+        } catch (err) { setMsg("保存失败：" + errText(err)); } finally { setBusy(false); }
+      }
+
+      return h("form", { className: "gc-chart-box gc-goal-form", onSubmit: save, "aria-label": "目标比赛" },
+        h("h3", { className: "gc-sub" }, "目标比赛"),
+        h("div", { className: "gc-controls" },
+          h("label", { className: "gc-field" }, "比赛名称", h("input", { value: g.race_name, maxLength: 80, placeholder: "如：2026 北京马拉松", onChange: function (e) { set("race_name", e.target.value); } })),
+          h("label", { className: "gc-field" }, "类别", h("select", { value: g.category, onChange: function (e) { set("category", e.target.value); } },
+            RACE_CATS.map(function (c) { return h("option", { key: c[0], value: c[0] }, c[1]); }))),
+          h("label", { className: "gc-field" }, "日期", h("input", { type: "date", value: g.date || "", onChange: function (e) { set("date", e.target.value); } })),
+          h("div", { className: "gc-field" }, "目标成绩", h(DurationInput, { value: g.target_s || 0, onChange: function (v) { set("target_s", v); } }))),
+        h("p", { className: "pmw-plugin-hint" }, pace ? "目标平均配速 " + pace : "填目标成绩后自动算目标配速",
+          pb && RACE_DIST[pb.category] ? " · 这项 PB " + fmtDuration(raceTime(pb).s) + "（" + fmtPace(raceTime(pb).s / RACE_DIST[pb.category]) + "）" : ""),
+        h("div", { className: "gc-detail-bar" },
+          h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: busy }, busy ? "保存中…" : "保存目标")),
+        msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
+    }
+
+    function RacesPage(props) {
+      props = props || {};
       const theme = useTheme();
       const [races, setRaces] = useState(null);
       const [open, setOpen] = useState(null);
       const [adding, setAdding] = useState(false);
       const [msg, setMsg] = useState("");
       const [activity, setActivity] = useState(null);
+      const [imp, setImp] = useState(null);
+      const [impMsg, setImpMsg] = useState("");
 
       async function load() {
         try { setRaces((await api("/races")).races || []); } catch (err) { setMsg("读取比赛失败：" + errText(err)); }
       }
       useEffect(function () { load(); }, []);
+
+      // 历史比赛导入在后台跑：每 2 秒看一次进度，结束后刷新列表
+      useEffect(function () {
+        if (!imp || !imp.running) return undefined;
+        const t = setInterval(function () {
+          api("/status").then(function (s) {
+            const x = s.race_import || null;
+            setImp(x);
+            if (!x || !x.running) {
+              setImpMsg(x && x.error ? "导入历史比赛失败：" + x.error
+                : "导入完成：找到 " + ((x && x.found) || 0) + " 场比赛，新增 " + ((x && x.imported) || 0) + " 场。");
+              load();
+            }
+          }).catch(function () {});
+        }, 2000);
+        return function () { clearInterval(t); };
+      }, [imp && imp.running]);
+
+      async function importRaces() {
+        setImpMsg("");
+        try {
+          const res = await api("/races/import", { method: "POST" });
+          setImp(res.race_import || { running: true, pages: 0, found: 0, imported: 0 });
+        } catch (err) { setImpMsg("导入历史比赛失败：" + errText(err)); }
+      }
 
       if (activity) {
         return h(RunDetail, { id: activity.id, title: activity.title, start: activity.start, onBack: function () { setActivity(null); } });
@@ -3017,11 +3976,21 @@ window.__ModuleLoader__.load({
 
       return h("div", { className: "pmw-plugin pmw-plugin-module gc-races" },
         h(TitleBar, {
-          title: "比赛",
+          title: props.embedded ? PLUGIN_NAME : "比赛",
           desc: list.length ? "完赛 " + finished.length + " 场 · 共收录 " + list.length + " 场" : "",
-          actions: [{ label: "添加比赛", primary: true, onClick: function () { setAdding(true); } }, themeAction(theme)],
+          tabs: props.tabs || null,
+          actions: [
+            { label: "添加比赛", primary: true, onClick: function () { setAdding(true); } },
+            { label: imp && imp.running ? "导入中…" : "从 Garmin 导入历史比赛", disabled: Boolean(imp && imp.running),
+              onClick: importRaces, title: "扫描 Garmin 全部活动，把标成比赛的项目补录进来" },
+            themeAction(theme),
+          ],
         }),
+        props.belowTitle || null,
         msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
+        imp && imp.running ? h("p", { className: "gc-note", role: "status" },
+          "正在导入：已翻 " + (imp.pages || 0) + " 页，找到 " + (imp.found || 0) + " 场比赛，新增 " + (imp.imported || 0) + " 场…") : null,
+        impMsg ? h("p", { className: "gc-note", role: "status" }, impMsg) : null,
         adding ? h(RaceForm, {
           race: { date: toYMD(new Date()), category: "half", status: "finished" },
           onCancel: function () { setAdding(false); },
@@ -3036,10 +4005,11 @@ window.__ModuleLoader__.load({
               h("span", { className: "gc-stat-value" }, fmtDuration(raceTime(r).s), h("small", { className: "gc-time-kind" }, raceTime(r).net ? " 净时" : " 枪时")),
               h("small", { className: "pmw-plugin-hint" }, r.name + " · " + r.date));
           }))) : null,
+        h(GoalCard, { races: list }),
         races && !list.length && !adding
           ? h("div", { className: "gc-empty" },
               h("p", null, "还没有收录比赛。"),
-              h("p", { className: "pmw-plugin-hint" }, "点右上角「添加比赛」手动收录，或在「Garmin 跑步数据」里打开一次比赛的活动，点「标记为比赛」自动带出成绩。"))
+              h("p", { className: "pmw-plugin-hint" }, "同步或打开 Garmin 标成比赛的活动会自动收录；也可以点「从 Garmin 导入历史比赛」一次补齐，或点「添加比赛」手动收录。"))
           : null,
         years.map(function (g) {
           return h("section", { key: g.year },
@@ -3337,6 +4307,15 @@ window.__ModuleLoader__.load({
       return [(lon + 180) / 360 * scale, (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale];
     }
 
+    /** 轨迹上相邻两点的球面距离（米），用来把 Garmin 分段距离定位到轨迹点 */
+    function geoDistance(a, b) {
+      const R = 6371000, rad = Math.PI / 180;
+      const dLat = (b[0] - a[0]) * rad, dLon = (b[1] - a[1]) * rad;
+      const s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+    }
+
     function RouteMap(props) {
       const ref = useRef(null);
       const [width, setWidth] = useState(640);
@@ -3389,11 +4368,61 @@ window.__ModuleLoader__.load({
       }
       const path = px.map(function (p) { return (p[0] - left).toFixed(1) + "," + (p[1] - top).toFixed(1); }).join(" ");
       const start = px[0], end = px[px.length - 1];
+      // 分段配速标在对应里程的中点。轨迹与逐点序列抽样不同，这里按轨迹球面距离定位，
+      // 并用概要距离校准累计长度（抽稀后的折线比真实路径短）。
+      const lapViews = props.laps || [];
+      const markers = [];
+      if (lapViews.length > 1 && props.track.length > 1) {
+        const cum = [0];
+        for (let i = 1; i < props.track.length; i++) cum.push(cum[i - 1] + geoDistance(props.track[i - 1], props.track[i]));
+        const measured = cum[cum.length - 1];
+        const scale = measured > 0 && props.totalDist > 0 ? props.totalDist / measured : 1;
+        const finite = lapViews.map(function (v) { return v.pace > 0 ? v.pace : Infinity; });
+        const fastest = finite.indexOf(Math.min.apply(null, finite));
+        const slowest = finite.indexOf(Math.max.apply(null, finite.filter(function (v) { return isFinite(v); })));
+        let endDist = 0;
+        lapViews.forEach(function (v, i) {
+          const from = endDist;
+          endDist += v.dist > 0 ? v.dist : 0;
+          if (!(v.pace > 0) || !(v.dist > 0)) return;
+          const target = (from + endDist) / 2 * scale;
+          let j = 1;
+          while (j < cum.length - 1 && cum[j] < target) j++;
+          if (cum[j] === cum[j - 1]) return;
+          const t = Math.max(0, Math.min(1, (target - cum[j - 1]) / (cum[j] - cum[j - 1])));
+          const x = px[j - 1][0] + t * (px[j][0] - px[j - 1][0]) - left;
+          const y = px[j - 1][1] + t * (px[j][1] - px[j - 1][1]) - top;
+          if (x < 12 || x > width - 12 || y < 12 || y > H - 12) return;
+          markers.push({ i: i, x: x, y: y, key: i === fastest || i === slowest });
+        });
+        const maxLabels = Math.max(5, Math.floor(width / 95));
+        if (markers.length > maxLabels) {
+          const keep = {};
+          markers.forEach(function (m) { if (m.key) keep[m.i] = true; });
+          for (let k = 0; k < maxLabels; k++) keep[markers[Math.floor(k * (markers.length - 1) / (maxLabels - 1))].i] = true;
+          const kept = markers.filter(function (m) { return keep[m.i]; });
+          markers.length = 0;
+          kept.forEach(function (m) { markers.push(m); });
+        }
+      }
+      const markerNodes = markers.map(function (m) {
+        const raw = (props.rawLaps || [])[m.i] || {};
+        return h("g", {
+          key: "lap-" + m.i,
+          className: "gc-map-split" + (m.i === props.activeLap ? " on" : "") + (m.key ? " key" : ""),
+          onClick: function () { if (props.onPick) props.onPick(m.i); },
+        },
+          h("title", null, "第 " + (m.i + 1) + " 段 · " + fmtDistance(lapViews[m.i].dist) + " · " + fmtPace(lapViews[m.i].pace) +
+            (typeof raw.elevationGain === "number" ? " · 爬升 " + num(raw.elevationGain) + " m" : "")),
+          h("circle", { cx: m.x, cy: m.y, r: m.key ? 4 : 3 }),
+          h("text", { x: m.x + 6, y: m.y - 6 }, paceText(lapViews[m.i].pace)));
+      });
       return h("div", { className: "gc-map", ref: ref, style: { height: H + "px" } },
         tiles,
         h("svg", { className: "gc-map-svg", width: width, height: H, viewBox: "0 0 " + width + " " + H },
           h("polyline", { points: path, className: "gc-route-halo", fill: "none" }),
           h("polyline", { points: path, className: "gc-route", fill: "none" }),
+          markerNodes,
           h("circle", { cx: start[0] - left, cy: start[1] - top, r: 6, className: "gc-pin-start" }, h("title", null, "起点")),
           h("circle", { cx: end[0] - left, cy: end[1] - top, r: 6, className: "gc-pin-end" }, h("title", null, "终点"))),
         h("div", { className: "gc-map-zoom" },
@@ -3407,26 +4436,26 @@ window.__ModuleLoader__.load({
     // ---------------------------------------------------------------------------
 
     function TodayCard() {
+      const [rec, setRec] = useState(null);
       const [run, setRun] = useState(null);
       const [plan, setPlan] = useState([]);
-      const [hint, setHint] = useState("正在读取最近一次跑步…");
+      const [hint, setHint] = useState("正在读取恢复状态…");
+      const noRunHint = "暂无跑步记录，先在「账号与同步」里登录 Garmin";
 
       useEffect(function () {
         let alive = true;
+        // 恢复状态 + 本周跑量进度（一次请求拿齐）
+        api("/recovery?days=28")
+          .then(function (d) { if (alive) { setRec(d); setHint(""); } })
+          .catch(function (err) { if (alive) setHint("读取失败：" + errText(err)); });
+        // 保留最近一次跑步，作为卡片底部的快速参考
         api("/runs")
           .then(function (data) {
             if (!alive) return;
             const list = (Array.isArray(data.runs) ? data.runs : []).filter(function (r) { return !isStrengthType(r.type_key); });
-            if (list.length) {
-              setRun(list[0]);
-              setHint("");
-            } else {
-              setHint("暂无跑步记录，先在「账号与同步」里登录 Garmin");
-            }
+            if (list.length) setRun(list[0]);
           })
-          .catch(function (err) {
-            if (alive) setHint("读取失败：" + errText(err));
-          });
+          .catch(function () {});
         // 今天日历上安排的训练
         const t = toYMD(new Date());
         api("/calendar?from=" + t + "&to=" + t).then(function (d) { if (alive) setPlan(d.items || []); }).catch(function () {});
@@ -3434,29 +4463,146 @@ window.__ModuleLoader__.load({
       }, []);
 
       const v = run ? runView(run) : null;
-      return h("div", { className: "pmw-plugin pmw-plugin-card" },
+      const sum = rec && rec.summary || {};
+      const st = sum.status || {};
+      const tone = REC_LEVEL[st.level] || REC_LEVEL.unknown;
+      return h("div", { className: "pmw-plugin pmw-plugin-card gc-today" },
+        // 恢复状态：今天能不能上强度，放最上面
+        rec
+          ? h("div", { className: "gc-today-status gc-rec-" + tone.cls },
+              h("div", { className: "gc-today-badge" }, h("i", { style: { background: tone.dot } }), h("b", null, st.label || "—")),
+              h("p", { className: "gc-card-main" }, st.suggestion || st.reason || ""),
+              h("div", { className: "gc-today-week" },
+                h("span", null, "本周跑量 ", h("b", null, num(sum.week_km, 1) + " km")),
+                h("span", null, "近 4 周周均 ", num(sum.baseline_km, 1) + " km"),
+                sum.progress != null ? h("span", null, "进度 ", sum.progress + "%") : null),
+              h("div", { className: "gc-rec-progress" },
+                h("span", { className: "gc-rec-progress-track" },
+                  h("i", { style: { width: Math.min(100, Math.max(0, sum.progress || 0)) + "%" } }))),
+              sum.days_since != null && sum.days_since < 0
+                ? h("p", { className: "pmw-plugin-hint" }, noRunHint)
+                : null)
+          : h("p", { className: "pmw-plugin-hint" }, hint),
         plan.length ? h("div", { className: "gc-today-plan" },
           h("h4", null, "今天的训练"),
           plan.map(function (it) {
             return h("p", { key: it.id, className: "gc-card-main" }, h("span", { className: "gc-dot gc-k-" + it.kind }), it.title + (it.done ? "（已完成）" : ""));
           })) : null,
-        h("h4", null, "最近一次跑步"),
+        // 最近一次跑步降级为一行参考
         run
-          ? h("div", null,
-              h("p", { className: "gc-card-main" }, fmtDistance(v.dist), " · ", fmtPace(v.pace)),
-              h("p", { className: "pmw-plugin-hint" },
-                shortTime(run.start_time), "　时长 ", fmtDuration(run.duration_s)))
-          : h("p", { className: "pmw-plugin-hint" }, hint));
+          ? h("p", { className: "pmw-plugin-hint gc-today-last" },
+              "最近跑步：", fmtDistance(v.dist), " · ", fmtPace(v.pace), "　", shortTime(run.start_time))
+          : null);
+    }
+
+    /** 同步状态：成功/失败都要显眼，后台每 6 小时同步一次 */
+    function SyncStatus(props) {
+      const st = props.status || {};
+      const err = st.last_sync_error || "";
+      const last = st.last_sync || "";
+      const attempt = st.last_sync_attempt || "";
+      const running = Boolean(st.full_sync && st.full_sync.running);
+      let main = "还没有同步过";
+      if (st.logged_in === false) main = "还没登录 Garmin：到设置页登录后才能同步";
+      else if (err) main = "最近一次同步失败：" + err + (last ? "（上次成功 " + shortTime(last) + "）" : "");
+      else if (last) main = "数据更新于 " + shortTime(last);
+      else if (attempt) main = "上次同步尝试 " + shortTime(attempt) + "，尚未成功";
+      const meta = props.progress || ("每 6 小时自动同步" + (running ? " · 全部历史同步中" : ""));
+      return h("div", { className: "gc-sync-status" + (err ? " gc-sync-status-error" : ""), role: err ? "alert" : "status" },
+        h("span", { className: "gc-sync-status-main" }, main),
+        h("span", { className: "gc-sync-status-meta" }, meta));
+    }
+
+    /** 同步：增量拉最近的、全量拉全部历史（都在设置页 / 账号与同步里触发） */
+    function SyncControls(props) {
+      const st = props.status || {};
+      const [busy, setBusy] = useState(false);
+      const [full, setFull] = useState(st.full_sync && st.full_sync.running ? st.full_sync : null);
+      const [msg, setMsg] = useState("");
+      const running = Boolean(full && full.running);
+
+      useEffect(function () {
+        if (!running) return undefined;
+        const t = setInterval(function () {
+          api("/status").then(function (s) {
+            const f = s.full_sync || null;
+            setFull(f);
+            if (!f || !f.running) {
+              setMsg(f && f.error ? "同步全部历史失败：" + f.error : "全部历史已同步，写入 " + ((f && f.written) || 0) + " 条。");
+              props.onChanged && props.onChanged();
+            }
+          }).catch(function () {});
+        }, 2000);
+        return function () { clearInterval(t); };
+      }, [running]);
+
+      async function syncNow() {
+        setBusy(true); setMsg("正在同步最近的跑步…");
+        try {
+          const res = await api("/sync", { method: "POST" });
+          setMsg("同步完成，写入 " + res.written + " 条。");
+          props.onChanged && props.onChanged();
+        } catch (err) { setMsg("同步失败：" + errText(err)); } finally { setBusy(false); }
+      }
+      async function syncAll() {
+        setMsg("");
+        try {
+          const res = await api("/sync?full=1", { method: "POST" });
+          setFull(res.full_sync || { running: true, pages: 0, written: 0 });
+        } catch (err) { setMsg("同步全部历史失败：" + errText(err)); }
+      }
+
+      return h("div", { className: "gc-sync" },
+        h("div", { className: "gc-detail-bar" },
+          h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: busy || running, onClick: syncNow,
+            title: "只拉近期新活动（补最近 2 天），自动同步也用这种方式" }, busy ? "增量同步中…" : "立即同步（增量）"),
+          h("button", { className: "pmw-plugin-button", type: "button", disabled: busy || running, onClick: syncAll,
+            title: "拉取 Garmin 上所有历史活动，后台进行；首次登录自动执行一次" }, running ? "全量同步中…" : "同步全部历史（全量）")),
+        h("p", { className: "gc-note" }, "增量：只补近期新活动，每 6 小时自动跑一次；全量：拉全部历史，首次登录自动执行。"),
+        running ? h("p", { className: "pmw-plugin-hint", role: "status" }, "正在同步全部历史：已翻 " + (full.pages || 0) + " 页，写入 " + (full.written || 0) + " 条…") : null,
+        msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
     }
 
     function SettingsSection() {
       useTheme();
+      const pace = usePaceUnit();
+      const prefs = useStatsPrefs();
+      const [mode, setMode] = useState("password");
       const [email, setEmail] = useState("");
       const [password, setPassword] = useState("");
+      const [apiKey, setApiKey] = useState("");
       const [isCN, setIsCN] = useState(true);
       const [state, setState] = useState(null);
       const [msg, setMsg] = useState("");
       const [busy, setBusy] = useState(false);
+      const [hrMax, setHrMax] = useState("");
+      const [hrBounds, setHrBounds] = useState(["", "", "", "", ""]);
+      const [hrMsg, setHrMsg] = useState("");
+
+      useEffect(function () {
+        api("/hr-zones").then(function (d) {
+          setHrMax(d.max_hr ? String(d.max_hr) : "");
+          const b = (d.boundaries || []).slice(0, 5);
+          setHrBounds([0, 1, 2, 3, 4].map(function (i) { return b[i] ? String(b[i]) : ""; }));
+        }).catch(function () {});
+      }, []);
+
+      async function saveHrZones() {
+        setHrMsg("");
+        const max = Number(hrMax) || 0;
+        const bounds = hrBounds.map(Number).filter(function (v) { return v > 0; });
+        try {
+          const r = await api("/hr-zones", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ max_hr: max, boundaries: bounds }),
+          });
+          const saved = (r.boundaries || []).slice(0, 5);
+          setHrBounds([0, 1, 2, 3, 4].map(function (i) { return saved[i] ? String(saved[i]) : ""; }));
+          setHrMsg(max ? "已保存，图表和新的 AI 分析按这个区间算。" : "已恢复 Garmin 原值。");
+        } catch (err) {
+          setHrMsg("保存失败：" + errText(err));
+        }
+      }
 
       async function refresh() {
         try {
@@ -3464,6 +4610,16 @@ window.__ModuleLoader__.load({
         } catch (err) {
           setMsg("读取状态失败：" + errText(err));
         }
+      }
+
+      async function afterLogin() {
+        try {
+          await api("/sync?full=1", { method: "POST" });
+          setMsg("登录成功，正在后台同步全部历史跑步，到「" + PLUGIN_NAME + "」模块页看进度。");
+        } catch (err) {
+          setMsg("登录成功，但开始同步失败：" + errText(err));
+        }
+        await refresh();
       }
 
       useEffect(function () { refresh(); }, []);
@@ -3481,15 +4637,30 @@ window.__ModuleLoader__.load({
           });
           setPassword("");
           // 首次登录直接在后台拉全部历史，统计和记录才是全的；到模块页能看进度
-          try {
-            await api("/sync?full=1", { method: "POST" });
-            setMsg("登录成功，正在后台同步全部历史跑步，到「" + PLUGIN_NAME + "」模块页看进度。");
-          } catch (err) {
-            setMsg("登录成功，但开始同步失败：" + errText(err));
-          }
-          await refresh();
+          await afterLogin();
         } catch (err) {
           setPassword("");
+          setMsg("登录失败：" + errText(err));
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function loginPersonal(e) {
+        if (e) e.preventDefault();
+        if (!apiKey.trim()) { setMsg("请填写个人 API Key"); return; }
+        setBusy(true);
+        setMsg("正在用个人 API Key 登录…");
+        try {
+          await api("/login/personal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ api_key: apiKey.trim(), is_cn: isCN }),
+          });
+          setApiKey("");
+          await afterLogin();
+        } catch (err) {
+          setApiKey("");
           setMsg("登录失败：" + errText(err));
         } finally {
           setBusy(false);
@@ -3510,37 +4681,92 @@ window.__ModuleLoader__.load({
       }
 
       const loggedIn = Boolean(state && state.logged_in);
+      const personal = state && state.read_only === true;
+      const keyPage = "https://connect." + (isCN ? "garmin.cn" : "garmin.com") + "/app/settings/personalApiToken";
       return h("section", { className: "pmw-plugin pmw-plugin-settings" },
         h("h3", null, PLUGIN_NAME + " 设置"),
-        h("div", { className: "gc-controls" },
+        THEME_HOST === "dsh" ? null : h("div", { className: "gc-controls" },
           h(Seg, { label: "外观", value: themePref, onChange: setThemePref, options: THEME_OPTIONS }),
           h("span", { className: "pmw-plugin-hint" }, "外观：跟随系统时按工作台的明暗模式；只影响本插件页面。")),
+        h("div", { className: "gc-controls" },
+          h(Seg, { label: "配速单位", value: pace, onChange: setPaceUnit, options: [["km", "min/km"], ["mile", "min/mile"]] }),
+          h("span", { className: "pmw-plugin-hint" }, "配速、图表和 AI 分析统一按这个单位显示。")),
+        h("div", { className: "gc-stats-prefs" },
+          h("h4", null, "心率区间校准"),
+          h("div", { className: "gc-controls" },
+            h("label", { className: "gc-field" }, "最大心率 bpm",
+              h("input", { type: "number", min: "0", max: "240", step: "1", value: hrMax,
+                onChange: function (e) { setHrMax(e.target.value); } })),
+            h("button", { className: "pmw-plugin-button", type: "button", onClick: saveHrZones }, "保存区间")),
+          h("div", { className: "gc-controls" },
+            h("span", { className: "pmw-plugin-hint" }, "区间下界 bpm（可留空，按最大心率 50/60/70/80/90% 自动生成）"),
+            hrBounds.map(function (b, i) {
+              return h("input", { key: i, className: "gc-speed", type: "number", min: "80", max: "240", step: "1",
+                "aria-label": "区间 " + (i + 1) + " 下界 bpm", value: b,
+                onChange: function (e) {
+                  const next = hrBounds.slice(); next[i] = e.target.value; setHrBounds(next);
+                } });
+            })),
+          h("p", { className: "pmw-plugin-hint" }, "清空最大心率并保存即恢复 Garmin 原值；改完后已有分析需重新生成。"),
+          hrMsg ? h("p", { className: "pmw-plugin-hint", role: "status" }, hrMsg) : null),
+        h("div", { className: "gc-stats-prefs" },
+          h("h4", null, "统计口径"),
+          h("label", { className: "pmw-plugin-check" },
+            h("input", { type: "checkbox", checked: prefs.ignoreShort,
+              onChange: function (e) { setStatsPrefs({ ignoreShort: e.target.checked }); } }),
+            " 忽略短活动（不计入概览和统计的次数、跑量、时长，记录列表仍显示全部）"),
+          prefs.ignoreShort
+            ? h("div", { className: "gc-controls gc-stats-prefs-thresholds" },
+                h("label", { className: "gc-field" }, "跑步短于（km）",
+                  h("input", { type: "number", min: "0", step: "0.1", value: num(prefs.minRunM / 1000, 2),
+                    onChange: function (e) { const v = Number(e.target.value); if (isFinite(v) && v >= 0) setStatsPrefs({ minRunM: v * 1000 }); } })),
+                h("label", { className: "gc-field" }, "力量短于（分钟）",
+                  h("input", { type: "number", min: "0", step: "1", value: num(prefs.minStrengthS / 60, 0),
+                    onChange: function (e) { const v = Number(e.target.value); if (isFinite(v) && v >= 0) setStatsPrefs({ minStrengthS: v * 60 }); } })))
+            : null),
         loggedIn
           ? h("div", { className: "gc-account" },
               h("p", null, "已登录：", h("strong", null, state.email || "Garmin 账号"),
-                state.is_cn === false ? "（国际区）" : "（中国区）"),
+                state.is_cn === false ? "（国际区）" : "（中国区）",
+                personal ? " · 个人 API Key（只读）" : " · 账号密码"),
               h("p", { className: "pmw-plugin-hint" },
-                state.last_sync ? ("上次同步 " + shortTime(state.last_sync)) : "还没有同步过",
-                typeof state.runs === "number" ? "，本地 " + state.runs + " 条跑步记录" : "",
-                "；每 6 小时自动同步一次。"),
-              state.last_sync_error ? h("p", { className: "gc-note", role: "alert" }, "最近一次同步失败：" + state.last_sync_error) : null,
+                typeof state.runs === "number" ? "本地 " + state.runs + " 条跑步记录。" : "",
+                personal ? "只读模式：不能把活动编辑保存回 Garmin。" : ""),
+              h(SyncStatus, { status: state }),
+              h(SyncControls, { status: state, onChanged: refresh }),
               h("button", { className: "pmw-plugin-button", type: "button", disabled: busy, onClick: logout }, "退出登录"))
-          : h("form", { className: "gc-login", onSubmit: login },
+          : h("div", { className: "gc-login" },
+              h(Seg, { label: "登录方式", value: mode, onChange: setMode,
+                options: [["password", "账号密码"], ["personal", "个人 API Key（支持 MFA）"]] }),
+              mode === "personal"
+                ? h("form", { onSubmit: loginPersonal },
+                    h("p", { className: "pmw-plugin-hint" },
+                      "在 ", h("a", { href: keyPage, target: "_blank", rel: "noreferrer" }, "Garmin Connect 网页"),
+                      " 生成个人 API Key（只显示一次），粘贴到下面。支持两步验证，权限只读（不能把编辑写回 Garmin）。"),
+                    h("label", { className: "gc-field" }, "个人 API Key",
+                      h("input", { type: "password", value: apiKey, autoComplete: "off", disabled: busy,
+                        onChange: function (e) { setApiKey(e.target.value); } })),
+                    h("label", { className: "pmw-plugin-check" },
+                      h("input", { type: "checkbox", checked: isCN, disabled: busy,
+                        onChange: function (e) { setIsCN(e.target.checked); } }),
+                      " 中国区账号（connect.garmin.cn）"),
+                    h("button", { className: "pmw-plugin-button", type: "submit", disabled: busy }, busy ? "登录中…" : "用 API Key 登录"))
+                : h("form", { onSubmit: login },
+                    h("p", { className: "pmw-plugin-hint" },
+                      "用 Garmin Connect 账号登录。密码只用来换取访问令牌，不会保存；令牌存在 dsh 的凭据存储里。开了 MFA 请改用个人 API Key。"),
+                    h("label", { className: "gc-field" }, "邮箱",
+                      h("input", { type: "email", value: email, autoComplete: "username", disabled: busy,
+                        onChange: function (e) { setEmail(e.target.value); } })),
+                    h("label", { className: "gc-field" }, "密码",
+                      h("input", { type: "password", value: password, autoComplete: "current-password", disabled: busy,
+                        onChange: function (e) { setPassword(e.target.value); } })),
+                    h("label", { className: "pmw-plugin-check" },
+                      h("input", { type: "checkbox", checked: isCN, disabled: busy,
+                        onChange: function (e) { setIsCN(e.target.checked); } }),
+                      " 中国区账号（connect.garmin.cn）"),
+                    h("button", { className: "pmw-plugin-button", type: "submit", disabled: busy }, busy ? "登录中…" : "登录")),
               h("p", { className: "pmw-plugin-hint" },
-                "用 Garmin Connect 账号登录。密码只用来换取访问令牌，不会保存；令牌存在 dsh 的凭据存储里。"),
-              h("label", { className: "gc-field" }, "邮箱",
-                h("input", { type: "email", value: email, autoComplete: "username", disabled: busy,
-                  onChange: function (e) { setEmail(e.target.value); } })),
-              h("label", { className: "gc-field" }, "密码",
-                h("input", { type: "password", value: password, autoComplete: "current-password", disabled: busy,
-                  onChange: function (e) { setPassword(e.target.value); } })),
-              h("label", { className: "pmw-plugin-check" },
-                h("input", { type: "checkbox", checked: isCN, disabled: busy,
-                  onChange: function (e) { setIsCN(e.target.checked); } }),
-                " 中国区账号（connect.garmin.cn）"),
-              h("button", { className: "pmw-plugin-button", type: "submit", disabled: busy }, busy ? "登录中…" : "登录"),
-              h("p", { className: "pmw-plugin-hint" },
-                "开了两步验证的账号暂不支持。")),
+                "dsh 已内置出网与凭据存储；同步按钮只在「账号与同步」里。")),
         msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
     }
 
@@ -3552,9 +4778,10 @@ window.__ModuleLoader__.load({
         CTX = ctx;
         disposables.push(
           ctx.slots.register("module", { id: PLUGIN_ID, title: PLUGIN_NAME }, guarded(ModulePage)),
-          ctx.slots.register("module", { id: PLUGIN_ID + "_races", title: "比赛" }, guarded(RacesPage)),
+          // PMW 版比赛在主页面的视图里；独立模块只留给 dsh 版的「比赛」页签用
+          THEME_HOST === "dsh" ? ctx.slots.register("module", { id: PLUGIN_ID + "_races", title: "比赛" }, guarded(RacesPage)) : null,
           ctx.slots.register("settings.section", { id: PLUGIN_ID, title: PLUGIN_NAME }, guarded(SettingsSection)),
-          ctx.slots.register("today.card", { key: PLUGIN_ID + "_last_run", title: "最近跑步" }, guarded(TodayCard)),
+          ctx.slots.register("today.card", { key: PLUGIN_ID + "_last_run", title: "恢复与本周跑量" }, guarded(TodayCard)),
         );
       },
 
@@ -3603,21 +4830,19 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = React.useState('data')
       __gcActivatePMW()
       const Module = __gcSlots['module:garmin_connect']
+      const Races = __gcSlots['module:garmin_connect_races']
       const Settings = __gcSlots['settings.section:garmin_connect']
       return __gcH(__gcPage, null,
         __gcH('div', { className: 'gc-dsh-top' },
           __gcH('div', { className: 'gc-dsh-tabs', role: 'tablist' },
             __gcH('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'data', onClick: function () { setTab('data') } }, '跑步数据'),
+            __gcH('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'races', onClick: function () { setTab('races') } }, '比赛'),
             __gcH('button', { type: 'button', role: 'tab', 'aria-selected': tab === 'settings', onClick: function () { setTab('settings') } }, '账号与同步'))),
         tab === 'settings'
           ? __gcH('div', { className: 'gc-dsh-settings' }, Settings ? __gcH(Settings) : null)
-          : Module ? __gcH(Module) : null)
-    }
-
-    function __gcRacesPage() {
-      __gcActivatePMW()
-      const Races = __gcSlots['module:garmin_connect_races']
-      return __gcH(__gcPage, null, Races ? __gcH(Races) : null)
+          : tab === 'races'
+            ? (Races ? __gcH(Races) : null)
+            : Module ? __gcH(Module) : null)
     }
 
     function __gcRunIcon(props) {
@@ -3627,15 +4852,6 @@ window.__ModuleLoader__.load({
       __gcH('circle', { cx: 14.5, cy: 4.5, r: 2, fill: 'currentColor' }),
       __gcH('path', { d: 'M8 21l3-6 3 2 1 4M6.5 12.5l3-3.5 4 1.5 2.5 3.5 3 .5M10.5 9.5 9 15', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }))
     }
-    function __gcMedalIcon(props) {
-      const size = props.size || 18
-      return __gcH('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true,
-        style: { display: 'block', color: props.active ? 'var(--dsw-alias-brand-primary)' : 'currentColor' } },
-      __gcH('path', { d: 'M8 3l2.5 6M16 3l-2.5 6', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' }),
-      __gcH('circle', { cx: 12, cy: 15, r: 5.5, stroke: 'currentColor', strokeWidth: 1.8 }),
-      __gcH('path', { d: 'M12 12.5v5M10.5 13.5l1.5-1', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }))
-    }
-
     return {
       inject: ['slots', 'connection'],
       apply(ctx) {
@@ -3649,11 +4865,9 @@ window.__ModuleLoader__.load({
         }, 'garmin-connect: style')
         ctx.slots.inject('sidebar.panellist', function* () {
           yield ctx.slots.register({ name: 'sidebar.panellist', id: 'garmin-connect', order: 30, label: function () { return 'Garmin 跑步' } }, __gcRunIcon)
-          yield ctx.slots.register({ name: 'sidebar.panellist', id: 'garmin-connect-races', order: 31, label: function () { return '比赛' } }, __gcMedalIcon)
         })
         ctx.slots.inject('main', function* () {
           yield ctx.slots.register({ name: 'main', key: 'garmin-connect' }, __gcRunsPage)
-          yield ctx.slots.register({ name: 'main', key: 'garmin-connect-races' }, __gcRacesPage)
         })
       },
     }

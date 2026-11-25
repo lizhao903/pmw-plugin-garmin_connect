@@ -24,14 +24,18 @@ let CTX = null;
 // 选项存 localStorage；所有插件组件包在 .gc-root[data-gc-theme] 里，样式按它切换 token。
 // ---------------------------------------------------------------------------
 
+/** 宿主类型：PMW 工作台为 "pmw"；dsh 版构建时替换成 "dsh"，明暗只跟随 dsh 应用（body[data-ds-dark-theme]），不给手动切换 */
+const THEME_HOST = "pmw";
 const THEME_KEY = "gc-theme";
 const THEME_OPTIONS = [["auto", "跟随系统"], ["light", "浅色"], ["dark", "深色"]];
 let themePref = (function () {
+  if (THEME_HOST === "dsh") return "auto";
   try { const v = window.localStorage.getItem(THEME_KEY); return v === "light" || v === "dark" ? v : "auto"; } catch (e) { return "auto"; }
 })();
 const themeSubs = new Set();
 
 function hostTheme() {
+  if (THEME_HOST === "dsh") return document.body && document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
   const t = document.documentElement.getAttribute("data-theme");
   if (t === "dark" || t === "light") return t;
   return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -51,6 +55,7 @@ function useTheme() {
     themeSubs.add(f);
     const ob = new MutationObserver(f);
     ob.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    if (document.body) ob.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme"] });
     const mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
     if (mq && mq.addEventListener) mq.addEventListener("change", f);
     return function () {
@@ -68,8 +73,60 @@ function ThemeRoot(props) {
 
 /** 标题栏上的快速切换：当前深色就给「浅色」，反之亦然（切换后不再跟随） */
 function themeAction(theme) {
+  if (THEME_HOST === "dsh") return null;
   return { label: theme === "dark" ? "浅色" : "深色", title: "切换浅色 / 深色主题（在设置里可改回跟随系统）",
     onClick: function () { setThemePref(theme === "dark" ? "light" : "dark"); } };
+}
+
+// ---------------------------------------------------------------------------
+// 统计口径：忽略短活动。只作用于统计数字（概览 + 统计页），不动运动记录列表。
+// 默认跑步 < 1 km、力量 < 10 min 不计入；阈值可在设置里改，存 localStorage。
+// ---------------------------------------------------------------------------
+
+const STATS_PREFS_KEY = "gc-stats-prefs";
+const STATS_DEFAULTS = { ignoreShort: true, minRunM: 1000, minStrengthS: 600 };
+
+function loadStatsPrefs() {
+  const d = STATS_DEFAULTS;
+  try {
+    const v = JSON.parse(window.localStorage.getItem(STATS_PREFS_KEY) || "{}");
+    const m = Number(v.minRunM), sec = Number(v.minStrengthS);
+    return {
+      ignoreShort: typeof v.ignoreShort === "boolean" ? v.ignoreShort : d.ignoreShort,
+      minRunM: isFinite(m) && m >= 0 ? m : d.minRunM,
+      minStrengthS: isFinite(sec) && sec >= 0 ? sec : d.minStrengthS,
+    };
+  } catch (e) {
+    return { ignoreShort: d.ignoreShort, minRunM: d.minRunM, minStrengthS: d.minStrengthS };
+  }
+}
+
+let statsPrefs = loadStatsPrefs();
+const statsSubs = new Set();
+
+function setStatsPrefs(patch) {
+  statsPrefs = Object.assign({}, statsPrefs, patch);
+  try { window.localStorage.setItem(STATS_PREFS_KEY, JSON.stringify(statsPrefs)); } catch (e) { /* 存不了就只在本次生效 */ }
+  statsSubs.forEach(function (f) { f(); });
+}
+
+/** 订阅统计口径变化，返回当前偏好 */
+function useStatsPrefs() {
+  const [, force] = useState(0);
+  useEffect(function () {
+    const f = function () { force(function (n) { return n + 1; }); };
+    statsSubs.add(f);
+    return function () { statsSubs.delete(f); };
+  }, []);
+  return statsPrefs;
+}
+
+/** 单条活动是否计入统计：力量按时长，其余按距离；关掉开关则全计入 */
+function statEligible(r, prefs) {
+  const p = prefs || statsPrefs;
+  if (!p.ignoreShort) return true;
+  if (isStrengthType(r.type_key)) return (Number(r.duration_s) || 0) >= p.minStrengthS;
+  return (runView(r).dist || 0) >= p.minRunM;
 }
 
 /** @param {string} path @param {RequestInit} [init] @returns {Promise<any>} */
@@ -111,13 +168,37 @@ function fmtDuration(sec) {
     : mm + ":" + String(ss).padStart(2, "0");
 }
 
+// 配速偏好：内部一律存秒/公里，只在展示层换算；订阅让所有已挂载的页面跟着切换。
+const PACE_UNIT_KEY = "gc-pace-unit";
+let paceUnit = (function () {
+  try { return window.localStorage.getItem(PACE_UNIT_KEY) === "mile" ? "mile" : "km"; } catch (e) { return "km"; }
+})();
+const paceSubs = new Set();
+function paceUnitLabel() { return paceUnit === "mile" ? "/mile" : "/km"; }
+function setPaceUnit(v) {
+  paceUnit = v === "mile" ? "mile" : "km";
+  try { window.localStorage.setItem(PACE_UNIT_KEY, paceUnit); } catch (e) { /* 存不了就只在本次生效 */ }
+  paceSubs.forEach(function (f) { f(); });
+}
+function usePaceUnit() {
+  const [, force] = useState(0);
+  useEffect(function () {
+    const f = function () { force(function (n) { return n + 1; }); };
+    paceSubs.add(f);
+    return function () { paceSubs.delete(f); };
+  }, []);
+  return paceUnit;
+}
 /** @param {number|null|undefined} secPerKm @returns {string} */
 function fmtPace(secPerKm) {
   if (typeof secPerKm !== "number" || !isFinite(secPerKm) || secPerKm <= 0) return "-";
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.round(secPerKm % 60);
-  return s === 60 ? (m + 1) + "'00\"/km" : m + "'" + String(s).padStart(2, "0") + "\"/km";
+  const v = secPerKm * (paceUnit === "mile" ? 1.609344 : 1);
+  const m = Math.floor(v / 60);
+  const s = Math.round(v % 60);
+  return (s === 60 ? (m + 1) + "'00\"" : m + "'" + String(s).padStart(2, "0") + "\"") + paceUnitLabel();
 }
+/** 不带单位的配速文本，用于紧凑标签 */
+function paceText(secPerKm) { return fmtPace(secPerKm).replace(/\/km|\/mile/, ""); }
 
 /** 米/秒 → 配速 */
 function paceFromSpeed(mps) {
@@ -182,6 +263,7 @@ class ErrorBoundary extends Component {
 
 function guarded(Inner) {
   return function Guarded(props) {
+    usePaceUnit(); // 单位切换时重渲染整棵子树
     return h(ThemeRoot, null, h(ErrorBoundary, null, h(Inner, props)));
   };
 }
@@ -222,21 +304,22 @@ function TitleBar(props) {
 }
 
 /** 分段按钮组（可能渲染进宿主顶栏、在插件样式作用域之外，所以用行内样式） */
-const SEG_WRAP = { display: "inline-flex", alignSelf: "flex-start", border: "1px solid var(--line, #d1d5db)", borderRadius: "6px", overflow: "hidden" };
-function segBtn(on, last) {
+const SEG_WRAP = { display: "inline-flex", alignSelf: "flex-start", gap: "2px", padding: "3px", borderRadius: "8px", background: "var(--gc-seg-bg, var(--hover, rgba(127,127,127,0.12)))" };
+function segBtn(on) {
   return {
-    padding: "3px 10px", border: 0, borderRight: last ? 0 : "1px solid var(--line, #d1d5db)",
-    background: on ? "var(--hover, #eef0f3)" : "transparent", color: "inherit", font: "inherit",
-    fontSize: "13px", fontWeight: on ? 600 : 400, cursor: "pointer",
+    padding: "3px 12px", border: 0, borderRadius: "6px",
+    background: on ? "var(--gc-seg-on, var(--panel, #fff))" : "transparent", color: on ? "inherit" : "var(--gc-muted, var(--muted, inherit))", font: "inherit",
+    fontSize: "13px", fontWeight: on ? 600 : 400, cursor: "pointer", opacity: on ? 1 : 0.8,
+    boxShadow: on ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
   };
 }
 
 function Seg(props) {
   return h("div", { style: SEG_WRAP, role: "radiogroup", "aria-label": props.label },
-    props.options.map(function (o, i) {
+    props.options.map(function (o) {
       return h("button", {
         key: o[0], type: "button", role: "radio", "aria-checked": props.value === o[0],
-        style: segBtn(props.value === o[0], i === props.options.length - 1),
+        style: segBtn(props.value === o[0]),
         onClick: function () { props.onChange(o[0]); },
       }, o[1]);
     }));
@@ -252,11 +335,10 @@ function ModulePage() {
   const [runs, setRuns] = useState([]);
   const [indoorTypes, setIndoorTypes] = useState(DEFAULT_INDOOR);
   const [hint, setHint] = useState("正在加载跑步记录…");
-  const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(null);
   const [full, setFull] = useState(null);
   const [statsKey, setStatsKey] = useState(0);
-  const [syncErr, setSyncErr] = useState("");
+  const [status, setStatus] = useState(null);
   const [calFocus, setCalFocus] = useState("");
 
   async function load() {
@@ -265,18 +347,26 @@ function ModulePage() {
       const list = Array.isArray(data.runs) ? data.runs : [];
       setRuns(list);
       if (Array.isArray(data.indoor_types)) setIndoorTypes(data.indoor_types);
-      setHint(list.length ? "" : "还没有跑步记录：先在设置页登录 Garmin，再点「立即同步」或「同步全部历史」。");
+      setHint(list.length ? "" : "还没有跑步记录：先在设置页登录 Garmin，再在「账号与同步」里点「同步全部历史」。");
     } catch (err) {
       setHint("读取失败：" + errText(err));
     }
   }
 
+  function refreshStatus() {
+    return api("/status").then(function (st) {
+      setStatus(st);
+      if (st.full_sync && st.full_sync.running) setFull(st.full_sync);
+      return st;
+    }).catch(function () { return null; });
+  }
+
+  // 状态每分钟刷新一次：后台每 6 小时同步，失败不能只藏在小字里
   useEffect(function () {
     load();
-    api("/status").then(function (st) {
-      if (st.full_sync && st.full_sync.running) setFull(st.full_sync);
-      setSyncErr(st.last_sync_error || "");
-    }).catch(function () {});
+    refreshStatus();
+    const t = setInterval(refreshStatus, 60000);
+    return function () { clearInterval(t); };
   }, []);
 
   // 全部历史同步在后台跑：每 2 秒看一次进度，结束后刷新列表和统计
@@ -296,32 +386,6 @@ function ModulePage() {
     return function () { clearInterval(t); };
   }, [full && full.running]);
 
-  async function syncNow() {
-    setBusy(true);
-    setHint("正在同步最近的跑步…");
-    try {
-      const res = await api("/sync", { method: "POST" });
-      setHint("同步完成，写入 " + res.written + " 条。");
-      setSyncErr("");
-      await load();
-      setStatsKey(function (k) { return k + 1; });
-    } catch (err) {
-      setHint("同步失败：" + errText(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function syncAll() {
-    try {
-      const res = await api("/sync?full=1", { method: "POST" });
-      setFull(res.full_sync || { running: true, pages: 0, written: 0 });
-      setHint("");
-    } catch (err) {
-      setHint("同步全部历史失败：" + errText(err));
-    }
-  }
-
   if (open) {
     return h(RunDetail, {
       id: open.activity_id, title: open.activity_name, start: open.start_time,
@@ -332,7 +396,14 @@ function ModulePage() {
   const fullRunning = Boolean(full && full.running);
   // 窄屏顶栏放不下切换标签，挪回页面里
   const narrow = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
-  const viewSeg = h(Seg, { label: "视图", value: view, onChange: setView, options: [["runs", "记录"], ["stats", "统计"], ["calendar", "日历"], ["plans", "计划"], ["videos", "视频"]] });
+  // PMW 版「比赛」是这里的一个视图；dsh 版在外层页签里，不重复放
+  const viewOpts = [["runs", "记录"], ["recovery", "体能"], ["stats", "统计"], ["calendar", "日历"], ["plans", "计划"], ["videos", "视频"]];
+  if (THEME_HOST !== "dsh") viewOpts.push(["races", "比赛"]);
+  const viewSeg = h(Seg, { label: "视图", value: view, onChange: setView, options: viewOpts });
+  // 比赛视图有自己的标题栏操作（添加比赛）和详情页，整页交给它，视图切换放进它的标题栏
+  if (view === "races" && THEME_HOST !== "dsh") {
+    return h(RacesPage, { embedded: true, tabs: narrow ? null : viewSeg, belowTitle: narrow ? viewSeg : null });
+  }
   const total = runs.reduce(function (sum, r) { return sum + (runView(r).dist || 0); }, 0);
   const progress = fullRunning
     ? "正在同步全部历史：已翻 " + (full.pages || 0) + " 页，写入 " + (full.written || 0) + " 条…"
@@ -343,18 +414,15 @@ function ModulePage() {
       title: PLUGIN_NAME,
       desc: "最近 " + runs.length + " 次，累计 " + fmtDistance(total),
       tabs: narrow ? null : viewSeg,
-      actions: [
-        { label: busy ? "同步中…" : "立即同步", primary: true, disabled: busy || fullRunning, onClick: syncNow },
-        { label: fullRunning ? "历史同步中…" : (narrow ? "全部历史" : "同步全部历史"), disabled: busy || fullRunning, onClick: syncAll,
-          title: "把 Garmin 上所有跑步记录都拉下来（统计用），在后台进行" },
-        themeAction(theme),
-      ],
+      // 两端统一：同步按钮只在设置页 / 「账号与同步」里，标题栏不再重复
+      actions: [themeAction(theme)],
     }),
     narrow ? viewSeg : null,
-    progress ? h("p", { className: "pmw-plugin-hint", role: "status" }, progress) : null,
-    syncErr && !busy ? h("p", { className: "gc-note", role: "alert" }, "最近一次同步失败：" + syncErr) : null,
+    h(SyncStatus, { status: status, progress: progress }),
     hint ? h("p", { className: "pmw-plugin-hint" }, hint) : null,
-    view === "stats"
+    view === "recovery"
+      ? h(RecoveryView)
+      : view === "stats"
       ? h(StatsView, { key: statsKey })
       : view === "calendar"
       ? h(CalendarView, { key: "cal-" + calFocus, focus: calFocus, onOpen: setOpen })
@@ -372,40 +440,510 @@ function parseLocal(s) {
   return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
 }
 
-/** 本周（周一起）、本月的跑量，从列表算；今年用统计接口（列表最多 200 条） */
-function periodTotals(runs) {
-  const now = new Date();
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const t = { week: { n: 0, d: 0 }, month: { n: 0, d: 0 } };
-  runs.forEach(function (r) {
-    const d = parseLocal(r.start_time);
-    if (!d) return;
-    if (isStrengthType(r.type_key)) return;
-    const dist = runView(r).dist || 0;
-    if (d >= monday) { t.week.n++; t.week.d += dist; }
-    if (d >= monthStart) { t.month.n++; t.month.d += dist; }
+
+// ---------------------------------------------------------------------------
+// 数据中心风格组件：白卡面板、分段切换、指标块、环形图、堆叠柱、横向占比条
+// ---------------------------------------------------------------------------
+
+/** 白卡面板：标题行（左标题、右操作），下面放内容 */
+function KPanel(props) {
+  return h("section", { className: "gc-kpanel" + (props.className ? " " + props.className : "") },
+    props.title || props.extra
+      ? h("div", { className: "gc-kpanel-head" },
+          props.title ? h("h3", { className: "gc-kpanel-title" }, props.title) : h("span"),
+          props.extra || null)
+      : null,
+    props.children);
+}
+
+/** 分区标题：灰色大字，右侧可放切换 */
+function KSection(props) {
+  return h("div", { className: "gc-ksection" }, h("h2", null, props.title), props.extra || null);
+}
+
+/** 指标块：数字大、单位小；选中的块顶部一条深色粗线 */
+function KTiles(props) {
+  return h("div", { className: "gc-ktiles" + (props.small ? " gc-ktiles-sm" : "") }, props.items.map(function (t, i) {
+    const on = props.active === (t.key != null ? t.key : i);
+    const attrs = {
+      key: t.key != null ? t.key : t.label, className: "gc-ktile" + (on ? " on" : "") + (props.onPick ? " gc-ktile-btn" : ""),
+    };
+    if (props.onPick) {
+      attrs.type = "button";
+      attrs["aria-pressed"] = on;
+      attrs.onClick = function () { props.onPick(t.key != null ? t.key : i); };
+    }
+    return h(props.onPick ? "button" : "div", attrs,
+      h("span", { className: "gc-ktile-label" }, t.label),
+      h("span", { className: "gc-ktile-value" }, t.value, t.unit ? h("small", null, t.unit) : null));
+  }));
+}
+
+/** "10.02 km" → ["10.02", "km"]；配速 5'30"/km → ["5'30\"", "/km"] */
+function splitUnit(text) {
+  const m = /^(.*?)\s*(km\/h|\/km|\/mile|km|bpm|kcal|kg|步\/分|次|组|°C|%|m)$/.exec(String(text || ""));
+  return m && m[1] ? [m[1], m[2]] : [String(text == null ? "-" : text), ""];
+}
+
+// 活动分类：室外跑 / 室内跑 / 力量 / 其他
+const KCATS = [["out", "室外跑"], ["in", "室内跑"], ["str", "力量"], ["oth", "其他"]];
+function actCat(r, indoorTypes) {
+  if (isStrengthType(r.type_key)) return "str";
+  if (isIndoor(r.type_key, indoorTypes)) return "in";
+  return /run/.test(String(r.type_key || "")) || !r.type_key ? "out" : "oth";
+}
+
+/** 环形图：parts = [{ key, label, value }] */
+function Donut(props) {
+  const total = props.parts.reduce(function (t, p) { return t + p.value; }, 0);
+  const r = 52;
+  const c = 2 * Math.PI * r;
+  let acc = 0;
+  return h("div", { className: "gc-donut" },
+    h("svg", { viewBox: "0 0 140 140", className: "gc-donut-svg", role: "img", "aria-label": props.label },
+      h("circle", { cx: 70, cy: 70, r: r, className: "gc-donut-track" }),
+      total > 0 ? props.parts.filter(function (p) { return p.value > 0; }).map(function (p) {
+        const len = (p.value / total) * c;
+        // 段与段之间留 1.5 的缝
+        const gap = props.parts.filter(function (x) { return x.value > 0; }).length > 1 ? Math.min(1.5, len / 2) : 0;
+        const el = h("circle", {
+          key: p.key, cx: 70, cy: 70, r: r, className: "gc-donut-seg gc-c-" + p.key,
+          strokeDasharray: (len - gap) + " " + (c - len + gap), strokeDashoffset: -acc,
+          transform: "rotate(-90 70 70)",
+        }, h("title", null, p.label + " " + p.text));
+        acc += len;
+        return el;
+      }) : null,
+      h("text", { x: 70, y: 66, className: "gc-donut-num", textAnchor: "middle" }, props.center),
+      h("text", { x: 70, y: 86, className: "gc-donut-cap", textAnchor: "middle" }, props.caption)),
+    h("ul", { className: "gc-donut-legend" }, props.parts.map(function (p) {
+      return h("li", { key: p.key, className: p.value > 0 ? "" : "gc-dim" },
+        h("i", { className: "gc-swatch gc-c-" + p.key }),
+        h("span", null, p.label),
+        h("b", null, p.text),
+        h("em", null, total > 0 ? Math.round((p.value / total) * 100) + "%" : "-"));
+    })));
+}
+
+function niceMax(v) {
+  if (!(v > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 4 ? 4 : f <= 5 ? 5 : 10) * p;
+}
+
+/** 堆叠柱：buckets = [{ key, label, parts: { out, in, str, oth } }] */
+function StackBars(props) {
+  const W = 380, H = 220, L = 30, R = 4, T = 22, B = 24;
+  const keys = props.cats;
+  const totals = props.buckets.map(function (b) { return keys.reduce(function (t, k) { return t + (b.parts[k] || 0); }, 0); });
+  const max = niceMax(Math.max.apply(null, totals.concat([0])) * props.scale);
+  const n = props.buckets.length || 1;
+  const step = (W - L - R) / n;
+  const bw = Math.max(2, Math.min(16, step * 0.62));
+  const sy = function (v) { return T + (H - T - B) * (1 - (v * props.scale) / max); };
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(function (f) { return max * f; });
+  const every = Math.max(1, Math.ceil(n / 6));
+  return h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-kbars", role: "img", "aria-label": props.label },
+    h("text", { x: 4, y: 12, className: "gc-kaxis" }, props.unit),
+    ticks.map(function (t, i) {
+      const y = T + (H - T - B) * (1 - t / max);
+      return h("g", { key: i },
+        h("line", { x1: L, x2: W - R, y1: y, y2: y, className: "gc-kgrid-line" + (i === 0 ? " base" : "") }),
+        h("text", { x: L - 6, y: y + 4, className: "gc-kaxis", textAnchor: "end" }, String(Math.round(t * 10) / 10)));
+    }),
+    props.buckets.map(function (b, i) {
+      const x = L + step * i + (step - bw) / 2;
+      let base = 0;
+      const tip = b.label + "：" + props.fmt(totals[i]) +
+        keys.filter(function (k) { return b.parts[k]; }).map(function (k) { return "\n" + props.names[k] + " " + props.fmt(b.parts[k]); }).join("");
+      return h("g", { key: b.key },
+        h("title", null, tip),
+        // 整列透明命中区，悬停更容易
+        h("rect", { x: L + step * i, y: T, width: step, height: H - T - B, className: "gc-kbar-hit" }),
+        keys.map(function (k) {
+          const v = b.parts[k] || 0;
+          if (!v) return null;
+          const y1 = sy(base + v), y0 = sy(base);
+          base += v;
+          return h("rect", { key: k, x: x, y: y1, width: bw, height: Math.max(1, y0 - y1), className: "gc-kbar gc-c-" + k });
+        }),
+        i % every === 0 || i === n - 1
+          ? h("text", { x: x + bw / 2, y: H - 6, className: "gc-kaxis", textAnchor: "middle" }, b.label)
+          : null);
+    }));
+}
+
+/** 横向占比条：rows = [{ label, value, text }] */
+function HBars(props) {
+  const total = props.rows.reduce(function (t, r) { return t + r.value; }, 0);
+  const max = Math.max.apply(null, props.rows.map(function (r) { return r.value; }).concat([0]));
+  return h("div", { className: "gc-hbars" }, props.rows.map(function (r) {
+    return h("div", { className: "gc-hbar", key: r.label },
+      h("span", { className: "gc-hbar-label" }, r.label),
+      h("span", { className: "gc-hbar-track" }, h("i", { style: { width: (max > 0 ? (r.value / max) * 100 : 0) + "%" } })),
+      h("span", { className: "gc-hbar-num" }, r.text),
+      h("span", { className: "gc-hbar-pct" }, total > 0 ? Math.round((r.value / total) * 100) + "%" : "-"));
+  }));
+}
+
+// ---- 记录页概览 ----
+
+const KRANGES = [["week", "本周"], ["month", "本月"], ["7d", "近 7 日"], ["30d", "近 30 日"], ["half", "近半年"], ["year", "近 1 年"]];
+const KMETRICS = [["n", "跑步次数"], ["str", "力量次数"], ["dur", "时长"], ["dist", "距离"]];
+const DAYPARTS = [[0, 5, "凌晨"], [5, 8, "晨练"], [8, 11, "上午"], [11, 14, "午间"], [14, 17, "下午"], [17, 19, "傍晚"], [19, 24, "晚上"]];
+const PREF_TABS = [["time", "时段"], ["week", "星期"]];
+
+function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function mondayOf(d) { const x = dayStart(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+
+/** 区间起点和柱子分桶：本周 / 本月 / 近 7 / 近 30 日按天，近半年按周，近 1 年按月 */
+function rangeBuckets(range) {
+  const today = dayStart(new Date());
+  const out = [];
+  if (range === "week" || range === "month") {
+    const start = range === "week" ? mondayOf(today) : new Date(today.getFullYear(), today.getMonth(), 1);
+    for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+      out.push({ key: ymd(d), label: (d.getMonth() + 1) + "/" + d.getDate(), start: new Date(d) });
+    }
+  } else if (range === "7d" || range === "30d") {
+    const n = range === "7d" ? 7 : 30;
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      out.push({ key: ymd(d), label: (d.getMonth() + 1) + "/" + d.getDate(), start: d });
+    }
+  } else if (range === "half") {
+    const mon = mondayOf(today);
+    for (let i = 25; i >= 0; i--) {
+      const d = new Date(mon); d.setDate(d.getDate() - i * 7);
+      out.push({ key: ymd(d), label: (d.getMonth() + 1) + "/" + d.getDate(), start: d });
+    }
+  } else {
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      out.push({ key: d.getFullYear() + "-" + pad2(d.getMonth() + 1), label: (d.getMonth() + 1) + "月", start: d });
+    }
+  }
+  return out;
+}
+
+function bucketOf(range, d) {
+  if (range === "half") return ymd(mondayOf(d));
+  if (range === "year") return d.getFullYear() + "-" + pad2(d.getMonth() + 1);
+  return ymd(d);
+}
+
+function runMetric(metric, r) {
+  const strength = isStrengthType(r.type_key);
+  if (metric === "n") return strength ? 0 : 1;
+  if (metric === "str") return strength ? 1 : 0;
+  if (metric === "dur") return Number(r.duration_s) || 0;
+  return strength ? 0 : (runView(r).dist || 0);
+}
+
+function metricFmt(metric, v) {
+  if (metric === "n" || metric === "str") return Math.round(v) + " 次";
+  if (metric === "dur") return fmtDuration(v);
+  return num(v / 1000, 1) + " km";
+}
+
+function Overview(props) {
+  const prefs = useStatsPrefs();
+  const [range, setRange] = useState("30d");
+  const [tile, setTile] = useState("n");
+  const [trend, setTrend] = useState("n");
+  const [pref, setPref] = useState("time");
+  const [all, setAll] = useState(null);
+  const [err, setErr] = useState("");
+
+  // 一次取近 1 年（最长区间）的全部记录，切换区间只在前端过滤
+  useEffect(function () {
+    let alive = true;
+    const first = rangeBuckets("year")[0].start;
+    api("/runs?from=" + ymd(first)).then(function (d) {
+      if (alive) { setAll(Array.isArray(d.runs) ? d.runs : []); setErr(""); }
+    }).catch(function (e) { if (alive) setErr(errText(e)); });
+    return function () { alive = false; };
+  }, [props.version]);
+
+  const buckets = rangeBuckets(range);
+  const from = buckets[0].start;
+  const runs = (all || []).map(function (r) { return { r: r, d: parseLocal(r.start_time) }; })
+    .filter(function (x) { return x.d && x.d >= from && statEligible(x.r, prefs); });
+  const cats = KCATS.map(function (c) { return c[0]; });
+  const names = {};
+  KCATS.forEach(function (c) { names[c[0]] = c[1]; });
+  const present = cats.filter(function (k) { return k !== "oth" || runs.some(function (x) { return actCat(x.r, props.indoorTypes) === "oth"; }); });
+
+  const sum = function (metric, pick) {
+    return runs.reduce(function (t, x) { return t + (!pick || pick(x) ? runMetric(metric, x.r) : 0); }, 0);
+  };
+  const runN = sum("n"), strN = sum("str");
+  const tiles = [
+    { key: "n", label: "跑步次数", value: String(runN), unit: "次" },
+    { key: "str", label: "力量次数", value: String(strN), unit: "次" },
+    // 大数字要放得下：跑量过百公里不带小数，总时长用小时
+    { key: "dist", label: "跑量", value: num(sum("dist") / 1000, sum("dist") >= 100000 ? 0 : 1), unit: "km" },
+    { key: "dur", label: "总时长", value: num(sum("dur") / 3600, 1), unit: "h" },
+  ];
+  const parts = present.map(function (k) {
+    const v = sum(tile, function (x) { return actCat(x.r, props.indoorTypes) === k; });
+    return { key: k, label: names[k], value: v, text: metricFmt(tile, v).replace(" ", "") };
   });
-  return t;
+  const tileTotal = sum(tile);
+  const center = tile === "dur" ? num(tileTotal / 3600, 1) : tile === "dist" ? num(tileTotal / 1000, 1) : String(Math.round(tileTotal));
+  const caption = tile === "dur" ? "小时" : tile === "dist" ? "公里" : "次";
+
+  const byKey = {};
+  const bars = buckets.map(function (b) { const x = { key: b.key, label: b.label, parts: {} }; byKey[b.key] = x; return x; });
+  runs.forEach(function (x) {
+    const b = byKey[bucketOf(range, x.d)];
+    if (!b) return;
+    const k = actCat(x.r, props.indoorTypes);
+    b.parts[k] = (b.parts[k] || 0) + runMetric(trend, x.r);
+  });
+  const maxBar = Math.max.apply(null, bars.map(function (b) { return cats.reduce(function (t, k) { return t + (b.parts[k] || 0); }, 0); }).concat([0]));
+  const durHours = maxBar >= 3 * 3600;
+  const scale = trend === "dur" ? (durHours ? 1 / 3600 : 1 / 60) : trend === "dist" ? 1 / 1000 : 1;
+  const unitText = trend === "dur" ? (durHours ? "小时" : "分钟") : trend === "dist" ? "km" : "次";
+
+  let prefRows;
+  if (pref === "time") {
+    prefRows = DAYPARTS.map(function (p) {
+      const n = runs.filter(function (x) { const hr = x.d.getHours(); return hr >= p[0] && hr < p[1]; }).length;
+      return { label: p[2], value: n, text: n + "次" };
+    });
+  } else {
+    prefRows = [1, 2, 3, 4, 5, 6, 0].map(function (wd) {
+      const n = runs.filter(function (x) { return x.d.getDay() === wd; }).length;
+      return { label: WEEKDAYS[wd], value: n, text: n + "次" };
+    });
+  }
+
+  const empty = all && !runs.length ? h("p", { className: "pmw-plugin-hint gc-kempty" }, "这段时间没有运动记录") : null;
+  const loading = !all ? h("p", { className: "pmw-plugin-hint gc-kempty" }, err ? "读取失败：" + err : "正在统计…") : null;
+
+  return h("div", { className: "gc-overview" },
+    h(KSection, { title: "运动概览", extra: h(KSeg, { label: "时间范围", value: range, onChange: setRange, options: KRANGES }) }),
+    h("div", { className: "gc-kgrid" },
+      h(KPanel, { title: "运动总览" },
+        h(KTiles, { items: tiles, active: tile, onPick: setTile }),
+        loading || empty || h(Donut, { parts: parts, center: center, caption: caption, label: "按类型分布" })),
+      h(KPanel, { title: "趋势分布", extra: h(KSeg, { label: "趋势指标", value: trend, onChange: setTrend, options: KMETRICS }) },
+        loading || h("div", { className: "gc-ktrend" },
+          h(StackBars, { buckets: bars, cats: present, names: names, scale: scale, unit: unitText, label: "趋势分布",
+            fmt: function (v) { return metricFmt(trend, v); } }),
+          h("div", { className: "gc-legend gc-klegend" }, present.map(function (k) {
+            return h("span", { key: k }, h("i", { className: "gc-swatch gc-c-" + k }), names[k]);
+          })))),
+      h(KPanel, { title: "运动偏好", extra: h(KSeg, { label: "偏好维度", value: pref, onChange: setPref, options: PREF_TABS }) },
+        loading || empty || h(HBars, { rows: prefRows }))));
+}
+
+/** 面板里的小号分段切换（插件样式作用域内，用 class） */
+function KSeg(props) {
+  return h("div", { className: "gc-kseg", role: "radiogroup", "aria-label": props.label },
+    props.options.map(function (o) {
+      return h("button", {
+        key: o[0], type: "button", role: "radio", "aria-checked": props.value === o[0],
+        className: props.value === o[0] ? "on" : "", onClick: function () { props.onChange(o[0]); },
+      }, o[1]);
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// 恢复 / 体能趋势（0.10.0）：跨天的训练负荷、训练效果、身体电量、恢复/静息心率、跑量。
+// 数据来自 /recovery；缺失指标为 null，图表按 null 断线，不把「没数据」画成 0。
+// ---------------------------------------------------------------------------
+
+const REC_METRICS = [
+  ["load", "训练负荷"], ["effect", "训练效果"], ["body_battery", "身体电量"],
+  ["recovery_hr", "恢复心率"], ["resting_hr", "静息心率"], ["stamina", "体能储备"],
+];
+const REC_LEVEL = {
+  good: { cls: "good", dot: "#2ea36b" },
+  moderate: { cls: "moderate", dot: "#d99125" },
+  low: { cls: "low", dot: "#d6484f" },
+  unknown: { cls: "unknown", dot: "#9aa0aa" },
+};
+
+function recNum(v) { return typeof v === "number" && isFinite(v); }
+
+/** 恢复趋势折线 / 柱状混合图：有 load 画柱，其余画折线；高强度日用竖标记，缺失断线。 */
+function RecoveryChart(props) {
+  const W = 620, H = 240, L = 36, R = 8, T = 20, B = 40;
+  const metric = props.metric;
+  const days = props.days || [];
+  const vals = days.map(function (d) { return d[metric]; });
+  const present = vals.filter(recNum);
+  let max = 1, min = 0;
+  if (present.length) {
+    max = Math.max.apply(null, present);
+    min = Math.min.apply(null, present);
+    if (metric === "body_battery") {
+      max = Math.max(max, 0); min = Math.min(min, 0);
+    } else if (max === min) {
+      min = Math.max(0, min - 1); max = max + 1;
+    } else {
+      min = Math.max(0, min - (max - min) * 0.15);
+    }
+  }
+  const span = max - min || 1;
+  const n = days.length || 1;
+  const step = (W - L - R) / n;
+  const bw = Math.max(2, Math.min(14, step * 0.6));
+  const x = function (i) { return L + step * i + step / 2; };
+  const y = function (v) { return T + (H - T - B) * (1 - (v - min) / span); };
+  const ticks = [0, 0.5, 1].map(function (f) { return min + span * f; });
+  const every = Math.max(1, Math.ceil(n / 8));
+  const unit = metric === "load" ? "" : "";
+  const fmt = function (v) { return num(v, metric === "effect" || metric === "body_battery" ? 1 : 0); };
+
+  // 折线：按连续段分组，null 断开
+  const segments = [];
+  let seg = [];
+  vals.forEach(function (v, i) {
+    if (recNum(v)) seg.push(i);
+    else if (seg.length) { segments.push(seg); seg = []; }
+  });
+  if (seg.length) segments.push(seg);
+
+  return h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-rec-chart", role: "img", "aria-label": props.label },
+    ticks.map(function (t, i) {
+      const yy = y(t);
+      return h("g", { key: i },
+        h("line", { x1: L, x2: W - R, y1: yy, y2: yy, className: "gc-kgrid-line" + (i === 0 ? " base" : "") }),
+        h("text", { x: L - 5, y: yy + 4, className: "gc-kaxis", textAnchor: "end" }, fmt(t)));
+    }),
+    // 周分隔与日期标签
+    days.map(function (d, i) {
+      const dow = parseLocal(d.date + " 00:00");
+      const isMon = dow && dow.getDay() === 1;
+      return h("g", { key: d.date },
+        isMon ? h("line", { x1: x(i) - step / 2, x2: x(i) - step / 2, y1: T, y2: H - B, className: "gc-rec-week" }) : null,
+        (i % every === 0 || i === n - 1)
+          ? h("text", { x: x(i), y: H - 20, className: "gc-kaxis", textAnchor: "middle" }, d.date.slice(5).replace("-", "/"))
+          : null,
+        d.High ? h("circle", { cx: x(i), cy: T + 3, r: 3, className: "gc-rec-high" }) : null,
+        h("title", null, d.date + (recNum(vals[i]) ? "：" + fmt(vals[i]) + unit : "：无数据") + (d.High ? "（高强度）" : "")));
+    }),
+    metric === "load"
+      ? days.map(function (d, i) {
+          return recNum(vals[i])
+            ? h("rect", { key: d.date, x: x(i) - bw / 2, y: y(vals[i]), width: bw,
+                height: Math.max(1, y(min) - y(vals[i])), className: "gc-rec-bar" + (d.High ? " high" : "") })
+            : null;
+        })
+      : segments.map(function (seg, si) {
+          return h("polyline", { key: si, className: "gc-rec-line",
+            points: seg.map(function (i) { return x(i) + "," + y(vals[i]); }).join(" ") });
+        }).concat(segments.map(function (seg, si) {
+          return seg.map(function (i) {
+            return h("circle", { key: si + "-" + i, cx: x(i), cy: y(vals[i]), r: 2.5,
+              className: "gc-rec-dot" + (days[i].High ? " high" : "") });
+          });
+        })));
+}
+
+function RecoveryView() {
+  const [range, setRange] = useState("28");
+  const [metric, setMetric] = useState("load");
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try {
+      setData(await api("/recovery?days=" + range));
+      setErr("");
+    } catch (e) { setErr(errText(e)); }
+  }
+  useEffect(function () { load(); }, [range]);
+
+  const backfill = data && data.backfill || {};
+  // 回填中：每 1.5 秒刷新一次进度，结束后拉一次数据
+  useEffect(function () {
+    if (!backfill.running) return undefined;
+    const t = setInterval(function () {
+      api("/recovery?days=" + range).then(function (d) {
+        setData(d);
+        if (!d.backfill || !d.backfill.running) load();
+      }).catch(function () {});
+    }, 1500);
+    return function () { clearInterval(t); };
+  }, [backfill.running, range]);
+
+  async function backfillNow() {
+    setBusy(true);
+    try { await api("/recovery/backfill", { method: "POST" }); await load(); }
+    catch (e) { setErr(errText(e)); }
+    finally { setBusy(false); }
+  }
+
+  const sum = data && data.summary || {};
+  const st = sum.status || {};
+  const tone = REC_LEVEL[st.level] || REC_LEVEL.unknown;
+  const days = data && Array.isArray(data.days) ? data.days : [];
+  const active = days.filter(function (d) { return d.load != null || d.effect != null || d.distance_m > 0; });
+
+  const recPanels = [
+    h(KPanel, { className: "gc-rec-status gc-rec-" + tone.cls },
+      h("div", { className: "gc-rec-status-head" },
+        h("span", { className: "gc-rec-status-badge" }, h("i", { style: { background: tone.dot } }), st.label || "—"),
+        h("span", { className: "pmw-plugin-hint" }, st.reason || "")),
+      h("p", { className: "gc-rec-suggest" }, st.suggestion || ""),
+      st.level === "unknown" ? null : h(KTiles, { small: true, items: [
+        { label: "本周跑量", value: num(sum.week_km, 1), unit: "km" },
+        { label: "近 4 周周均", value: num(sum.baseline_km, 1), unit: "km" },
+        { label: "本周进度", value: sum.progress == null ? "-" : sum.progress, unit: "%" },
+        { label: "距上次跑步", value: sum.days_since == null ? "-" : sum.days_since, unit: "天" },
+        { label: "近 7 天负荷", value: num(sum.load_7d, 0), unit: "" },
+        { label: "近 7 天高强度", value: sum.high_days || 0, unit: "天" },
+      ] }),
+      h("div", { className: "gc-rec-progress" },
+        h("span", { className: "gc-rec-progress-track" },
+          h("i", { style: { width: Math.min(100, Math.max(0, sum.progress || 0)) + "%" } })),
+        h("span", { className: "pmw-plugin-hint" }, "本周 / 近 4 周周均")),
+      sum.effect_label ? h("p", { className: "pmw-plugin-hint" }, "最近训练效益：" + (teText(sum.effect_label) || sum.effect_label)) : null),
+    h(KPanel, { title: "体能趋势", extra: h(KSeg, { label: "指标", value: metric, onChange: setMetric, options: REC_METRICS }) },
+      active.length === 0
+        ? h("p", { className: "pmw-plugin-hint gc-kempty" }, "暂无训练指标：点开任意一次跑步详情，或点上方「补全训练指标」")
+        : h("div", { className: "gc-rec-chart-wrap" },
+            h(RecoveryChart, { days: days, metric: metric, label: "恢复趋势" }),
+            h("div", { className: "gc-legend gc-klegend" },
+              h("span", null, h("i", { className: "gc-rec-high" }), "高强度日"),
+              h("span", null, "空白 = 无数据")))),
+    h(KPanel, { title: "最近训练" },
+      active.length === 0
+        ? h("p", { className: "pmw-plugin-hint gc-kempty" }, "暂无记录")
+        : h("div", { className: "gc-rec-list" }, active.slice(-8).reverse().map(function (d) {
+            return h("div", { key: d.date + (d.activity_id || ""), className: "gc-rec-row" },
+              h("span", { className: "gc-rec-date" }, d.date.slice(5)),
+              h("span", { className: "gc-rec-name" }, d.name || (d.strength ? "力量训练" : "跑步")),
+              d.distance_m > 0 ? h("span", { className: "gc-rec-dim" }, fmtDistance(d.distance_m)) : null,
+              d.load != null ? h("span", { className: "gc-rec-dim" }, "负荷 " + num(d.load, 0)) : null,
+              d.effect != null ? h("span", { className: "gc-rec-dim" }, "效果 " + num(d.effect, 1)) : null,
+              d.High ? h("span", { className: "gc-rec-tag high" }, "高强度") : null);
+          })))
+  ];
+  return h("div", { className: "gc-overview gc-recovery" },
+    h(KSection, { title: "恢复与体能", extra: h("div", { className: "gc-rec-controls" },
+      h(KSeg, { label: "时间范围", value: range, onChange: setRange,
+        options: [["14", "14 天"], ["28", "28 天"], ["56", "8 周"], ["90", "90 天"]] }),
+      h("button", { className: "pmw-plugin-button", type: "button", disabled: busy || backfill.running, onClick: backfillNow },
+        backfill.running ? "补全中 " + (backfill.done || 0) + "/" + (backfill.total || "?") : "补全训练指标")) }),
+    err ? h("p", { className: "pmw-plugin-hint" }, "读取失败：" + err) : null,
+    backfill.running
+      ? h("p", { className: "pmw-plugin-hint" }, "正在补全最近 4 周的训练指标（后台进行，不阻塞使用）…")
+      : backfill.error ? h("p", { className: "pmw-plugin-hint" }, "指标补全：" + backfill.error) : null,
+    !data
+      ? h("p", { className: "pmw-plugin-hint gc-kempty" }, "正在读取恢复数据…")
+      : h("div", { className: "gc-kdata" }, recPanels));
 }
 
 function RunList(props) {
   const [kind, setKind] = useState("all");
   const [q, setQ] = useState("");
-  const [year, setYear] = useState(null);
-
-  useEffect(function () {
-    let alive = true;
-    api("/stats?period=year&kind=all").then(function (d) {
-      if (!alive) return;
-      const y = String(new Date().getFullYear());
-      const b = (d.buckets || []).find(function (x) { return x.bucket === y; });
-      setYear(b || { runs: 0, distance_m: 0 });
-    }).catch(function () {});
-    return function () { alive = false; };
-  }, [props.runs.length]);
-
-  const totals = periodTotals(props.runs);
   const word = q.trim().toLowerCase();
   const list = props.runs.filter(function (r) {
     const indoor = isIndoor(r.type_key, props.indoorTypes);
@@ -426,19 +964,14 @@ function RunList(props) {
     if (isStrengthType(r.type_key)) g.strength = (g.strength || 0) + 1;
   });
 
+  const first = props.runs[0];
   return h("div", { className: "gc-list" },
-    h("div", { className: "gc-stats gc-stats-3" },
-      [["本周", totals.week.n, totals.week.d], ["本月", totals.month.n, totals.month.d],
-       ["今年", year ? year.runs : null, year ? year.distance_m : null]].map(function (c) {
-        return h("div", { className: "gc-stat", key: c[0] },
-          h("span", { className: "gc-stat-label" }, c[0] + (c[1] != null ? " · " + c[1] + " 次" : "")),
-          h("span", { className: "gc-stat-value" }, c[2] != null ? fmtDistance(c[2]) : "-"));
-      })),
-    h("div", { className: "gc-controls" },
-      h(Seg, { label: "类型", value: kind, onChange: setKind, options: [["all", "全部"], ["outdoor", "室外"], ["indoor", "室内"], ["strength", "力量"]] }),
+    h(Overview, { indoorTypes: props.indoorTypes, version: props.runs.length + ":" + (first ? runKey(first) : "") }),
+    h(KSection, { title: "运动记录", extra: h("div", { className: "gc-controls" },
+      h(KSeg, { label: "类型", value: kind, onChange: setKind, options: [["all", "全部"], ["outdoor", "室外"], ["indoor", "室内"], ["strength", "力量"]] }),
       h("input", { className: "gc-search", type: "search", placeholder: "按名称搜索", value: q, "aria-label": "按名称搜索",
         onChange: function (e) { setQ(e.target.value); } }),
-      h("span", { className: "pmw-plugin-hint" }, list.length + " 次" + (props.runs.length >= 200 ? "（列表显示最近 200 次）" : ""))),
+      h("span", { className: "pmw-plugin-hint" }, list.length + " 次" + (props.runs.length >= 200 ? "（显示最近 200 次）" : ""))) }),
     list.length && isNarrow()
       ? h("div", { className: "gc-cards" }, groups.map(function (g) {
           return h("section", { key: g.month },
@@ -547,6 +1080,7 @@ function metricText(metric, v) {
 }
 
 function StatsView() {
+  const prefs = useStatsPrefs();
   const [period, setPeriod] = useState("week");
   const [kind, setKind] = useState("all");
   const [metric, setMetric] = useState("distance");
@@ -556,11 +1090,15 @@ function StatsView() {
   useEffect(function () {
     let alive = true;
     setHint("正在统计…");
-    api("/stats?period=" + period + "&kind=" + kind)
+    let path = "/stats?period=" + period + "&kind=" + kind;
+    if (prefs.ignoreShort) {
+      path += "&min_run_m=" + prefs.minRunM + "&min_strength_s=" + prefs.minStrengthS;
+    }
+    api(path)
       .then(function (d) { if (alive) { setData(d); setHint(""); } })
       .catch(function (err) { if (alive) setHint("统计失败：" + errText(err)); });
     return function () { alive = false; };
-  }, [period, kind]);
+  }, [period, kind, prefs]);
 
   const rows = (data && data.buckets) || [];
   const byKey = {};
@@ -591,6 +1129,10 @@ function StatsView() {
       h(Seg, { label: "类型", value: kind, onChange: setKind, options: KINDS }),
       h(Seg, { label: "周期", value: period, onChange: setPeriod, options: PERIODS }),
       h(Seg, { label: "指标", value: m, onChange: setMetric, options: metricOpts })),
+    prefs.ignoreShort
+      ? h("p", { className: "pmw-plugin-hint" },
+          "统计已忽略短活动：跑步 < " + num(prefs.minRunM / 1000, 1) + " km、力量 < " + num(prefs.minStrengthS / 60, 0) + " 分钟（设置里可改）。")
+      : null,
     hint ? h("p", { className: "pmw-plugin-hint" }, hint) : null,
     data && data.unknown_type > 0 && !strength
       ? h("p", { className: "pmw-plugin-hint" },
@@ -642,7 +1184,7 @@ function BarChart(props) {
         return h("g", { key: "t" + i },
           h("line", { x1: padL, x2: W - 4, y1: y(t), y2: y(t), className: "gc-grid" }),
           h("text", { x: padL - 6, y: y(t) + 4, className: "gc-axis", textAnchor: "end" },
-            props.metric === "pace" ? fmtPace(t).replace("/km", "") : (props.metric === "runs" ? Math.round(t) : t.toFixed(t >= 10 ? 0 : 1))));
+            props.metric === "pace" ? paceText(t) : (props.metric === "runs" ? Math.round(t) : t.toFixed(t >= 10 ? 0 : 1))));
       }),
       props.items.map(function (x, i) {
         const v = vals[i];
@@ -839,11 +1381,10 @@ function DataGroups(props) {
     return [g[0], g[1].map(function (row) { return [row[0], row[1](s)]; }).filter(function (r) { return r[1]; })];
   }).filter(function (g) { return g[1].length; });
   const others = Object.keys(props.raw || {}).filter(function (k) { return !GROUPED_KEYS[k]; }).sort();
-  return h("section", null,
-    h("h3", { className: "gc-sub" }, "详细数据"),
-    h("div", { className: "gc-groups" }, groups.map(function (g) {
-      return h("div", { className: "gc-group", key: g[0] },
-        h("h4", { className: "gc-group-title" }, g[0]),
+  return h("section", { className: "gc-kdata" },
+    h(KSection, { title: "详细数据" }),
+    h("div", { className: "gc-kgrid" }, groups.map(function (g) {
+      return h(KPanel, { key: g[0], title: g[0] },
         h("dl", { className: "gc-dl" }, g[1].map(function (r) {
           return h("div", { className: "gc-dl-row", key: r[0] }, h("dt", null, r[0]), h("dd", null, r[1]));
         })));
@@ -978,6 +1519,7 @@ function RunDetail(props) {
   const [editing, setEditing] = useState(null);
   const [tab, setTab] = useState("overview");
   const [marking, setMarking] = useState(false);
+  const [activeLap, setActiveLap] = useState(-1);
 
   async function load(refresh) {
     setBusy(true);
@@ -1064,19 +1606,24 @@ function RunDetail(props) {
     setResp(Object.assign({}, resp, { detail: d }));
     setEditing(null);
     setHint("已保存到 Garmin。");
+    // 类别改成「比赛」时同步收录到比赛（后端按活动去重，重复改不会多出一场）
+    if (body.event_type === "race") markRace(d, "已保存到 Garmin，并收录到「比赛」。");
   }
 
   /** 收录为比赛：名称、日期、类别（按距离猜）、成绩（计时用时）从这次活动带出，影像到「比赛」里补 */
-  async function markRace() {
+  async function markRace(src, okText) {
+    const d = src && src.activity_id ? src : detail;
     setMarking(true);
     try {
-      await api("/races", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        name: detail.name || "比赛", date: String(detail.start_local || props.start || "").slice(0, 10),
-        category: guessCategory(s.distance || 0, detail.type_key), status: "finished",
+      const res = await api("/races", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        name: d.name || "比赛", date: String(d.start_local || props.start || "").slice(0, 10),
+        category: guessCategory(s.distance || 0, d.type_key), status: "finished",
         // 手表计时从过起点开始，更接近净计时
-        net_s: s.duration || 0, activity_id: detail.activity_id,
+        net_s: s.duration || 0, activity_id: d.activity_id,
       }) });
-      setHint("已收录到侧边栏「比赛」，可以在那里补充成绩证书、奖牌、照片等影像。");
+      setHint(res && res.existing
+        ? (okText ? "已保存到 Garmin；这次活动已经在「比赛」里了。" : "这次活动已经收录在「比赛」里了。")
+        : (okText || "已收录到「比赛」，可以在那里补充成绩证书、奖牌、照片等影像。"));
     } catch (err) {
       setHint("收录失败：" + errText(err));
     } finally { setMarking(false); }
@@ -1116,27 +1663,40 @@ function RunDetail(props) {
     : null;
   const correctionNote = corrected
     ? h("div", { className: "gc-note gc-note-row" },
-        h("span", null, "已按跑步机速度校正：距离 " + fmtDistance(s.distance) + "（Garmin 原始 " + fmtDistance(s._origDistance) + "），配速随之重算。这只改本地，Garmin 上还是原始数据。"),
+        h("span", null, "已按跑步机速度校正：距离 " + fmtDistance(s.distance) + "（Garmin 原始 " + fmtDistance(s._origDistance) + "）；概要、分段、曲线和 AI 分析同口径。这只改本地，Garmin 上还是原始数据。"),
         h("button", { className: "pmw-plugin-button", type: "button", onClick: presetCorrection,
           title: "Garmin 不允许改距离；可以把校正结果写进描述，并把类型改成跑步机" }, "写入 Garmin 描述"))
     : null;
 
   let body = null;
   if (detail && tab === "overview") {
-    // 先图（路线），后数据（关键指标、天气、描述）
+    // 数据中心版式：左路线、右总览（前三项大字指标块 + 其余指标），下面天气、描述、分组详细数据
+    const hasMap = detail.track && detail.track.length > 1;
+    const top = shownCards.slice(0, 3).map(function (c) { const p = splitUnit(c[1]); return { label: c[0], value: p[0], unit: p[1] }; });
+    const rest = shownCards.slice(3);
+    const summaryPanel = h(KPanel, { title: "运动总览", className: "gc-ksummary" },
+      h(KTiles, { items: top, active: 0 }),
+      rest.length ? h("div", { className: "gc-kmetrics" }, rest.map(function (c) {
+        const p = splitUnit(c[1]);
+        return h("div", { className: "gc-kmetric", key: c[0] },
+          h("span", null, c[0]), h("b", null, p[0], p[1] ? h("small", null, p[1]) : null));
+      })) : null,
+      !hasMap && !strength ? h("p", { className: "pmw-plugin-hint" }, indoor ? "室内跑步没有路线。" : "这次活动没有 GPS 轨迹。") : null);
     body = h("div", { className: "gc-tab-body" },
-      detail.track && detail.track.length > 1
-        ? h(RouteMap, { track: detail.track, source: resp.map_source || "amap" })
-        : (strength ? null : h("p", { className: "gc-note" }, indoor ? "室内跑步没有路线。" : "这次活动没有 GPS 轨迹。")),
       correctionNote,
-      h("div", { className: "gc-stats" },
-        shownCards.map(function (c) {
-          return h("div", { className: "gc-stat", key: c[0] },
-            h("span", { className: "gc-stat-label" }, c[0]),
-            h("span", { className: "gc-stat-value" }, c[1]));
-        })),
-      detail.weather ? h(WeatherCard, { w: detail.weather }) : null,
-      detail.description ? h("section", null, h("h3", { className: "gc-sub" }, "描述"), h("p", { className: "gc-desc" }, detail.description)) : null,
+      h("div", { className: "gc-kgrid gc-kgrid-detail" + (hasMap ? "" : " gc-kgrid-nomap") },
+        hasMap ? h(KPanel, { title: "路线", className: "gc-kmap" }, h(RouteMap, {
+          track: detail.track, source: resp.map_source || "amap",
+          laps: corrected ? [] : lapViews, rawLaps: laps, totalDist: s.distance,
+          activeLap: activeLap,
+          onPick: function (i) { setActiveLap(i); setTab("laps"); },
+        })) : null,
+        summaryPanel),
+      detail.weather || detail.description
+        ? h("div", { className: "gc-kgrid gc-kgrid-2" },
+            detail.weather ? h(WeatherCard, { w: detail.weather }) : null,
+            detail.description ? h(KPanel, { title: "描述" }, h("p", { className: "gc-desc" }, detail.description)) : null)
+        : null,
       h(DataGroups, { summary: s, raw: detail.summary || {} }),
       fetched);
   } else if (detail && tab === "sets") {
@@ -1145,7 +1705,8 @@ function RunDetail(props) {
     body = h("div", { className: "gc-tab-body" }, h(AnalysisTab, { detail: detail, indoor: indoor || corrected }));
   } else if (detail && tab === "charts") {
     body = h("div", { className: "gc-tab-body" },
-      h(ChartsTab, { key: detail.activity_id, series: detail.series, indoor: indoor || corrected, zones: detail.hr_zones || [] }));
+      h(ChartsTab, { key: detail.activity_id, series: detail.series, indoor: indoor || corrected,
+        zones: resp.hr_zones_effective || detail.hr_zones || [], zoneSource: resp.hr_zone_source }));
   } else if (detail && tab === "laps") {
     body = h("div", { className: "gc-tab-body" },
       h(LapBars, { laps: laps, lapViews: lapViews }),
@@ -1154,6 +1715,7 @@ function RunDetail(props) {
         laps: laps, lapViews: lapViews, indoor: indoor, edit: edit, saving: saving, corrected: corrected,
         allSpeed: allSpeed, setAllSpeed: setAllSpeed, applyAll: applyAll,
         setEdit: setEdit, startEdit: startEdit, submitEdit: submitEdit,
+        activeLap: activeLap, onPick: function (i) { setActiveLap(i); },
         clear: function () { saveSpeeds({ clear: true }); },
       }));
   }
@@ -1166,7 +1728,7 @@ function RunDetail(props) {
       actions: [
         { label: narrow ? "返回" : "返回列表", onClick: props.onBack },
         detail ? { label: "编辑", disabled: Boolean(editing), onClick: function () { setEditing({}); } } : null,
-        detail && !strength ? { label: "标记为比赛", disabled: marking, onClick: markRace, title: "收录到「比赛」菜单，带出名称、日期、类别和成绩" } : null,
+        detail && !strength ? { label: "标记为比赛", disabled: marking, onClick: function () { markRace(); }, title: "收录到「比赛」，带出名称、日期、类别和成绩" } : null,
         { label: busy ? "读取中…" : (narrow ? "重新拉取" : "从 Garmin 重新拉取"), disabled: busy, onClick: function () { load(true); } },
       ],
     }),
@@ -1204,7 +1766,11 @@ function LapsSection(p) {
   function row(i) {
     const l = laps[i];
     const v = p.lapViews[i];
-    return h("tr", { key: i, className: v.corrected ? "gc-corrected" : undefined },
+    return h("tr", {
+      key: i,
+      className: (v.corrected ? "gc-corrected " : "") + (p.activeLap === i ? "gc-lap-active" : ""),
+      onClick: function () { if (p.onPick) p.onPick(i); },
+    },
       h("td", null, String(i + 1)),
       h("td", null, h("span", { className: "gc-tag" }, intensityLabel(l.intensityType))),
       h("td", null, fmtDistance(v.dist)),
@@ -1266,7 +1832,8 @@ function ZonesSection(props) {
   const zones = props.zones;
   const total = zones.reduce(function (t, z) { return t + (z.secsInZone || 0); }, 0);
   return h("section", null,
-    h("h3", { className: "gc-sub" }, "心率区间"),
+    h("h3", { className: "gc-sub" }, "心率区间",
+      h("small", { className: "pmw-plugin-hint" }, props.zoneSource === "calibrated" ? "（本地校准）" : "（Garmin 原值）")),
     total > 0
       ? h("div", { className: "gc-zones" }, zones.map(function (z) {
           const pct = Math.round(((z.secsInZone || 0) / total) * 100);
@@ -1305,12 +1872,8 @@ function WeatherCard(props) {
     ["风", typeof w.windSpeed === "number" ? (w.windDirectionCompassPoint ? String(w.windDirectionCompassPoint).toUpperCase() + " " : "") + num(w.windSpeed * 1.609) + " km/h" : null],
   ].filter(function (x) { return x[1]; });
   if (!items.length) return null;
-  return h("section", null,
-    h("h3", { className: "gc-sub" }, "天气"),
-    h("div", { className: "gc-stats" }, items.map(function (x) {
-      return h("div", { className: "gc-stat", key: x[0] },
-        h("span", { className: "gc-stat-label" }, x[0]), h("span", { className: "gc-stat-value" }, x[1]));
-    })));
+  return h(KPanel, { title: "天气" },
+    h(KTiles, { small: true, items: items.map(function (x) { const p = splitUnit(x[1]); return { label: x[0], value: p[0], unit: p[1] }; }) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -1444,6 +2007,8 @@ function prepareChart(series, opts) {
       if (d.moving && !moving(i)) return null;
       return v * factor;
     });
+    // 清洗前的同口径值，供「原始数据 vs 清洗后」叠加对比；配速同样换算成秒/公里
+    const rawVals = opts.keepRaw ? (d.pace ? raw.map(function (v) { return isNum(v) && v > 0 ? 1000 / v : null; }) : raw.slice()) : null;
     let fixed = 0;
     if (opts.clean) {
       let lo = d.lo, hi = d.hi;
@@ -1460,7 +2025,7 @@ function prepareChart(series, opts) {
     // 平均：配速按平均速度换算（不是配速的算术平均），其余取算术平均
     const ok = raw.filter(isNum);
     const avg = !ok.length ? NaN : d.pace ? 1000 / (ok.reduce(function (t, v) { return t + v; }, 0) / ok.length) : ok.reduce(function (t, v) { return t + v; }, 0) / ok.length;
-    metrics.push({ def: d, vals: vals, fixed: fixed, avg: avg });
+    metrics.push({ def: d, vals: vals, rawVals: rawVals, fixed: fixed, avg: avg });
   });
   if (opts.bands) {
     const w = pointWeights(series, n);
@@ -1578,7 +2143,7 @@ function bandText(d, b, unitSuffix) {
 function bandSummary(m, prep) {
   const segs = m.bands || [];
   if (!segs.length) return "";
-  const u = m.def.pace ? "/km" : " " + m.def.unit;
+  const u = m.def.pace ? paceUnitLabel() : " " + m.def.unit;
   if (segs.length === 1) {
     const b = segs[0];
     return "主要区间 " + bandText(m.def, b, u) + "，占 " + Math.round(b.inBand / b.total * 100) + "% 时间（" + fmtDuration(b.inBand) + "）";
@@ -1587,15 +2152,29 @@ function bandSummary(m, prep) {
   return segs.map(function (b, j) {
     const range = xText(prep.axis, prep.x[b.i0]) + "～" + xText(prep.axis, prep.x[Math.min(prep.n - 1, b.i1)]);
     let s = "第 " + (j + 1) + " 段（" + range + "）" + bandText(m.def, b, u) + "，平均 " + fmtMetric(m.def, b.mean) + u + "，" + fmtDuration(b.total);
-    if (j === col) s += "；跑崩：比上一段慢 " + fmtPace(b.mean - segs[j - 1].mean).replace("/km", "") + "/km";
+    if (j === col) s += "；跑崩：比上一段慢 " + paceText(b.mean - segs[j - 1].mean) + paceUnitLabel();
     return s;
   }).join("；");
 }
 
+/**
+ * 去毛刺的配速上限：按这次数据的快端 P5 和目标配速自动算，不再写死 150 秒/公里（2'30"/km）。
+ * 目标配速更快的，按目标留 10 秒余量；没有逐点数据时给一个宽松上限。
+ */
+function autoFastPace(series, goalPaceSec) {
+  const speeds = ((series && series.directSpeed) || []).filter(function (v) { return isNum(v) && v >= STOP_SPEED; });
+  const paces = speeds.map(function (v) { return 1000 / v; }).sort(function (a, b) { return a - b; });
+  let fast = paces.length ? paces[Math.min(paces.length - 1, Math.floor(paces.length * 0.05))] - 10 : 300;
+  if (isNum(goalPaceSec) && goalPaceSec > 0) fast = Math.min(fast, goalPaceSec - 10);
+  return Math.round(Math.max(180, Math.min(900, fast)));
+}
+
 /** 给 AI 分析的曲线摘要：配速、心率、步频等的区间与分段，加暂停和停下 */
-function chartInsights(series, indoor) {
+function chartInsights(series, indoor, goalPaceSec) {
   if (!series) return "";
-  const prep = prepareChart(series, { axis: indoor || !series.sumDistance ? "time" : "distance", clean: true, fast: 150, slow: 0, bands: true });
+  // 和图表同口径：跑步机默认不清洗，避免 Hampel 把匀速中的真实波动抹平后再喂给模型
+  const clean = indoor ? loadPrefs().cleanIndoor === true : loadPrefs().clean !== false;
+  const prep = prepareChart(series, { axis: indoor || !seriesHasDistance(series) ? "time" : "distance", clean: clean, fast: autoFastPace(series, goalPaceSec), slow: 0, bands: true });
   if (!prep) return "";
   const lines = prep.metrics.filter(function (m) { return m.def.key !== "ele" || true; }).map(function (m) {
     const s = bandSummary(m, prep);
@@ -1609,7 +2188,7 @@ function chartInsights(series, indoor) {
 
 function fmtMetric(d, v) {
   if (!isNum(v)) return "-";
-  if (d.pace) return fmtPace(v).replace("/km", "");
+  if (d.pace) return paceText(v);
   return num(v, d.digits);
 }
 
@@ -1714,7 +2293,10 @@ function ChartSvg(props) {
         !props.overlay ? h("text", { x: W - padR - 2, y: y - 4, className: "gc-axis gc-avgtext", textAnchor: "end", fill: m.def.color }, "平均 " + fmtMetric(m.def, m.avg)) : null);
     }),
     h("g", { clipPath: "url(#" + clipId + ")" }, ms.map(function (m, j) {
-      return h("path", { key: m.def.key, d: pathFor(prep, m.vals, sx, scales[j]), fill: "none", stroke: m.def.color, strokeWidth: 1.6, strokeLinejoin: "round" });
+      // 原始数据先画、细灰线；清洗后的线盖在上面，差异一眼能看见
+      return h("g", { key: m.def.key },
+        props.showRaw && m.rawVals ? h("path", { d: pathFor(prep, m.rawVals, sx, scales[j]), fill: "none", stroke: "var(--gc-axis, #94a3b8)", strokeWidth: 1, opacity: 0.55 }) : null,
+        h("path", { d: pathFor(prep, m.vals, sx, scales[j]), fill: "none", stroke: m.def.color, strokeWidth: 1.6, strokeLinejoin: "round" }));
     })),
     hv != null && isNum(prep.x[hv]) ? h("g", null,
       h("line", { x1: sx(prep.x[hv]), x2: sx(prep.x[hv]), y1: padT, y2: H - padB, className: "gc-cross" }),
@@ -1727,14 +2309,25 @@ function ChartSvg(props) {
     h("text", { x: W - padR, y: H - 6, className: "gc-axis", textAnchor: "end" }, xText(prep.axis, xmax)));
 }
 
+/** 有没有真实的距离数据：力量训练等没有 GPS / 步数距离的活动 sumDistance 是一串 0，不能按距离画 */
+function seriesHasDistance(series) {
+  const d = series && series.sumDistance;
+  if (!Array.isArray(d) || !d.length) return false;
+  let max = 0;
+  for (let i = 0; i < d.length; i++) if (isNum(d[i]) && d[i] > max) max = d[i];
+  return max > 50;
+}
+
 function ChartsTab(props) {
   const series = props.series || {};
-  const hasDist = Boolean(series.sumDistance);
+  const hasDist = seriesHasDistance(series);
   const prefs0 = loadPrefs();
   const [sel, setSel] = useState(prefs0.sel || ["pace", "hr", "ele"]);
   const [mode, setMode] = useState(prefs0.mode || "split");
   const [axis, setAxis] = useState(props.indoor || !hasDist ? "time" : (prefs0.axis || "distance"));
-  const [clean, setClean] = useState(prefs0.clean !== false);
+  // 跑步机匀速场景下 Hampel 去毛刺容易把真实波动当异常抹平，室内默认不清洗
+  const [clean, setClean] = useState(props.indoor ? prefs0.cleanIndoor === true : prefs0.clean !== false);
+  const [showRaw, setShowRaw] = useState(prefs0.showRaw === true);
   const [showBands, setShowBands] = useState(prefs0.bands !== false);
   // 配速范围存成秒/公里（0 表示不限）；旧版本存过 "4'30" 文本的，忽略
   const [fast, setFast] = useState(typeof prefs0.fastSec === "number" ? prefs0.fastSec : 0);
@@ -1742,10 +2335,12 @@ function ChartsTab(props) {
   const [hover, setHover] = useState(null);
 
   useEffect(function () {
-    savePrefs({ sel: sel, mode: mode, axis: props.indoor ? prefs0.axis : axis, clean: clean, fastSec: fast, slowSec: slow, bands: showBands });
-  }, [sel, mode, axis, clean, fast, slow, showBands]);
+    savePrefs({ sel: sel, mode: mode, axis: props.indoor ? prefs0.axis : axis,
+      clean: props.indoor ? prefs0.clean : clean, cleanIndoor: props.indoor ? clean : prefs0.cleanIndoor,
+      showRaw: showRaw, fastSec: fast, slowSec: slow, bands: showBands });
+  }, [sel, mode, axis, clean, showRaw, fast, slow, showBands]);
 
-  const prep = prepareChart(series, { axis: axis, clean: clean, fast: fast || 150, slow: slow || 0, bands: true });
+  const prep = prepareChart(series, { axis: axis, clean: clean, keepRaw: showRaw, fast: fast || autoFastPace(series), slow: slow || 0, bands: true });
   if (!prep || !prep.metrics.length) return h("p", { className: "pmw-plugin-hint" }, "这次活动没有逐点数据，画不了曲线。");
 
   const avail = prep.metrics.map(function (m) { return m.def.key; });
@@ -1773,11 +2368,13 @@ function ChartsTab(props) {
       hasDist ? h(Seg, { label: "横轴", value: axis, onChange: setAxis, options: [["distance", "按距离"], ["time", "按时间"]] }) : null,
       h("label", { className: "pmw-plugin-check gc-inline" },
         h("input", { type: "checkbox", checked: clean, onChange: function (e) { setClean(e.target.checked); } }), " 去除异常值"),
+      h("label", { className: "pmw-plugin-check gc-inline", title: "叠加未清洗的原始数据，和清洗后的线对比" },
+        h("input", { type: "checkbox", checked: showRaw, onChange: function (e) { setShowRaw(e.target.checked); } }), " 对比原始"),
       h("label", { className: "pmw-plugin-check gc-inline", title: "80% 时间所在的数值范围；前后水平差异明显时分段各算" },
         h("input", { type: "checkbox", checked: showBands, onChange: function (e) { setShowBands(e.target.checked); } }), " 波动区间"),
       clean && avail.indexOf("pace") >= 0 ? h("span", { className: "gc-inline" },
         "配速范围",
-        h(PaceInput, { label: "最快", value: fast, onChange: setFast, placeholder: "2 分 30 秒" }),
+        h(PaceInput, { label: "最快", value: fast, onChange: setFast, placeholder: "自动" }),
         "～",
         h(PaceInput, { label: "最慢", value: slow, onChange: setSlow, placeholder: "不限" }),
         fast || slow ? h("button", { type: "button", className: "gc-link", onClick: function () { setFast(0); setSlow(0); } }, "清空") : null) : null),
@@ -1786,55 +2383,59 @@ function ChartsTab(props) {
       hover != null
         ? [h("strong", { key: "x" }, xText(prep.axis, prep.x[hover]))].concat(shown.map(function (m) {
             return h("span", { key: m.def.key }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
-              m.def.label + " " + fmtMetric(m.def, m.vals[hover]) + (m.def.pace ? "/km" : " " + m.def.unit));
+              m.def.label + " " + fmtMetric(m.def, m.vals[hover]) + (m.def.pace ? paceUnitLabel() : " " + m.def.unit));
           }))
         : h("span", { className: "pmw-plugin-hint" }, isNarrow() ? "点图上任意位置看那一点的数值" : "把鼠标移到图上看每个点的数值")),
     mode === "overlay"
       ? h("div", { className: "gc-chart-box" },
           h("div", { className: "gc-chart-title gc-overlay-avg" }, shown.map(function (m) {
             return h("span", { key: m.def.key }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
-              m.def.label + " 平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? "/km" : " " + m.def.unit));
+              m.def.label + " 平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? paceUnitLabel() : " " + m.def.unit));
           }), h("small", null, "虚线为平均值，各指标各用各的刻度")),
-          h(ChartSvg, { prep: prep, metrics: shown, overlay: true, height: 300, narrowHeight: 240, hover: hover, setHover: setHover }))
+          h(ChartSvg, { prep: prep, metrics: shown, overlay: true, height: 300, narrowHeight: 240, hover: hover, setHover: setHover, showRaw: showRaw }))
       : shown.map(function (m) {
           return h("div", { className: "gc-chart-box", key: m.def.key },
             h("div", { className: "gc-chart-title" }, h("span", { className: "gc-dot", style: { background: m.def.color } }),
-              m.def.label + "  平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? "/km" : " " + m.def.unit),
+              m.def.label + "  平均 " + fmtMetric(m.def, m.avg) + (m.def.pace ? paceUnitLabel() : " " + m.def.unit),
               h("small", null, m.def.pace ? "（越靠上越快）" : "")),
-            h(ChartSvg, { prep: prep, metrics: [m], overlay: false, height: 140, narrowHeight: 150, hover: hover, setHover: setHover, showBands: showBands }),
+            h(ChartSvg, { prep: prep, metrics: [m], overlay: false, height: 140, narrowHeight: 150, hover: hover, setHover: setHover, showBands: showBands, showRaw: showRaw }),
             showBands && bandSummary(m, prep) ? h("p", { className: "gc-band-note" + (m.def.pace && collapseIndex(m.bands, prep.n) >= 0 ? " gc-collapse" : "") }, bandSummary(m, prep)) : null);
         }),
     h("p", { className: "pmw-plugin-hint gc-legend" },
       h("span", null, h("i", { className: "gc-swatch gc-pause" }), "暂停 " + prep.pauses.length + " 次" + (pauseTotal ? "，共 " + fmtDuration(pauseTotal) : "")),
       h("span", null, h("i", { className: "gc-swatch gc-stop" }), "停下（计时未停） " + prep.stops.length + " 次" + (stopTotal ? "，共 " + fmtDuration(stopTotal) : "")),
       clean ? h("span", null, "已修正异常点 " + fixedTotal + " 个") : h("span", null, "显示原始数据"),
+      showRaw ? h("span", null, h("i", { className: "gc-swatch gc-raw" }), "细灰线为原始数据") : null,
       prep.axis === "distance" && (prep.pauses.length || prep.stops.length) ? h("span", null, "按距离看时暂停是一条竖线，切到按时间看能看到时长") : null),
     h(MetricTable, { metrics: shown, clean: clean, prep: prep }),
-    h(ZonesSection, { zones: props.zones || [] }));
+    h(ZonesSection, { zones: props.zones || [], zoneSource: props.zoneSource }));
 }
 
-/** 配速输入：分、秒两个数字框，值是秒/公里，0 表示不限 */
+/** 配速输入：分、秒两个数字框，状态值是秒/公里，0 表示不限 */
 function PaceInput(props) {
-  const v = props.value || 0;
+  usePaceUnit();
+  const scale = paceUnit === "mile" ? 1.609344 : 1;
+  const v = (props.value || 0) * scale;
   const [m, setM] = useState(v ? String(Math.floor(v / 60)) : "");
-  const [s, setS] = useState(v ? String(v % 60) : "");
+  const [s, setS] = useState(v ? String(Math.round(v % 60)) : "");
   useEffect(function () {
-    // 外部清空时同步
-    if (!props.value) { setM(""); setS(""); }
-  }, [props.value]);
+    // 外部清空或单位切换时同步显示值
+    if (v) { setM(String(Math.floor(v / 60))); setS(String(Math.round(v % 60))); }
+    else { setM(""); setS(""); }
+  }, [props.value, paceUnit]);
   const push = function (mm, ss) {
     const mi = parseInt(mm, 10), se = parseInt(ss, 10);
     const total = (isNaN(mi) ? 0 : mi) * 60 + (isNaN(se) ? 0 : Math.min(59, se));
-    props.onChange(total > 0 ? total : 0);
+    props.onChange(total > 0 ? Math.round(total / scale) : 0);
   };
-  return h("span", { className: "gc-pace-input", title: props.label + "配速，" + props.placeholder },
+  return h("span", { className: "gc-pace-input", title: props.label + "配速（" + paceUnitLabel() + "），" + props.placeholder },
     h("small", null, props.label),
     h("input", { type: "number", min: "1", max: "30", inputMode: "numeric", value: m, placeholder: props.label === "最快" ? "2" : "",
       "aria-label": props.label + "配速的分钟", onChange: function (e) { setM(e.target.value); push(e.target.value, s); } }),
     h("small", null, "分"),
     h("input", { type: "number", min: "0", max: "59", inputMode: "numeric", value: s, placeholder: props.label === "最快" ? "30" : "",
       "aria-label": props.label + "配速的秒", onChange: function (e) { setS(e.target.value); push(m, e.target.value); } }),
-    h("small", null, "秒"));
+    h("small", null, "秒" + paceUnitLabel()));
 }
 
 /** 各指标的最低 / 平均 / 最高（用去毛刺后的值） */
@@ -1846,7 +2447,7 @@ function MetricTable(props) {
       const a = m.vals.filter(isNum);
       const avg = a.length ? (m.def.pace ? 1000 / (a.reduce(function (t, v) { return t + 1000 / v; }, 0) / a.length) : a.reduce(function (t, v) { return t + v; }, 0) / a.length) : NaN;
       const lo = a.length ? Math.min.apply(null, a) : NaN, hi = a.length ? Math.max.apply(null, a) : NaN;
-      const u = m.def.pace ? "/km" : " " + m.def.unit;
+      const u = m.def.pace ? paceUnitLabel() : " " + m.def.unit;
       return h("tr", { key: m.def.key },
         h("td", null, h("span", { className: "gc-dot", style: { background: m.def.color } }), m.def.label),
         // 配速的数值是秒/公里，最小即最快
@@ -1952,8 +2553,8 @@ function intensityClassByLabel(l) {
 // ---------------------------------------------------------------------------
 
 const AGENT_KEY = "gc-agent";
-/** 默认用工作台里的「跑步数据分析」Agent（在设置 → Agent 里可以改它的模型和指令）；没有这个 Agent 时留空用默认模型 */
-const DEFAULT_AGENT = "跑步数据分析";
+/** 开箱即用：不指定 preset，直接用插件内置教练指令 + 工作台默认模型；只有需要自定义指令时才填 Agent 名称 */
+const DEFAULT_AGENT = "";
 
 function loadAgent() {
   try {
@@ -2001,8 +2602,14 @@ function AnalysisTab(props) {
   const d = props.detail;
   const [state, setState] = useState(null);
   const [agentName, setAgentName] = useState(loadAgent());
+  const [goalPace, setGoalPace] = useState(0);
+  const [hrUpdated, setHrUpdated] = useState("");
   const [msg, setMsg] = useState("");
 
+  useEffect(function () {
+    api("/goals").then(function (d) { setGoalPace(d.goal ? d.goal.target_pace_s || 0 : 0); }).catch(function () {});
+    api("/status").then(function (s) { setHrUpdated(s.hr_zones_updated_at || ""); }).catch(function () {});
+  }, []);
   async function refresh() {
     try {
       setState(await api("/runs/" + encodeURIComponent(d.activity_id) + "/analysis"));
@@ -2024,7 +2631,7 @@ function AnalysisTab(props) {
     try {
       await api("/runs/" + encodeURIComponent(d.activity_id) + "/analysis", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent: agentName.trim(), insights: chartInsights(d.series, props.indoor) }),
+        body: JSON.stringify({ agent: agentName.trim(), unit: paceUnit, insights: chartInsights(d.series, props.indoor, goalPace) }),
       });
       setState(Object.assign({}, state, { status: "running" }));
     } catch (err) {
@@ -2038,18 +2645,124 @@ function AnalysisTab(props) {
     h("div", { className: "gc-controls" },
       h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: running, onClick: start },
         running ? "分析中…" : has ? "重新分析" : "生成分析"),
-      h("label", { className: "gc-inline", title: "默认用「跑步数据分析」Agent；可以在「设置 → Agent」里改它的模型，或补充你的目标、比赛计划、伤病史。留空用默认模型服务商" },
-        "使用的 Agent",
-        h("input", { className: "gc-search", placeholder: "留空用默认模型", value: agentName, onChange: function (e) { setAgentName(e.target.value); } })),
-      h("span", { className: "pmw-plugin-hint" }, "会把这次的数据和最近 4 周训练量发给工作台配置的模型服务商")),
+      h("label", { className: "gc-inline", title: "留空即用内置教练指令和默认模型；只有需要自定义指令时才填工作台 Agent 名称。目标比赛、PB 会自动带入分析" },
+        "自定义 Agent",
+        h("input", { className: "gc-search", placeholder: "内置分析（留空即可）", value: agentName, onChange: function (e) { setAgentName(e.target.value); } })),
+      h("span", { className: "pmw-plugin-hint" }, "默认内置可用；会把这次的数据、最近 4 周训练量、目标比赛和 PB 发给模型服务商")),
     running ? h("p", { className: "gc-note", role: "status" }, "正在分析，通常需要 20～60 秒，可以先看别的 tab。") : null,
     state && state.error ? h("p", { className: "gc-note", role: "alert" }, "上次分析失败：" + state.error) : null,
     msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
+    has && hrUpdated && state.created_at && state.created_at < hrUpdated
+      ? h("p", { className: "gc-note" }, "心率区间已校准，这份分析还是旧区间算的，点「重新分析」更新结论。")
+      : null,
     has
       ? h("article", { className: "gc-chart-box gc-analysis-body" },
           h(MiniMarkdown, { text: state.content }),
           h("p", { className: "pmw-plugin-hint" }, "生成于 " + shortTime(state.created_at) + (state.agent ? " · Agent：" + state.agent : " · 默认模型") + "。建议仅供参考，身体不适以实际感受为准。"))
+      : null,
+    has && !running
+      ? (state.plan && state.plan.length
+          ? h(AiPlanCard, { key: state.created_at, plan: state.plan, detail: d })
+          : h("p", { className: "pmw-plugin-hint" }, "这份分析里没有可以直接排进计划的课表（较早生成的分析没有）。点「重新分析」后，可以把建议的课加入训练计划。"))
+      : null,
+    has ? null
       : (!running ? h("p", { className: "pmw-plugin-hint" }, "还没有分析。点「生成分析」，模型会按教练的角度给出本次概况、问题和后续 1～2 周的训练建议。") : null));
+}
+
+/**
+ * AI 建议的课表：分析末尾的结构化课表（day 为从开始那天算起的第几天）。
+ * 选好开始日期和要哪几节，可以排进日历，或存成「我的计划」以后再排。
+ */
+function AiPlanCard(props) {
+  const plan = props.plan;
+  const d = props.detail;
+  const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0); tomorrow.setDate(tomorrow.getDate() + 1);
+  const [start, setStart] = useState(toYMD(tomorrow));
+  const [off, setOff] = useState({});
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const s0 = fromYMD(start);
+  const rows = plan.map(function (p, i) {
+    const dt = s0 ? new Date(s0) : null;
+    if (dt) dt.setDate(dt.getDate() + p.day - 1);
+    return { i: i, p: p, date: dt };
+  });
+  const chosen = rows.filter(function (r) { return !off[r.i] && r.date; });
+  const actName = (d.name || "活动").slice(0, 16);
+  const actDate = String(d.start_local || "").slice(0, 10);
+
+  async function toCalendar() {
+    if (!chosen.length) return;
+    setBusy("cal"); setMsg("");
+    try {
+      await api("/calendar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        plan_key: "ai:" + d.activity_id, plan_name: "AI 建议 · " + actName,
+        items: chosen.map(function (r) { return { date: toYMD(r.date), kind: r.p.kind, title: r.p.title, detail: r.p.detail || "" }; }),
+      }) });
+      setMsg("已把 " + chosen.length + " 节课排进日历（" + toYMD(chosen[0].date) + " 起），可以在「日历」里逐条改，或按计划整批删除。");
+    } catch (err) { setMsg("没排进去：" + errText(err)); } finally { setBusy(""); }
+  }
+
+  /** 存成我的计划：所选开始日期就是第 1 天，day=N 保持原来的相对天数；空位补「休息」 */
+  async function toPlan() {
+    if (!chosen.length) return;
+    setBusy("plan"); setMsg("");
+    const byWeek = [];
+    const daySet = {};
+    chosen.forEach(function (r) {
+      const diff = Math.round((r.date - s0) / 86400000);
+      const w = Math.floor(diff / 7);
+      const wd = diff % 7 + 1;
+      daySet[wd] = true;
+      while (byWeek.length <= w) byWeek.push({});
+      const cur = byWeek[w][wd];
+      byWeek[w][wd] = cur
+        ? { kind: cur.kind === r.p.kind ? cur.kind : "other", title: (cur.title + " + " + r.p.title).slice(0, 60), detail: (cur.detail + "；" + (r.p.detail || "")).slice(0, 2000) }
+        : { kind: r.p.kind, title: r.p.title, detail: r.p.detail || "" };
+    });
+    const days = Object.keys(daySet).map(Number).sort(function (a, b) { return a - b; });
+    const weeks = byWeek.map(function (wk) {
+      const list = days.map(function (wd) { return wk[wd] || { kind: "rest", title: "休息", detail: "" }; });
+      while (list.length && list[list.length - 1].kind === "rest" && !wk[days[list.length - 1]]) list.pop();
+      return list;
+    });
+    const kinds = {};
+    chosen.forEach(function (r) { kinds[r.p.kind] = true; });
+    const kind = kinds.run && !kinds.strength && !kinds.other ? "run" : kinds.strength && !kinds.run && !kinds.other ? "strength" : "mixed";
+    const name = ("AI 建议 · " + actName).slice(0, 40);
+    try {
+      await api("/plans", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        name: name, kind: kind, level: "AI 建议",
+        description: "根据 " + actDate + "「" + (d.name || "活动") + "」的 AI 分析生成，共 " + chosen.length + " 节课。",
+        days: days, weeks: weeks, videos: [], start_mode: "date",
+        source: { type: "other", name: "AI 分析", url: "", note: (actDate + " " + (d.name || "")).trim().slice(0, 200) },
+      }) });
+      setMsg("已存为「我的计划」里的「" + name + "」，第 1 天就是所选开始日期；到「计划」里可以编辑或重新排期。");
+    } catch (err) { setMsg("没存上：" + errText(err)); } finally { setBusy(""); }
+  }
+
+  return h("section", { className: "gc-chart-box gc-ai-plan" },
+    h("h3", { className: "gc-sub" }, "建议安排（" + plan.length + " 节课）"),
+    h("div", { className: "gc-controls" },
+      h("label", { className: "gc-inline" }, "从哪天开始",
+        h("input", { type: "date", className: "gc-search", value: start, onChange: function (e) { setStart(e.target.value); } })),
+      h("span", { className: "pmw-plugin-hint" }, "所选日期就是第 1 天；取消勾选的课不会加入。")),
+    h("ul", { className: "gc-ai-plan-list" }, rows.map(function (r) {
+      const on = !off[r.i];
+      return h("li", { key: r.i, className: on ? "" : "off" },
+        h("label", null,
+          h("input", { type: "checkbox", checked: on, onChange: function () { const n = Object.assign({}, off); n[r.i] = on; setOff(n); } }),
+          h("span", { className: "gc-ai-plan-date" }, r.date ? (r.date.getMonth() + 1) + "/" + r.date.getDate() + " " + DAY_NAMES[(r.date.getDay() + 6) % 7] : "第 " + r.p.day + " 天"),
+          h("span", { className: "gc-dot gc-k-" + r.p.kind }),
+          h("span", { className: "gc-ai-plan-title" }, r.p.title, r.p.detail ? h("small", null, r.p.detail) : null)));
+    })),
+    h("div", { className: "gc-detail-bar" },
+      h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: !!busy || !chosen.length, onClick: toCalendar },
+        busy === "cal" ? "排进日历中…" : "排进日历"),
+      h("button", { className: "pmw-plugin-button", type: "button", disabled: !!busy || !chosen.length, onClick: toPlan },
+        busy === "plan" ? "保存中…" : "存为我的计划")),
+    msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
 }
 
 // ---------------------------------------------------------------------------
@@ -2233,19 +2946,25 @@ function nextMonday() {
   return d;
 }
 
-/** 把计划排成日期：开始日期所在周的周一为第 1 周，每周的课依次落到所选的星期几（1=周一…7=周日） */
+/**
+ * 把计划排成日期。week：开始日期所在周的周一为第 1 周，day 是星期几（1=周一…7=周日）；
+ * date：开始日期就是第 1 天，day 是相对开始日期的第几天（AI 课表存成的计划用这个口径）。
+ */
 function planDates(plan, start, days) {
   const s = fromYMD(start);
   if (!s) return [];
-  const monday = new Date(s); monday.setDate(s.getDate() - ((s.getDay() + 6) % 7));
+  const anchored = plan.startMode === "date";
+  const base = new Date(s);
+  if (!anchored) base.setDate(s.getDate() - ((s.getDay() + 6) % 7));
   const ds = days.slice().sort(function (a, b) { return a - b; });
   const out = [];
   plan.sessions.forEach(function (week, w) {
     week.forEach(function (sess, j) {
       if (j >= ds.length) return;
-      const d = new Date(monday); d.setDate(monday.getDate() + w * 7 + ds[j] - 1);
-      if (d < s) return; // 开始日期之前的课不排
-      out.push({ date: toYMD(d), kind: sess[0], title: sess[1], detail: "第 " + (w + 1) + " 周 · " + sess[2], video: sess[3] || "" });
+      const d = new Date(base); d.setDate(base.getDate() + w * 7 + ds[j] - 1);
+      if (!anchored && d < s) return; // week 口径下开始日期之前的不排
+      out.push({ date: toYMD(d), kind: sess[0], title: sess[1], detail: "第 " + (w + 1) + " 周 · " + sess[2], video: sess[3] || "",
+        target_distance_m: sess[4] || 0, target_duration_s: sess[5] || 0 });
     });
   });
   return out;
@@ -2368,13 +3087,15 @@ const PLAN_KINDS = [["run", "跑步"], ["strength", "力量"], ["mixed", "混合
 
 /** 我的计划（后端 weeks:[[{kind,title,detail}]]）转成和预置计划一样的结构 */
 function customToPlan(c) {
-  const sessions = (c.weeks || []).map(function (w) { return (w || []).map(function (s) { return [s.kind, s.title, s.detail || "", s.video || ""]; }); });
+  const sessions = (c.weeks || []).map(function (w) { return (w || []).map(function (s) {
+    return [s.kind, s.title, s.detail || "", s.video || "", s.target_distance_m || 0, s.target_duration_s || 0];
+  }); });
   const perWeek = sessions.reduce(function (m, w) { return Math.max(m, w.length); }, 0);
   return {
     key: "custom:" + c.id, id: c.id, custom: true, kind: c.kind, name: c.name, level: c.level || "自定义",
     desc: c.description || "", weeks: sessions.length, perWeek: perWeek,
     days: (c.days && c.days.length ? c.days : [1, 2, 3, 4, 5, 6, 7].slice(0, perWeek)), sessions: sessions,
-    source: c.source || {}, videos: c.videos || [],
+    source: c.source || {}, videos: c.videos || [], startMode: c.start_mode || "week",
   };
 }
 
@@ -2383,9 +3104,11 @@ function planToDraft(p, copy) {
   return {
     id: copy ? "" : (p.id || ""), name: copy ? p.name + "（我的）" : p.name, kind: p.kind === "strength" ? "strength" : p.kind === "mixed" ? "mixed" : "run",
     level: p.level === "自定义" ? "" : (p.level || ""), description: p.desc || "", days: (p.days || []).slice(),
-    weeks: p.sessions.map(function (w) { return w.map(function (s) { return { kind: s[0], title: s[1], detail: s[2] || "", video: s[3] || "" }; }); }),
+    weeks: p.sessions.map(function (w) { return w.map(function (s) {
+      return { kind: s[0], title: s[1], detail: s[2] || "", video: s[3] || "", target_distance_m: s[4] || 0, target_duration_s: s[5] || 0 };
+    }); }),
     source: copy && !p.custom ? { type: "self", name: "", url: "", note: "复制自预置计划「" + p.name + "」" } : Object.assign({ type: "self", name: "", url: "", note: "" }, p.source || {}),
-    videos: (p.videos || []).slice(),
+    videos: (p.videos || []).slice(), startMode: p.startMode || "week",
   };
 }
 
@@ -2403,7 +3126,12 @@ function PlansView(props) {
   }
   useEffect(function () { loadCustom(); }, []);
 
-  function choose(p) { setOpen(p); setDraft(null); setDays(p.days.slice()); setMsg(""); }
+  function choose(p) {
+    const t = new Date(); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() + 1);
+    setOpen(p); setDraft(null); setDays(p.days.slice());
+    setStart(p.startMode === "date" ? toYMD(t) : toYMD(nextMonday()));
+    setMsg("");
+  }
   async function removeCustom(p) {
     if (!window.confirm("删除计划「" + p.name + "」？已经排进日历的安排不受影响。")) return;
     try { await api("/plans/" + p.id, { method: "DELETE" }); setOpen(null); await loadCustom(); } catch (err) { setMsg("删除失败：" + errText(err)); }
@@ -2448,7 +3176,7 @@ function PlansView(props) {
       h("h3", { className: "gc-sub" }, "我的计划" + (mine.length ? "（" + mine.length + "）" : "")),
       h("button", { className: "pmw-plugin-button gc-primary", type: "button", onClick: function () {
         setOpen(null);
-        setDraft({ id: "", name: "", kind: "run", level: "", description: "", days: [2, 4, 7], weeks: [[{ kind: "run", title: "轻松跑 40 分钟", detail: "心率区间 2。" }]] });
+        setDraft({ id: "", name: "", kind: "run", level: "", description: "", days: [2, 4, 7], weeks: [[{ kind: "run", title: "轻松跑 40 分钟", detail: "心率区间 2。" }]], startMode: "week" });
       } }, "新建计划")),
     mine.length
       ? h("div", { className: "gc-plan-grid" }, mine.map(card))
@@ -2473,8 +3201,8 @@ function PlansView(props) {
         open.videos.map(function (v, i) { return h(ExtLink, { key: i, href: v.url }, (v.title || "视频 " + (i + 1)) + (v.creator ? "（" + v.creator + "）" : "")); })) : null,
       h("div", { className: "gc-controls" },
         h("label", { className: "gc-inline" }, "开始日期", h("input", { type: "date", className: "gc-search", value: start, onChange: function (e) { setStart(e.target.value); } })),
-        h("span", { className: "gc-inline" }, "每周练",
-          DAY_NAMES.map(function (n, i) {
+        h("span", { className: "gc-inline" }, open.startMode === "date" ? "每周第几天" : "每周练",
+          (open.startMode === "date" ? ["第 1 天", "第 2 天", "第 3 天", "第 4 天", "第 5 天", "第 6 天", "第 7 天"] : DAY_NAMES).map(function (n, i) {
             const on = days.indexOf(i + 1) >= 0;
             return h("button", { key: n, type: "button", className: "gc-chip" + (on ? " on" : ""), "aria-pressed": on,
               onClick: function () { setDays(on ? days.filter(function (x) { return x !== i + 1; }) : days.concat([i + 1])); } }, n);
@@ -2483,7 +3211,8 @@ function PlansView(props) {
         ? h("p", { className: "gc-note" }, open.custom
             ? "这个计划每周最多 " + open.perWeek + " 节课，请至少选 " + open.perWeek + " 天（现在选了 " + days.length + " 天）。每周的课按顺序排到所选日子。"
             : "这个计划每周 " + open.perWeek + " 次，请选 " + open.perWeek + " 天（现在选了 " + days.length + " 天）。长距离会排在所选的最后一天。")
-        : h("p", { className: "pmw-plugin-hint" }, "共 " + preview.length + " 次训练，" + (preview[0] ? preview[0].date + " 至 " + preview[preview.length - 1].date : "") + "。排进去后可以在日历里逐条改。"),
+        : h("p", { className: "pmw-plugin-hint" }, "共 " + preview.length + " 次训练，" + (preview[0] ? preview[0].date + " 至 " + preview[preview.length - 1].date : "")
+          + "。" + (open.startMode === "date" ? "开始日期就是第 1 天。" : "") + "排进去后可以在日历里逐条改。"),
       h("div", { className: "gc-plan-weeks" }, open.sessions.map(function (week, w) {
         return h("div", { key: w, className: "gc-plan-week" }, h("strong", null, "第 " + (w + 1) + " 周" + (week.length ? "" : "（休息周）")),
           h("ol", null, week.map(function (s, j) {
@@ -2511,7 +3240,8 @@ function PlanEditor(props) {
     setBusy(true); setMsg("");
     try {
       const body = JSON.stringify({ name: d.name, kind: d.kind, level: d.level, description: d.description, days: d.days.slice().sort(), weeks: d.weeks,
-        source: d.source || { type: "self" }, videos: (d.videos || []).filter(function (v) { return String(v.url || "").trim(); }) });
+        source: d.source || { type: "self" }, videos: (d.videos || []).filter(function (v) { return String(v.url || "").trim(); }),
+        start_mode: d.startMode || "week" });
       const res = d.id
         ? await api("/plans/" + d.id, { method: "PUT", headers: { "Content-Type": "application/json" }, body: body })
         : await api("/plans", { method: "POST", headers: { "Content-Type": "application/json" }, body: body });
@@ -2531,7 +3261,9 @@ function PlanEditor(props) {
       h("label", { className: "gc-field" }, "计划名称", h("input", { value: d.name, maxLength: 40, placeholder: "如：春季半马备赛", onChange: function (e) { upd(function (n) { n.name = e.target.value; }); } })),
       h("label", { className: "gc-field" }, "类型", h("select", { value: d.kind, onChange: function (e) { upd(function (n) { n.kind = e.target.value; }); } },
         PLAN_KINDS.map(function (k) { return h("option", { key: k[0], value: k[0] }, k[1]); }))),
-      h("label", { className: "gc-field" }, "难度", h("input", { value: d.level, maxLength: 10, placeholder: "入门 / 进阶 / 高阶", onChange: function (e) { upd(function (n) { n.level = e.target.value; }); } }))),
+      h("label", { className: "gc-field" }, "难度", h("input", { value: d.level, maxLength: 10, placeholder: "入门 / 进阶 / 高阶", onChange: function (e) { upd(function (n) { n.level = e.target.value; }); } })),
+      h("label", { className: "gc-field" }, "排期口径", h("select", { value: d.startMode || "week", onChange: function (e) { upd(function (n) { n.startMode = e.target.value; }); } },
+        h("option", { value: "week" }, "按星期排（周一是第 1 周）"), h("option", { value: "date" }, "按开始日期排（第 1 天=开始日期）")))),
     h("label", { className: "gc-field" }, "说明", h("textarea", { rows: 2, value: d.description, maxLength: 500, placeholder: "目标、适合谁、注意事项…", onChange: function (e) { upd(function (n) { n.description = e.target.value; }); } })),
     h("div", { className: "gc-edit-row" },
       h("label", { className: "gc-field" }, "来源", h("select", { value: src.type || "self", onChange: function (e) { upd(function (n) { n.source = Object.assign({}, n.source || {}, { type: e.target.value }); }); } },
@@ -2570,19 +3302,27 @@ function PlanEditor(props) {
             h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks.splice(w + 1, 0, JSON.parse(JSON.stringify(n.weeks[w]))); }); } }, "复制本周"),
             d.weeks.length > 1 ? h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks.splice(w, 1); }); } }, "删除本周") : null)),
         week.map(function (s, j) {
-          return h("div", { key: j, className: "gc-plan-edit-row" },
-            h("select", { value: s.kind, "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节类型", onChange: function (e) { upd(function (n) { n.weeks[w][j].kind = e.target.value; }); } },
-              Object.keys(KIND_NAMES).map(function (k) { return h("option", { key: k, value: k }, KIND_NAMES[k]); })),
-            h("input", { value: s.title, maxLength: 60, placeholder: "标题，如：间歇 6×800 米", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节标题",
-              onChange: function (e) { upd(function (n) { n.weeks[w][j].title = e.target.value; }); } }),
-            h("input", { value: s.detail, maxLength: 2000, placeholder: "内容：配速、心率区间、动作组数…", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节内容",
-              onChange: function (e) { upd(function (n) { n.weeks[w][j].detail = e.target.value; }); } }),
-            h("input", { list: "gc-video-lib", value: s.video || "", placeholder: "视频链接（可选）", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节视频",
-              onChange: function (e) { upd(function (n) { n.weeks[w][j].video = e.target.value; }); } }),
-            h("span", { className: "gc-detail-bar" },
-              h("button", { type: "button", className: "gc-link", disabled: j === 0, title: "上移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j - 1]; a[j - 1] = a[j]; a[j] = t; }); } }, "上移"),
-              h("button", { type: "button", className: "gc-link", disabled: j === week.length - 1, title: "下移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j + 1]; a[j + 1] = a[j]; a[j] = t; }); } }, "下移"),
-              h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks[w].splice(j, 1); }); } }, "删除")));
+          return h("div", { key: j, className: "gc-plan-edit-session" },
+            h("div", { className: "gc-plan-edit-row" },
+              h("select", { value: s.kind, "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节类型", onChange: function (e) { upd(function (n) { n.weeks[w][j].kind = e.target.value; }); } },
+                Object.keys(KIND_NAMES).map(function (k) { return h("option", { key: k, value: k }, KIND_NAMES[k]); })),
+              h("input", { value: s.title, maxLength: 60, placeholder: "标题，如：间歇 6×800 米", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节标题",
+                onChange: function (e) { upd(function (n) { n.weeks[w][j].title = e.target.value; }); } }),
+              h("input", { value: s.detail, maxLength: 2000, placeholder: "内容：配速、心率区间、动作组数…", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节内容",
+                onChange: function (e) { upd(function (n) { n.weeks[w][j].detail = e.target.value; }); } }),
+              h("input", { list: "gc-video-lib", value: s.video || "", placeholder: "视频链接（可选）", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节视频",
+                onChange: function (e) { upd(function (n) { n.weeks[w][j].video = e.target.value; }); } }),
+              h("span", { className: "gc-detail-bar" },
+                h("button", { type: "button", className: "gc-link", disabled: j === 0, title: "上移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j - 1]; a[j - 1] = a[j]; a[j] = t; }); } }, "上移"),
+                h("button", { type: "button", className: "gc-link", disabled: j === week.length - 1, title: "下移", onClick: function () { upd(function (n) { const a = n.weeks[w]; const t = a[j + 1]; a[j + 1] = a[j]; a[j] = t; }); } }, "下移"),
+                h("button", { type: "button", className: "gc-link", onClick: function () { upd(function (n) { n.weeks[w].splice(j, 1); }); } }, "删除"))),
+            h("div", { className: "gc-plan-edit-row gc-target-row" },
+              h("small", null, "目标（可选）"),
+              h("label", { className: "gc-field" }, "距离 km", h("input", { type: "number", min: "0", max: "1000", step: "0.1", value: s.target_distance_m ? String(s.target_distance_m / 1000) : "", placeholder: "留空按标题认", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节目标距离公里",
+                onChange: function (e) { upd(function (n) { n.weeks[w][j].target_distance_m = Math.round((Number(e.target.value) || 0) * 1000); }); } })),
+              h("label", { className: "gc-field" }, "时长 分钟", h("input", { type: "number", min: "0", max: "1440", step: "1", value: s.target_duration_s ? String(Math.round(s.target_duration_s / 60)) : "", placeholder: "留空按标题认", "aria-label": "第 " + (w + 1) + " 周第 " + (j + 1) + " 节目标时长分钟",
+                onChange: function (e) { upd(function (n) { n.weeks[w][j].target_duration_s = Math.round((Number(e.target.value) || 0) * 60); }); } })),
+              h("span", null)));
         }));
     })),
     h("div", { className: "gc-detail-bar" },
@@ -2604,11 +3344,85 @@ const QUICK_ITEMS = [
   ["strength", "核心训练", CORE_A], ["strength", "下肢力量", LEG(3)], ["rest", "休息", "完全休息或散步、拉伸。"],
 ];
 
-function actDone(items, acts) {
-  // 当天有同类型的实际活动就算完成
-  const kinds = {};
-  acts.forEach(function (a) { kinds[isStrengthType(a.type_key) ? "strength" : "run"] = true; });
-  return function (it) { return Boolean(it.done) || (kinds[it.kind] === true); };
+/** 文本里认目标：多段（如「热身 15 分钟 → 节奏跑 20 分钟」）取最大值，贴近主训练量。 */
+function maxMatch(text, re, pick) {
+  let best = 0, m;
+  const reAll = new RegExp(re.source, re.flags.indexOf("g") < 0 ? re.flags + "g" : re.flags);
+  while ((m = reAll.exec(text)) !== null) {
+    const v = pick(m);
+    if (v > best) best = v;
+    if (!m[0]) reAll.lastIndex++;
+  }
+  return best;
+}
+
+/** 目标量：结构化字段优先，没填就从标题、内容文字里认（预置计划的量都写在标题里）。返回 {dist: 米, dur: 秒}。 */
+function planTarget(it) {
+  let dist = Number(it.target_distance_m) || 0;
+  let dur = Number(it.target_duration_s) || 0;
+  if (!dist || !dur) {
+    const text = String(it.title || "") + " " + String(it.detail || "");
+    if (!dist) {
+      dist = maxMatch(text, /(\d+(?:\.\d+)?)\s*(×|x|X|\*)\s*(\d+(?:\.\d+)?)\s*米/, function (m) { return Number(m[1]) * Number(m[3]); }); // 6×800 米
+      if (!dist) dist = maxMatch(text, /(\d+(?:\.\d+)?)\s*(公里|km|千米)/i, function (m) { return Number(m[1]) * 1000; });
+      if (!dist) dist = maxMatch(text, /(\d{3,6})\s*米/, function (m) { return Number(m[1]); });
+    }
+    if (!dur) {
+      dur = maxMatch(text, /(\d+(?:\.\d+)?)\s*(小时|h)(?!\w)/i, function (m) { return Number(m[1]) * 3600; });
+      if (!dur) dur = maxMatch(text, /(\d+(?:\.\d+)?)\s*(分钟|min|分)(?!\w)/i, function (m) { return Number(m[1]) * 60; });
+    }
+  }
+  return { dist: dist, dur: dur };
+}
+
+const ACT_RATE_DONE = 0.95, ACT_RATE_PARTIAL = 0.6;
+const ACT_STATES = [[
+  "done", "完成", "gc-st-done"
+], [
+  "partial", "部分完成", "gc-st-partial"
+], [
+  "miss", "未达", "gc-st-miss"
+], [
+  "none", "未设目标", "gc-st-none"
+]];
+
+/** 计划 vs 实际：当天同类型活动累加，有距离比距离、有时长比时长，两项都有取达成率低的。
+ *  level: done(≥95%) / partial(≥60%) / miss(<60%) / none(当天无活动或未设目标)；手动 done 优先按完成显示。 */
+function actStatus(it, acts) {
+  const target = planTarget(it);
+  const relevant = acts.filter(function (a) {
+    return it.kind === "strength" ? isStrengthType(a.type_key) : !isStrengthType(a.type_key);
+  });
+  const actual = {
+    dist: relevant.reduce(function (s, a) { return s + (Number(a.distance_m) || 0); }, 0),
+    dur: relevant.reduce(function (s, a) { return s + (Number(a.duration_s) || 0); }, 0),
+  };
+  const base = { target: target, actual: actual, rate: 0 };
+  if (it.done) return Object.assign({}, base, { level: "done", manual: true });
+  if (!relevant.length || (!target.dist && !target.dur)) return Object.assign({}, base, { level: "none" });
+  const rates = [];
+  if (target.dist > 0) rates.push(actual.dist / target.dist);
+  if (target.dur > 0) rates.push(actual.dur / target.dur);
+  const rate = Math.min.apply(null, rates);
+  const level = rate >= ACT_RATE_DONE ? "done" : rate >= ACT_RATE_PARTIAL ? "partial" : "miss";
+  return Object.assign({}, base, { level: level, rate: rate });
+}
+
+/** 完成度短标签，格子和详情共用："完成 100%" / "部分 72%" / "未达 12%" / "未设目标" */
+function actLabel(st) {
+  const hit = ACT_STATES.find(function (s) { return s[0] === st.level; });
+  if (!hit || st.level === "none") return "未设目标";
+  if (st.manual) return "完成（手动）";
+  const short = st.level === "done" ? "完成" : st.level === "partial" ? "部分" : "未达";
+  return short + " " + Math.round(st.rate * 100) + "%";
+}
+
+/** 目标 / 实际的可读串，详情面板用 */
+function actCompare(st) {
+  const bits = [];
+  if (st.target.dist > 0) bits.push("距离 " + fmtDistance(st.actual.dist) + " / " + fmtDistance(st.target.dist));
+  if (st.target.dur > 0) bits.push("时长 " + fmtDuration(Math.round(st.actual.dur)) + " / " + fmtDuration(st.target.dur));
+  return bits.join(" · ");
 }
 
 function CalendarView(props) {
@@ -2657,7 +3471,7 @@ function CalendarView(props) {
   }
 
   const day = byDay[sel] || { items: [], acts: [] };
-  const doneOf = actDone(day.items, day.acts);
+  const statusOf = function (it) { return actStatus(it, day.acts); };
   return h("div", { className: "gc-cal" },
     h("div", { className: "gc-controls" },
       h("button", { className: "pmw-plugin-button", type: "button", onClick: function () { shift(-1); } }, "上个月"),
@@ -2669,16 +3483,26 @@ function CalendarView(props) {
       DAY_NAMES.map(function (n) { return h("div", { key: n, className: "gc-cal-head" }, n); }),
       cells.map(function (c) {
         const info = byDay[c] || { items: [], acts: [] };
-        const done = actDone(info.items, info.acts);
         const out = fromYMD(c).getMonth() !== month.getMonth();
+        const worst = info.items.reduce(function (w, it) {
+          const rank = { none: 0, done: 1, partial: 2, miss: 3 };
+          const lv = actStatus(it, info.acts).level;
+          return rank[lv] > rank[w] ? lv : w;
+        }, "none");
         return h("button", {
           key: c, type: "button", role: "gridcell",
-          className: "gc-cal-cell" + (out ? " out" : "") + (c === today ? " today" : "") + (c === sel ? " sel" : ""),
+          className: "gc-cal-cell" + (out ? " out" : "") + (c === today ? " today" : "") + (c === sel ? " sel" : "") + " gc-cal-" + worst,
+          "aria-label": fromYMD(c).getDate() + " 日，完成度：" + (ACT_STATES.find(function (s) { return s[0] === worst; }) || [])[1],
           onClick: function () { setSel(c); setEditing(null); },
         },
           h("span", { className: "gc-cal-day" }, String(fromYMD(c).getDate())),
           info.items.slice(0, 3).map(function (it) {
-            return h("span", { key: it.id, className: "gc-cal-item gc-k-" + it.kind + (done(it) ? " done" : "") }, (done(it) ? "已完成 · " : "") + it.title);
+            const st = actStatus(it, info.acts);
+            return h("span", {
+              key: it.id,
+              className: "gc-cal-item gc-k-" + it.kind + " " + (ACT_STATES.find(function (s) { return s[0] === st.level; }) || [])[2],
+              title: it.title + "：" + actLabel(st) + (st.target.dist || st.target.dur ? "（" + actCompare(st) + "）" : ""),
+            }, actLabel(st) + " · " + it.title);
           }),
           info.items.length > 3 ? h("span", { className: "gc-cal-more" }, "还有 " + (info.items.length - 3) + " 项") : null,
           info.acts.map(function (a) {
@@ -2692,12 +3516,15 @@ function CalendarView(props) {
         !editing ? h("button", { className: "pmw-plugin-button", type: "button", onClick: function () { setEditing({ date: sel, kind: "run", title: "", detail: "" }); } }, "添加训练") : null),
       day.items.length || day.acts.length ? null : h("p", { className: "pmw-plugin-hint" }, "这天没有安排。"),
       day.items.map(function (it) {
+        const st = statusOf(it);
+        const state = ACT_STATES.find(function (s) { return s[0] === st.level; }) || ACT_STATES[3];
         return h("div", { key: it.id, className: "gc-cal-entry" },
           h("div", { className: "gc-cal-entry-head" },
             h("span", { className: "gc-plan-kind gc-k-" + it.kind }, KIND_NAMES[it.kind] || it.kind),
             h("strong", null, it.title),
-            doneOf(it) ? h("span", { className: "gc-tag" }, it.done ? "已完成" : "已完成（有当天活动）") : null,
+            h("span", { className: "gc-tag " + state[2] }, actLabel(st)),
             it.plan_name ? h("small", null, "来自计划「" + it.plan_name + "」") : null),
+          st.level !== "none" && (st.target.dist || st.target.dur) ? h("p", { className: "gc-cal-compare" }, "计划 vs 实际：" + actCompare(st)) : null,
           it.detail ? h("p", { className: "gc-desc" }, it.detail) : null,
           h("div", { className: "gc-detail-bar" },
             it.video ? h(ExtLink, { href: it.video, className: "gc-link gc-strong-link" }, "看视频（" + videoPlatform(it.video) + "）") : null,
@@ -2722,7 +3549,16 @@ function CalendarForm(props) {
   const [title, setTitle] = useState(it.title || "");
   const [detail, setDetail] = useState(it.detail || "");
   const [video, setVideo] = useState(it.video || "");
-  return h("form", { className: "gc-edit", onSubmit: function (e) { e.preventDefault(); props.onSave({ date: date, kind: kind, title: title, detail: detail, video: video }); } },
+  const [targetKm, setTargetKm] = useState(it.target_distance_m ? String(it.target_distance_m / 1000) : "");
+  const [targetMin, setTargetMin] = useState(it.target_duration_s ? String(Math.round(it.target_duration_s / 60)) : "");
+  return h("form", { className: "gc-edit", onSubmit: function (e) {
+    e.preventDefault();
+    props.onSave({
+      date: date, kind: kind, title: title, detail: detail, video: video,
+      target_distance_m: Math.round((Number(targetKm) || 0) * 1000),
+      target_duration_s: Math.round((Number(targetMin) || 0) * 60),
+    });
+  } },
     !it.id ? h("div", { className: "gc-chips" }, h("small", null, "常用："), QUICK_ITEMS.map(function (q) {
       return h("button", { key: q[1], type: "button", className: "gc-chip", onClick: function () { setKind(q[0]); setTitle(q[1]); setDetail(q[2]); } }, q[1]);
     })) : null,
@@ -2732,6 +3568,10 @@ function CalendarForm(props) {
         Object.keys(KIND_NAMES).map(function (k) { return h("option", { key: k, value: k }, KIND_NAMES[k]); })))),
     h("label", { className: "gc-field" }, "标题", h("input", { value: title, maxLength: 60, placeholder: "如：轻松跑 8 公里", onChange: function (e) { setTitle(e.target.value); } })),
     h("label", { className: "gc-field" }, "内容", h("textarea", { rows: 3, value: detail, maxLength: 2000, placeholder: "配速、心率区间、动作组数…", onChange: function (e) { setDetail(e.target.value); } })),
+    h("div", { className: "gc-edit-row" },
+      h("label", { className: "gc-field" }, "目标距离（公里，可选）", h("input", { type: "number", min: "0", max: "1000", step: "0.1", value: targetKm, placeholder: "如：8", onChange: function (e) { setTargetKm(e.target.value); } })),
+      h("label", { className: "gc-field" }, "目标时长（分钟，可选）", h("input", { type: "number", min: "0", max: "1440", step: "1", value: targetMin, placeholder: "如：45", onChange: function (e) { setTargetMin(e.target.value); } }))),
+    h("p", { className: "pmw-plugin-hint" }, "留空时从标题、内容里认目标（如「长距离 16 公里」「间歇 6×800 米」）；两项都填时按达成率低的判定。"),
     h("label", { className: "gc-field" }, "视频链接（可选）", h("input", { value: video, placeholder: "https://…", onChange: function (e) { setVideo(e.target.value); } })),
     h("div", { className: "gc-detail-bar" },
       h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: !title.trim() }, "保存"),
@@ -2739,7 +3579,7 @@ function CalendarForm(props) {
 }
 
 // ---------------------------------------------------------------------------
-// 比赛（独立菜单）：比赛信息、成绩、关联活动、影像记忆
+// 比赛（PMW 版是主页面的「比赛」视图，dsh 版是外层「比赛」页签）：比赛信息、成绩、关联活动、影像记忆
 // ---------------------------------------------------------------------------
 
 const RACE_CATS = [["full", "全程马拉松"], ["half", "半程马拉松"], ["10k", "10 公里"], ["5k", "5 公里"], ["trail", "越野"], ["other", "其他"]];
@@ -2799,18 +3639,84 @@ function personalBests(races) {
   return best;
 }
 
-function RacesPage() {
+/** 目标比赛/成绩：AI 分析用目标平均配速给训练建议，具体 PB 从已收录比赛里取 */
+function GoalCard(props) {
+  const [g, setG] = useState({ race_name: "", category: "half", date: "", target_s: 0 });
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(function () {
+    api("/goals").then(function (d) { if (d.goal) setG(d.goal); }).catch(function () {});
+  }, []);
+  const set = function (k, v) { const n = Object.assign({}, g); n[k] = v; setG(n); };
+  const dist = RACE_DIST[g.category];
+  const pace = dist && g.target_s > 0 ? fmtPace(g.target_s / dist) : "";
+  const pb = personalBests(props.races || [])[g.category];
+
+  async function save(e) {
+    e.preventDefault();
+    setBusy(true); setMsg("");
+    try {
+      await api("/goals", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ race_name: g.race_name, category: g.category, date: g.date, target_s: g.target_s || 0 }) });
+      setMsg("已保存。AI 分析会按这个目标配速区间给建议。");
+    } catch (err) { setMsg("保存失败：" + errText(err)); } finally { setBusy(false); }
+  }
+
+  return h("form", { className: "gc-chart-box gc-goal-form", onSubmit: save, "aria-label": "目标比赛" },
+    h("h3", { className: "gc-sub" }, "目标比赛"),
+    h("div", { className: "gc-controls" },
+      h("label", { className: "gc-field" }, "比赛名称", h("input", { value: g.race_name, maxLength: 80, placeholder: "如：2026 北京马拉松", onChange: function (e) { set("race_name", e.target.value); } })),
+      h("label", { className: "gc-field" }, "类别", h("select", { value: g.category, onChange: function (e) { set("category", e.target.value); } },
+        RACE_CATS.map(function (c) { return h("option", { key: c[0], value: c[0] }, c[1]); }))),
+      h("label", { className: "gc-field" }, "日期", h("input", { type: "date", value: g.date || "", onChange: function (e) { set("date", e.target.value); } })),
+      h("div", { className: "gc-field" }, "目标成绩", h(DurationInput, { value: g.target_s || 0, onChange: function (v) { set("target_s", v); } }))),
+    h("p", { className: "pmw-plugin-hint" }, pace ? "目标平均配速 " + pace : "填目标成绩后自动算目标配速",
+      pb && RACE_DIST[pb.category] ? " · 这项 PB " + fmtDuration(raceTime(pb).s) + "（" + fmtPace(raceTime(pb).s / RACE_DIST[pb.category]) + "）" : ""),
+    h("div", { className: "gc-detail-bar" },
+      h("button", { className: "pmw-plugin-button gc-primary", type: "submit", disabled: busy }, busy ? "保存中…" : "保存目标")),
+    msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
+}
+
+function RacesPage(props) {
+  props = props || {};
   const theme = useTheme();
   const [races, setRaces] = useState(null);
   const [open, setOpen] = useState(null);
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState("");
   const [activity, setActivity] = useState(null);
+  const [imp, setImp] = useState(null);
+  const [impMsg, setImpMsg] = useState("");
 
   async function load() {
     try { setRaces((await api("/races")).races || []); } catch (err) { setMsg("读取比赛失败：" + errText(err)); }
   }
   useEffect(function () { load(); }, []);
+
+  // 历史比赛导入在后台跑：每 2 秒看一次进度，结束后刷新列表
+  useEffect(function () {
+    if (!imp || !imp.running) return undefined;
+    const t = setInterval(function () {
+      api("/status").then(function (s) {
+        const x = s.race_import || null;
+        setImp(x);
+        if (!x || !x.running) {
+          setImpMsg(x && x.error ? "导入历史比赛失败：" + x.error
+            : "导入完成：找到 " + ((x && x.found) || 0) + " 场比赛，新增 " + ((x && x.imported) || 0) + " 场。");
+          load();
+        }
+      }).catch(function () {});
+    }, 2000);
+    return function () { clearInterval(t); };
+  }, [imp && imp.running]);
+
+  async function importRaces() {
+    setImpMsg("");
+    try {
+      const res = await api("/races/import", { method: "POST" });
+      setImp(res.race_import || { running: true, pages: 0, found: 0, imported: 0 });
+    } catch (err) { setImpMsg("导入历史比赛失败：" + errText(err)); }
+  }
 
   if (activity) {
     return h(RunDetail, { id: activity.id, title: activity.title, start: activity.start, onBack: function () { setActivity(null); } });
@@ -2832,11 +3738,21 @@ function RacesPage() {
 
   return h("div", { className: "pmw-plugin pmw-plugin-module gc-races" },
     h(TitleBar, {
-      title: "比赛",
+      title: props.embedded ? PLUGIN_NAME : "比赛",
       desc: list.length ? "完赛 " + finished.length + " 场 · 共收录 " + list.length + " 场" : "",
-      actions: [{ label: "添加比赛", primary: true, onClick: function () { setAdding(true); } }, themeAction(theme)],
+      tabs: props.tabs || null,
+      actions: [
+        { label: "添加比赛", primary: true, onClick: function () { setAdding(true); } },
+        { label: imp && imp.running ? "导入中…" : "从 Garmin 导入历史比赛", disabled: Boolean(imp && imp.running),
+          onClick: importRaces, title: "扫描 Garmin 全部活动，把标成比赛的项目补录进来" },
+        themeAction(theme),
+      ],
     }),
+    props.belowTitle || null,
     msg ? h("p", { className: "gc-note", role: "alert" }, msg) : null,
+    imp && imp.running ? h("p", { className: "gc-note", role: "status" },
+      "正在导入：已翻 " + (imp.pages || 0) + " 页，找到 " + (imp.found || 0) + " 场比赛，新增 " + (imp.imported || 0) + " 场…") : null,
+    impMsg ? h("p", { className: "gc-note", role: "status" }, impMsg) : null,
     adding ? h(RaceForm, {
       race: { date: toYMD(new Date()), category: "half", status: "finished" },
       onCancel: function () { setAdding(false); },
@@ -2851,10 +3767,11 @@ function RacesPage() {
           h("span", { className: "gc-stat-value" }, fmtDuration(raceTime(r).s), h("small", { className: "gc-time-kind" }, raceTime(r).net ? " 净时" : " 枪时")),
           h("small", { className: "pmw-plugin-hint" }, r.name + " · " + r.date));
       }))) : null,
+    h(GoalCard, { races: list }),
     races && !list.length && !adding
       ? h("div", { className: "gc-empty" },
           h("p", null, "还没有收录比赛。"),
-          h("p", { className: "pmw-plugin-hint" }, "点右上角「添加比赛」手动收录，或在「Garmin 跑步数据」里打开一次比赛的活动，点「标记为比赛」自动带出成绩。"))
+          h("p", { className: "pmw-plugin-hint" }, "同步或打开 Garmin 标成比赛的活动会自动收录；也可以点「从 Garmin 导入历史比赛」一次补齐，或点「添加比赛」手动收录。"))
       : null,
     years.map(function (g) {
       return h("section", { key: g.year },
@@ -3152,6 +4069,15 @@ function project(lat, lon, z) {
   return [(lon + 180) / 360 * scale, (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale];
 }
 
+/** 轨迹上相邻两点的球面距离（米），用来把 Garmin 分段距离定位到轨迹点 */
+function geoDistance(a, b) {
+  const R = 6371000, rad = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * rad, dLon = (b[1] - a[1]) * rad;
+  const s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
 function RouteMap(props) {
   const ref = useRef(null);
   const [width, setWidth] = useState(640);
@@ -3204,11 +4130,61 @@ function RouteMap(props) {
   }
   const path = px.map(function (p) { return (p[0] - left).toFixed(1) + "," + (p[1] - top).toFixed(1); }).join(" ");
   const start = px[0], end = px[px.length - 1];
+  // 分段配速标在对应里程的中点。轨迹与逐点序列抽样不同，这里按轨迹球面距离定位，
+  // 并用概要距离校准累计长度（抽稀后的折线比真实路径短）。
+  const lapViews = props.laps || [];
+  const markers = [];
+  if (lapViews.length > 1 && props.track.length > 1) {
+    const cum = [0];
+    for (let i = 1; i < props.track.length; i++) cum.push(cum[i - 1] + geoDistance(props.track[i - 1], props.track[i]));
+    const measured = cum[cum.length - 1];
+    const scale = measured > 0 && props.totalDist > 0 ? props.totalDist / measured : 1;
+    const finite = lapViews.map(function (v) { return v.pace > 0 ? v.pace : Infinity; });
+    const fastest = finite.indexOf(Math.min.apply(null, finite));
+    const slowest = finite.indexOf(Math.max.apply(null, finite.filter(function (v) { return isFinite(v); })));
+    let endDist = 0;
+    lapViews.forEach(function (v, i) {
+      const from = endDist;
+      endDist += v.dist > 0 ? v.dist : 0;
+      if (!(v.pace > 0) || !(v.dist > 0)) return;
+      const target = (from + endDist) / 2 * scale;
+      let j = 1;
+      while (j < cum.length - 1 && cum[j] < target) j++;
+      if (cum[j] === cum[j - 1]) return;
+      const t = Math.max(0, Math.min(1, (target - cum[j - 1]) / (cum[j] - cum[j - 1])));
+      const x = px[j - 1][0] + t * (px[j][0] - px[j - 1][0]) - left;
+      const y = px[j - 1][1] + t * (px[j][1] - px[j - 1][1]) - top;
+      if (x < 12 || x > width - 12 || y < 12 || y > H - 12) return;
+      markers.push({ i: i, x: x, y: y, key: i === fastest || i === slowest });
+    });
+    const maxLabels = Math.max(5, Math.floor(width / 95));
+    if (markers.length > maxLabels) {
+      const keep = {};
+      markers.forEach(function (m) { if (m.key) keep[m.i] = true; });
+      for (let k = 0; k < maxLabels; k++) keep[markers[Math.floor(k * (markers.length - 1) / (maxLabels - 1))].i] = true;
+      const kept = markers.filter(function (m) { return keep[m.i]; });
+      markers.length = 0;
+      kept.forEach(function (m) { markers.push(m); });
+    }
+  }
+  const markerNodes = markers.map(function (m) {
+    const raw = (props.rawLaps || [])[m.i] || {};
+    return h("g", {
+      key: "lap-" + m.i,
+      className: "gc-map-split" + (m.i === props.activeLap ? " on" : "") + (m.key ? " key" : ""),
+      onClick: function () { if (props.onPick) props.onPick(m.i); },
+    },
+      h("title", null, "第 " + (m.i + 1) + " 段 · " + fmtDistance(lapViews[m.i].dist) + " · " + fmtPace(lapViews[m.i].pace) +
+        (typeof raw.elevationGain === "number" ? " · 爬升 " + num(raw.elevationGain) + " m" : "")),
+      h("circle", { cx: m.x, cy: m.y, r: m.key ? 4 : 3 }),
+      h("text", { x: m.x + 6, y: m.y - 6 }, paceText(lapViews[m.i].pace)));
+  });
   return h("div", { className: "gc-map", ref: ref, style: { height: H + "px" } },
     tiles,
     h("svg", { className: "gc-map-svg", width: width, height: H, viewBox: "0 0 " + width + " " + H },
       h("polyline", { points: path, className: "gc-route-halo", fill: "none" }),
       h("polyline", { points: path, className: "gc-route", fill: "none" }),
+      markerNodes,
       h("circle", { cx: start[0] - left, cy: start[1] - top, r: 6, className: "gc-pin-start" }, h("title", null, "起点")),
       h("circle", { cx: end[0] - left, cy: end[1] - top, r: 6, className: "gc-pin-end" }, h("title", null, "终点"))),
     h("div", { className: "gc-map-zoom" },
@@ -3222,26 +4198,26 @@ function RouteMap(props) {
 // ---------------------------------------------------------------------------
 
 function TodayCard() {
+  const [rec, setRec] = useState(null);
   const [run, setRun] = useState(null);
   const [plan, setPlan] = useState([]);
-  const [hint, setHint] = useState("正在读取最近一次跑步…");
+  const [hint, setHint] = useState("正在读取恢复状态…");
+  const noRunHint = "暂无跑步记录，先在设置页登录 Garmin";
 
   useEffect(function () {
     let alive = true;
+    // 恢复状态 + 本周跑量进度（一次请求拿齐）
+    api("/recovery?days=28")
+      .then(function (d) { if (alive) { setRec(d); setHint(""); } })
+      .catch(function (err) { if (alive) setHint("读取失败：" + errText(err)); });
+    // 保留最近一次跑步，作为卡片底部的快速参考
     api("/runs")
       .then(function (data) {
         if (!alive) return;
         const list = (Array.isArray(data.runs) ? data.runs : []).filter(function (r) { return !isStrengthType(r.type_key); });
-        if (list.length) {
-          setRun(list[0]);
-          setHint("");
-        } else {
-          setHint("暂无跑步记录，先在设置页登录 Garmin");
-        }
+        if (list.length) setRun(list[0]);
       })
-      .catch(function (err) {
-        if (alive) setHint("读取失败：" + errText(err));
-      });
+      .catch(function () {});
     // 今天日历上安排的训练
     const t = toYMD(new Date());
     api("/calendar?from=" + t + "&to=" + t).then(function (d) { if (alive) setPlan(d.items || []); }).catch(function () {});
@@ -3249,29 +4225,146 @@ function TodayCard() {
   }, []);
 
   const v = run ? runView(run) : null;
-  return h("div", { className: "pmw-plugin pmw-plugin-card" },
+  const sum = rec && rec.summary || {};
+  const st = sum.status || {};
+  const tone = REC_LEVEL[st.level] || REC_LEVEL.unknown;
+  return h("div", { className: "pmw-plugin pmw-plugin-card gc-today" },
+    // 恢复状态：今天能不能上强度，放最上面
+    rec
+      ? h("div", { className: "gc-today-status gc-rec-" + tone.cls },
+          h("div", { className: "gc-today-badge" }, h("i", { style: { background: tone.dot } }), h("b", null, st.label || "—")),
+          h("p", { className: "gc-card-main" }, st.suggestion || st.reason || ""),
+          h("div", { className: "gc-today-week" },
+            h("span", null, "本周跑量 ", h("b", null, num(sum.week_km, 1) + " km")),
+            h("span", null, "近 4 周周均 ", num(sum.baseline_km, 1) + " km"),
+            sum.progress != null ? h("span", null, "进度 ", sum.progress + "%") : null),
+          h("div", { className: "gc-rec-progress" },
+            h("span", { className: "gc-rec-progress-track" },
+              h("i", { style: { width: Math.min(100, Math.max(0, sum.progress || 0)) + "%" } }))),
+          sum.days_since != null && sum.days_since < 0
+            ? h("p", { className: "pmw-plugin-hint" }, noRunHint)
+            : null)
+      : h("p", { className: "pmw-plugin-hint" }, hint),
     plan.length ? h("div", { className: "gc-today-plan" },
       h("h4", null, "今天的训练"),
       plan.map(function (it) {
         return h("p", { key: it.id, className: "gc-card-main" }, h("span", { className: "gc-dot gc-k-" + it.kind }), it.title + (it.done ? "（已完成）" : ""));
       })) : null,
-    h("h4", null, "最近一次跑步"),
+    // 最近一次跑步降级为一行参考
     run
-      ? h("div", null,
-          h("p", { className: "gc-card-main" }, fmtDistance(v.dist), " · ", fmtPace(v.pace)),
-          h("p", { className: "pmw-plugin-hint" },
-            shortTime(run.start_time), "　时长 ", fmtDuration(run.duration_s)))
-      : h("p", { className: "pmw-plugin-hint" }, hint));
+      ? h("p", { className: "pmw-plugin-hint gc-today-last" },
+          "最近跑步：", fmtDistance(v.dist), " · ", fmtPace(v.pace), "　", shortTime(run.start_time))
+      : null);
+}
+
+/** 同步状态：成功/失败都要显眼，后台每 6 小时同步一次 */
+function SyncStatus(props) {
+  const st = props.status || {};
+  const err = st.last_sync_error || "";
+  const last = st.last_sync || "";
+  const attempt = st.last_sync_attempt || "";
+  const running = Boolean(st.full_sync && st.full_sync.running);
+  let main = "还没有同步过";
+  if (st.logged_in === false) main = "还没登录 Garmin：到设置页登录后才能同步";
+  else if (err) main = "最近一次同步失败：" + err + (last ? "（上次成功 " + shortTime(last) + "）" : "");
+  else if (last) main = "数据更新于 " + shortTime(last);
+  else if (attempt) main = "上次同步尝试 " + shortTime(attempt) + "，尚未成功";
+  const meta = props.progress || ("每 6 小时自动同步" + (running ? " · 全部历史同步中" : ""));
+  return h("div", { className: "gc-sync-status" + (err ? " gc-sync-status-error" : ""), role: err ? "alert" : "status" },
+    h("span", { className: "gc-sync-status-main" }, main),
+    h("span", { className: "gc-sync-status-meta" }, meta));
+}
+
+/** 同步：增量拉最近的、全量拉全部历史（都在设置页 / 账号与同步里触发） */
+function SyncControls(props) {
+  const st = props.status || {};
+  const [busy, setBusy] = useState(false);
+  const [full, setFull] = useState(st.full_sync && st.full_sync.running ? st.full_sync : null);
+  const [msg, setMsg] = useState("");
+  const running = Boolean(full && full.running);
+
+  useEffect(function () {
+    if (!running) return undefined;
+    const t = setInterval(function () {
+      api("/status").then(function (s) {
+        const f = s.full_sync || null;
+        setFull(f);
+        if (!f || !f.running) {
+          setMsg(f && f.error ? "同步全部历史失败：" + f.error : "全部历史已同步，写入 " + ((f && f.written) || 0) + " 条。");
+          props.onChanged && props.onChanged();
+        }
+      }).catch(function () {});
+    }, 2000);
+    return function () { clearInterval(t); };
+  }, [running]);
+
+  async function syncNow() {
+    setBusy(true); setMsg("正在同步最近的跑步…");
+    try {
+      const res = await api("/sync", { method: "POST" });
+      setMsg("同步完成，写入 " + res.written + " 条。");
+      props.onChanged && props.onChanged();
+    } catch (err) { setMsg("同步失败：" + errText(err)); } finally { setBusy(false); }
+  }
+  async function syncAll() {
+    setMsg("");
+    try {
+      const res = await api("/sync?full=1", { method: "POST" });
+      setFull(res.full_sync || { running: true, pages: 0, written: 0 });
+    } catch (err) { setMsg("同步全部历史失败：" + errText(err)); }
+  }
+
+  return h("div", { className: "gc-sync" },
+    h("div", { className: "gc-detail-bar" },
+      h("button", { className: "pmw-plugin-button gc-primary", type: "button", disabled: busy || running, onClick: syncNow,
+        title: "只拉近期新活动（补最近 2 天），自动同步也用这种方式" }, busy ? "增量同步中…" : "立即同步（增量）"),
+      h("button", { className: "pmw-plugin-button", type: "button", disabled: busy || running, onClick: syncAll,
+        title: "拉取 Garmin 上所有历史活动，后台进行；首次登录自动执行一次" }, running ? "全量同步中…" : "同步全部历史（全量）")),
+    h("p", { className: "gc-note" }, "增量：只补近期新活动，每 6 小时自动跑一次；全量：拉全部历史，首次登录自动执行。"),
+    running ? h("p", { className: "pmw-plugin-hint", role: "status" }, "正在同步全部历史：已翻 " + (full.pages || 0) + " 页，写入 " + (full.written || 0) + " 条…") : null,
+    msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
 }
 
 function SettingsSection() {
   useTheme();
+  const pace = usePaceUnit();
+  const prefs = useStatsPrefs();
+  const [mode, setMode] = useState("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [isCN, setIsCN] = useState(true);
   const [state, setState] = useState(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [hrMax, setHrMax] = useState("");
+  const [hrBounds, setHrBounds] = useState(["", "", "", "", ""]);
+  const [hrMsg, setHrMsg] = useState("");
+
+  useEffect(function () {
+    api("/hr-zones").then(function (d) {
+      setHrMax(d.max_hr ? String(d.max_hr) : "");
+      const b = (d.boundaries || []).slice(0, 5);
+      setHrBounds([0, 1, 2, 3, 4].map(function (i) { return b[i] ? String(b[i]) : ""; }));
+    }).catch(function () {});
+  }, []);
+
+  async function saveHrZones() {
+    setHrMsg("");
+    const max = Number(hrMax) || 0;
+    const bounds = hrBounds.map(Number).filter(function (v) { return v > 0; });
+    try {
+      const r = await api("/hr-zones", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ max_hr: max, boundaries: bounds }),
+      });
+      const saved = (r.boundaries || []).slice(0, 5);
+      setHrBounds([0, 1, 2, 3, 4].map(function (i) { return saved[i] ? String(saved[i]) : ""; }));
+      setHrMsg(max ? "已保存，图表和新的 AI 分析按这个区间算。" : "已恢复 Garmin 原值。");
+    } catch (err) {
+      setHrMsg("保存失败：" + errText(err));
+    }
+  }
 
   async function refresh() {
     try {
@@ -3279,6 +4372,16 @@ function SettingsSection() {
     } catch (err) {
       setMsg("读取状态失败：" + errText(err));
     }
+  }
+
+  async function afterLogin() {
+    try {
+      await api("/sync?full=1", { method: "POST" });
+      setMsg("登录成功，正在后台同步全部历史跑步，到「" + PLUGIN_NAME + "」模块页看进度。");
+    } catch (err) {
+      setMsg("登录成功，但开始同步失败：" + errText(err));
+    }
+    await refresh();
   }
 
   useEffect(function () { refresh(); }, []);
@@ -3296,15 +4399,30 @@ function SettingsSection() {
       });
       setPassword("");
       // 首次登录直接在后台拉全部历史，统计和记录才是全的；到模块页能看进度
-      try {
-        await api("/sync?full=1", { method: "POST" });
-        setMsg("登录成功，正在后台同步全部历史跑步，到「" + PLUGIN_NAME + "」模块页看进度。");
-      } catch (err) {
-        setMsg("登录成功，但开始同步失败：" + errText(err));
-      }
-      await refresh();
+      await afterLogin();
     } catch (err) {
       setPassword("");
+      setMsg("登录失败：" + errText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loginPersonal(e) {
+    if (e) e.preventDefault();
+    if (!apiKey.trim()) { setMsg("请填写个人 API Key"); return; }
+    setBusy(true);
+    setMsg("正在用个人 API Key 登录…");
+    try {
+      await api("/login/personal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: apiKey.trim(), is_cn: isCN }),
+      });
+      setApiKey("");
+      await afterLogin();
+    } catch (err) {
+      setApiKey("");
       setMsg("登录失败：" + errText(err));
     } finally {
       setBusy(false);
@@ -3325,37 +4443,92 @@ function SettingsSection() {
   }
 
   const loggedIn = Boolean(state && state.logged_in);
+  const personal = state && state.read_only === true;
+  const keyPage = "https://connect." + (isCN ? "garmin.cn" : "garmin.com") + "/app/settings/personalApiToken";
   return h("section", { className: "pmw-plugin pmw-plugin-settings" },
     h("h3", null, PLUGIN_NAME + " 设置"),
-    h("div", { className: "gc-controls" },
+    THEME_HOST === "dsh" ? null : h("div", { className: "gc-controls" },
       h(Seg, { label: "外观", value: themePref, onChange: setThemePref, options: THEME_OPTIONS }),
       h("span", { className: "pmw-plugin-hint" }, "外观：跟随系统时按工作台的明暗模式；只影响本插件页面。")),
+    h("div", { className: "gc-controls" },
+      h(Seg, { label: "配速单位", value: pace, onChange: setPaceUnit, options: [["km", "min/km"], ["mile", "min/mile"]] }),
+      h("span", { className: "pmw-plugin-hint" }, "配速、图表和 AI 分析统一按这个单位显示。")),
+    h("div", { className: "gc-stats-prefs" },
+      h("h4", null, "心率区间校准"),
+      h("div", { className: "gc-controls" },
+        h("label", { className: "gc-field" }, "最大心率 bpm",
+          h("input", { type: "number", min: "0", max: "240", step: "1", value: hrMax,
+            onChange: function (e) { setHrMax(e.target.value); } })),
+        h("button", { className: "pmw-plugin-button", type: "button", onClick: saveHrZones }, "保存区间")),
+      h("div", { className: "gc-controls" },
+        h("span", { className: "pmw-plugin-hint" }, "区间下界 bpm（可留空，按最大心率 50/60/70/80/90% 自动生成）"),
+        hrBounds.map(function (b, i) {
+          return h("input", { key: i, className: "gc-speed", type: "number", min: "80", max: "240", step: "1",
+            "aria-label": "区间 " + (i + 1) + " 下界 bpm", value: b,
+            onChange: function (e) {
+              const next = hrBounds.slice(); next[i] = e.target.value; setHrBounds(next);
+            } });
+        })),
+      h("p", { className: "pmw-plugin-hint" }, "清空最大心率并保存即恢复 Garmin 原值；改完后已有分析需重新生成。"),
+      hrMsg ? h("p", { className: "pmw-plugin-hint", role: "status" }, hrMsg) : null),
+    h("div", { className: "gc-stats-prefs" },
+      h("h4", null, "统计口径"),
+      h("label", { className: "pmw-plugin-check" },
+        h("input", { type: "checkbox", checked: prefs.ignoreShort,
+          onChange: function (e) { setStatsPrefs({ ignoreShort: e.target.checked }); } }),
+        " 忽略短活动（不计入概览和统计的次数、跑量、时长，记录列表仍显示全部）"),
+      prefs.ignoreShort
+        ? h("div", { className: "gc-controls gc-stats-prefs-thresholds" },
+            h("label", { className: "gc-field" }, "跑步短于（km）",
+              h("input", { type: "number", min: "0", step: "0.1", value: num(prefs.minRunM / 1000, 2),
+                onChange: function (e) { const v = Number(e.target.value); if (isFinite(v) && v >= 0) setStatsPrefs({ minRunM: v * 1000 }); } })),
+            h("label", { className: "gc-field" }, "力量短于（分钟）",
+              h("input", { type: "number", min: "0", step: "1", value: num(prefs.minStrengthS / 60, 0),
+                onChange: function (e) { const v = Number(e.target.value); if (isFinite(v) && v >= 0) setStatsPrefs({ minStrengthS: v * 60 }); } })))
+        : null),
     loggedIn
       ? h("div", { className: "gc-account" },
           h("p", null, "已登录：", h("strong", null, state.email || "Garmin 账号"),
-            state.is_cn === false ? "（国际区）" : "（中国区）"),
+            state.is_cn === false ? "（国际区）" : "（中国区）",
+            personal ? " · 个人 API Key（只读）" : " · 账号密码"),
           h("p", { className: "pmw-plugin-hint" },
-            state.last_sync ? ("上次同步 " + shortTime(state.last_sync)) : "还没有同步过",
-            typeof state.runs === "number" ? "，本地 " + state.runs + " 条跑步记录" : "",
-            "；每 6 小时自动同步一次。"),
-          state.last_sync_error ? h("p", { className: "gc-note", role: "alert" }, "最近一次同步失败：" + state.last_sync_error) : null,
+            typeof state.runs === "number" ? "本地 " + state.runs + " 条跑步记录。" : "",
+            personal ? "只读模式：不能把活动编辑保存回 Garmin。" : ""),
+          h(SyncStatus, { status: state }),
+          h(SyncControls, { status: state, onChanged: refresh }),
           h("button", { className: "pmw-plugin-button", type: "button", disabled: busy, onClick: logout }, "退出登录"))
-      : h("form", { className: "gc-login", onSubmit: login },
+      : h("div", { className: "gc-login" },
+          h(Seg, { label: "登录方式", value: mode, onChange: setMode,
+            options: [["password", "账号密码"], ["personal", "个人 API Key（支持 MFA）"]] }),
+          mode === "personal"
+            ? h("form", { onSubmit: loginPersonal },
+                h("p", { className: "pmw-plugin-hint" },
+                  "在 ", h("a", { href: keyPage, target: "_blank", rel: "noreferrer" }, "Garmin Connect 网页"),
+                  " 生成个人 API Key（只显示一次），粘贴到下面。支持两步验证，权限只读（不能把编辑写回 Garmin）。"),
+                h("label", { className: "gc-field" }, "个人 API Key",
+                  h("input", { type: "password", value: apiKey, autoComplete: "off", disabled: busy,
+                    onChange: function (e) { setApiKey(e.target.value); } })),
+                h("label", { className: "pmw-plugin-check" },
+                  h("input", { type: "checkbox", checked: isCN, disabled: busy,
+                    onChange: function (e) { setIsCN(e.target.checked); } }),
+                  " 中国区账号（connect.garmin.cn）"),
+                h("button", { className: "pmw-plugin-button", type: "submit", disabled: busy }, busy ? "登录中…" : "用 API Key 登录"))
+            : h("form", { onSubmit: login },
+                h("p", { className: "pmw-plugin-hint" },
+                  "用 Garmin Connect 账号登录。密码只用来换取访问令牌，不会保存；令牌加密存在工作台的凭证保险箱里。开了 MFA 请改用个人 API Key。"),
+                h("label", { className: "gc-field" }, "邮箱",
+                  h("input", { type: "email", value: email, autoComplete: "username", disabled: busy,
+                    onChange: function (e) { setEmail(e.target.value); } })),
+                h("label", { className: "gc-field" }, "密码",
+                  h("input", { type: "password", value: password, autoComplete: "current-password", disabled: busy,
+                    onChange: function (e) { setPassword(e.target.value); } })),
+                h("label", { className: "pmw-plugin-check" },
+                  h("input", { type: "checkbox", checked: isCN, disabled: busy,
+                    onChange: function (e) { setIsCN(e.target.checked); } }),
+                  " 中国区账号（connect.garmin.cn）"),
+                h("button", { className: "pmw-plugin-button", type: "submit", disabled: busy }, busy ? "登录中…" : "登录")),
           h("p", { className: "pmw-plugin-hint" },
-            "用 Garmin Connect 账号登录。密码只用来换取访问令牌，不会保存；令牌加密存在工作台的凭证保险箱里。"),
-          h("label", { className: "gc-field" }, "邮箱",
-            h("input", { type: "email", value: email, autoComplete: "username", disabled: busy,
-              onChange: function (e) { setEmail(e.target.value); } })),
-          h("label", { className: "gc-field" }, "密码",
-            h("input", { type: "password", value: password, autoComplete: "current-password", disabled: busy,
-              onChange: function (e) { setPassword(e.target.value); } })),
-          h("label", { className: "pmw-plugin-check" },
-            h("input", { type: "checkbox", checked: isCN, disabled: busy,
-              onChange: function (e) { setIsCN(e.target.checked); } }),
-            " 中国区账号（connect.garmin.cn）"),
-          h("button", { className: "pmw-plugin-button", type: "submit", disabled: busy }, busy ? "登录中…" : "登录"),
-          h("p", { className: "pmw-plugin-hint" },
-            "需要先在「设置 → 插件 → 外部插件」给本插件授予 network:any；开了两步验证的账号暂不支持。")),
+            "需要先在「设置 → 插件 → 外部插件」给本插件授予 network:any；同步按钮只在「账号与同步」里。")),
     msg ? h("p", { className: "pmw-plugin-hint", role: "status" }, msg) : null);
 }
 
@@ -3367,9 +4540,10 @@ window.__PMW_PLUGIN__.register({
     CTX = ctx;
     disposables.push(
       ctx.slots.register("module", { id: PLUGIN_ID, title: PLUGIN_NAME }, guarded(ModulePage)),
-      ctx.slots.register("module", { id: PLUGIN_ID + "_races", title: "比赛" }, guarded(RacesPage)),
+      // PMW 版比赛在主页面的视图里；独立模块只留给 dsh 版的「比赛」页签用
+      THEME_HOST === "dsh" ? ctx.slots.register("module", { id: PLUGIN_ID + "_races", title: "比赛" }, guarded(RacesPage)) : null,
       ctx.slots.register("settings.section", { id: PLUGIN_ID, title: PLUGIN_NAME }, guarded(SettingsSection)),
-      ctx.slots.register("today.card", { key: PLUGIN_ID + "_last_run", title: "最近跑步" }, guarded(TodayCard)),
+      ctx.slots.register("today.card", { key: PLUGIN_ID + "_last_run", title: "恢复与本周跑量" }, guarded(TodayCard)),
     );
   },
 

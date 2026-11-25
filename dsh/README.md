@@ -1,15 +1,15 @@
 # Garmin 跑步数据 · DeepSeek Harness 插件
 
-把 Garmin 跑步数据插件装进 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（dsh）客户端：左侧栏多出「Garmin 跑步」和「比赛」两个入口，功能和 PMW 工作台里的插件一致；对话里还能直接问跑步数据（「我这周跑了多少」「上个月和这个月比怎么样」「计划这周还剩什么」）。
+把 Garmin 跑步数据插件装进 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（dsh）客户端：左侧栏多出「Garmin 跑步」入口，功能和 PMW 工作台里的插件一致；对话里还能直接问跑步数据（「我这周跑了多少」「上个月和这个月比怎么样」「计划这周还剩什么」）。
 
 由 DeepSeek Harness（dsh）协助完成。
 
 ## 能做什么
 
 - **左侧栏「Garmin 跑步」**：
-  - 跑步数据：记录、统计、日历、计划、视频，详情页带地图、图表、分段和 AI 分析；
-  - 账号与同步：用 Garmin Connect 账号登录，后端每 6 小时自动同步。
-- **左侧栏「比赛」**：比赛成绩（净计时 / 枪声成绩）、个人最好成绩、影像记忆。
+  - 跑步数据：记录、统计、体能、日历、计划、视频，详情页带地图（轨迹标分段配速）、图表、分段和 AI 分析；配速单位与心率区间可在设置里校准；
+  - 比赛：比赛成绩（净计时 / 枪声成绩）、个人最好成绩、影像记忆；
+  - 账号与同步：用 Garmin Connect 账号密码或个人 API Key（支持 MFA）登录，后端每 6 小时自动同步。
 - **只读模型工具**：
 
   | 工具 | 用途 |
@@ -105,6 +105,6 @@ make dsh-check  # CI 用：派生文件不是最新就失败
 已知限制：
 
 - 在 dsh 页面里查看比赛影像时，单个文件最大 200 MB，因为要整块读进页面；
-- 开了两步验证的 Garmin 账号暂不支持（同 PMW 版）。
+- 开了两步验证（MFA）的 Garmin 账号请用「个人 API Key」登录（Garmin Connect 网页生成）；该模式只读，不能把活动编辑保存回 Garmin。
 
 [![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)

@@ -39,6 +39,7 @@ type planInput struct {
 	Description string      `json:"description"`
 	Days        []int       `json:"days"`
 	Weeks       [][]calItem `json:"weeks"`
+	StartMode   string      `json:"start_mode"`
 }
 
 // check 校验并规整；calItem 复用日历条目的校验（日期不校验，给个占位）。
@@ -53,6 +54,8 @@ func (p *planInput) check() string {
 		return "计划名称最多 40 个字"
 	case !planKinds[p.Kind]:
 		return "类型只能是 run / strength / mixed"
+	case p.StartMode != "" && p.StartMode != "week" && p.StartMode != "date":
+		return "排期口径只能是 week 或 date"
 	case len([]rune(p.Level)) > 10:
 		return "难度最多 10 个字"
 	case len([]rune(p.Description)) > 500:
@@ -113,7 +116,7 @@ func (p *planInput) check() string {
 }
 
 func (s *server) apiPlans(ctx context.Context) (int, any) {
-	rows, err := s.query(ctx, "SELECT id, name, kind, level, description, days, weeks, source, videos, created_at, updated_at FROM custom_plans ORDER BY created_at")
+	rows, err := s.query(ctx, "SELECT id, name, kind, level, description, days, weeks, source, videos, start_mode, created_at, updated_at FROM custom_plans ORDER BY created_at")
 	if err != nil {
 		return 500, map[string]any{"error": "读取计划失败：" + err.Error()}
 	}
@@ -155,6 +158,9 @@ func (s *server) savePlan(ctx context.Context, id string, body []byte) (int, any
 	if in.Videos == nil {
 		in.Videos = []planVideo{}
 	}
+	if in.StartMode == "" {
+		in.StartMode = "week"
+	}
 	days, _ := json.Marshal(in.Days)
 	weeks, _ := json.Marshal(in.Weeks)
 	src, _ := json.Marshal(in.Source)
@@ -162,8 +168,8 @@ func (s *server) savePlan(ctx context.Context, id string, body []byte) (int, any
 	now := time.Now().Format(time.RFC3339)
 	if id == "" {
 		id = newID("plan_")
-		if err := s.exec(ctx, `INSERT INTO custom_plans(id, name, kind, level, description, days, weeks, source, videos, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, in.Name, in.Kind, in.Level, in.Description, string(days), string(weeks), string(src), string(vids), now, now); err != nil {
+		if err := s.exec(ctx, `INSERT INTO custom_plans(id, name, kind, level, description, days, weeks, source, videos, start_mode, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, in.Name, in.Kind, in.Level, in.Description, string(days), string(weeks), string(src), string(vids), in.StartMode, now, now); err != nil {
 			return 500, map[string]any{"error": "保存失败：" + err.Error()}
 		}
 		return 200, map[string]any{"ok": true, "id": id}
@@ -174,8 +180,8 @@ func (s *server) savePlan(ctx context.Context, id string, body []byte) (int, any
 	if rows, err := s.query(ctx, "SELECT id FROM custom_plans WHERE id = ?", id); err != nil || len(rows) == 0 {
 		return 404, map[string]any{"error": "找不到这个计划"}
 	}
-	if err := s.exec(ctx, `UPDATE custom_plans SET name=?, kind=?, level=?, description=?, days=?, weeks=?, source=?, videos=?, updated_at=? WHERE id=?`,
-		in.Name, in.Kind, in.Level, in.Description, string(days), string(weeks), string(src), string(vids), now, id); err != nil {
+	if err := s.exec(ctx, `UPDATE custom_plans SET name=?, kind=?, level=?, description=?, days=?, weeks=?, source=?, videos=?, start_mode=?, updated_at=? WHERE id=?`,
+		in.Name, in.Kind, in.Level, in.Description, string(days), string(weeks), string(src), string(vids), in.StartMode, now, id); err != nil {
 		return 500, map[string]any{"error": "保存失败：" + err.Error()}
 	}
 	return 200, map[string]any{"ok": true, "id": id}
