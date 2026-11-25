@@ -373,7 +373,14 @@ window.__ModuleLoader__.load({
     async function api(path, init) {
       const res = await fetch(API_BASE + path, init);
       const data = await res.json().catch(function () { return {}; });
-      if (!res.ok) throw new Error((data && data.error) || ("HTTP " + res.status));
+      if (!res.ok) {
+        const msg = (data && data.error) || ("HTTP " + res.status);
+        // 插件升级后宿主可能仍在跑旧的后端进程，新增接口会落到默认分支
+        if (res.status === 404 && msg === "未知接口") {
+          throw new Error("插件后端还是旧版本，退出并重新打开应用后再试");
+        }
+        throw new Error(msg);
+      }
       return data;
     }
 
