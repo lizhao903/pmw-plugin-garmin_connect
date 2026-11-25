@@ -71,6 +71,32 @@ function ThemeRoot(props) {
   return h("div", { className: "gc-root", "data-gc-theme": theme }, props.children);
 }
 
+/**
+ * 图表按容器实测宽度画：viewBox 宽度 = 实际像素宽度，轴标签不会被缩放拉大或压小。
+ * 返回 [ref, width]；量到之前先用 fallback 画一帧。
+ */
+function useChartWidth(fallback) {
+  const ref = useRef(null);
+  const [w, setW] = useState(0);
+  useEffect(function () {
+    const el = ref.current;
+    if (!el) return undefined;
+    const read = function () {
+      const nw = Math.round(el.getBoundingClientRect().width);
+      if (nw > 0) setW(function (old) { return Math.abs(old - nw) > 1 ? nw : old; });
+    };
+    read();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", read);
+      return function () { window.removeEventListener("resize", read); };
+    }
+    const ob = new ResizeObserver(read);
+    ob.observe(el);
+    return function () { ob.disconnect(); };
+  }, []);
+  return [ref, w || fallback];
+}
+
 /** 标题栏上的快速切换：当前深色就给「浅色」，反之亦然（切换后不再跟随） */
 function themeAction(theme) {
   if (THEME_HOST === "dsh") return null;
@@ -311,9 +337,10 @@ function TitleBar(props) {
 }
 
 /** 分段按钮组（可能渲染进宿主顶栏、在插件样式作用域之外，所以用行内样式） */
-const SEG_WRAP = { display: "inline-flex", alignSelf: "flex-start", gap: "2px", padding: "3px", borderRadius: "8px", background: "var(--gc-seg-bg, var(--hover, rgba(127,127,127,0.12)))" };
+const SEG_WRAP = { display: "inline-flex", flexWrap: "wrap", maxWidth: "100%", alignSelf: "flex-start", gap: "2px", padding: "3px", borderRadius: "8px", background: "var(--gc-seg-bg, var(--hover, rgba(127,127,127,0.12)))" };
 function segBtn(on) {
   return {
+    flex: "0 0 auto", whiteSpace: "nowrap",
     padding: "3px 12px", border: 0, borderRadius: "6px",
     background: on ? "var(--gc-seg-on, var(--panel, #fff))" : "transparent", color: on ? "inherit" : "var(--gc-muted, var(--muted, inherit))", font: "inherit",
     fontSize: "13px", fontWeight: on ? 600 : 400, cursor: "pointer", opacity: on ? 1 : 0.8,
@@ -468,9 +495,10 @@ function KSection(props) {
   return h("div", { className: "gc-ksection" }, h("h2", null, props.title), props.extra || null);
 }
 
-/** 指标块：数字大、单位小；选中的块顶部一条深色粗线 */
+/** 指标块：数字大、单位小；选中的块顶部一条深色粗线。cols 固定列数，避免 4 个块排成 3+1 */
 function KTiles(props) {
-  return h("div", { className: "gc-ktiles" + (props.small ? " gc-ktiles-sm" : "") }, props.items.map(function (t, i) {
+  const cls = "gc-ktiles" + (props.small ? " gc-ktiles-sm" : "") + (props.cols ? " gc-ktiles-" + props.cols : "");
+  return h("div", { className: cls }, props.items.map(function (t, i) {
     const on = props.active === (t.key != null ? t.key : i);
     const attrs = {
       key: t.key != null ? t.key : t.label, className: "gc-ktile" + (on ? " on" : "") + (props.onPick ? " gc-ktile-btn" : ""),
@@ -541,7 +569,8 @@ function niceMax(v) {
 
 /** 堆叠柱：buckets = [{ key, label, parts: { out, in, str, oth } }] */
 function StackBars(props) {
-  const W = 380, H = 220, L = 30, R = 4, T = 22, B = 24;
+  const [ref, cw] = useChartWidth(380);
+  const W = Math.max(240, cw), H = 220, L = 30, R = 8, T = 22, B = 24;
   const keys = props.cats;
   const totals = props.buckets.map(function (b) { return keys.reduce(function (t, k) { return t + (b.parts[k] || 0); }, 0); });
   const max = niceMax(Math.max.apply(null, totals.concat([0])) * props.scale);
@@ -550,8 +579,17 @@ function StackBars(props) {
   const bw = Math.max(2, Math.min(16, step * 0.62));
   const sy = function (v) { return T + (H - T - B) * (1 - (v * props.scale) / max); };
   const ticks = [0, 0.25, 0.5, 0.75, 1].map(function (f) { return max * f; });
-  const every = Math.max(1, Math.ceil(n / 6));
-  return h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-kbars", role: "img", "aria-label": props.label },
+  // 刻度标签：均匀取样，末尾一定带上，且和上一个挤在一起时替换掉它
+  // 标签间距按像素兜底：图越窄取样越稀，避免「11/21 11/25」叠在一起
+  const every = Math.max(1, Math.ceil(n / 6), Math.ceil(44 / step));
+  const labelAt = [];
+  for (let k = 0; k < n; k++) if (k % every === 0) labelAt.push(k);
+  if (labelAt[labelAt.length - 1] !== n - 1) {
+    if (labelAt.length && (n - 1 - labelAt[labelAt.length - 1]) * step < 48) labelAt.pop();
+    labelAt.push(n - 1);
+  }
+  return h("svg", { ref: ref, viewBox: "0 0 " + W + " " + H, className: "gc-kbars", role: "img", "aria-label": props.label,
+    style: { height: H + "px" } },
     h("text", { x: 4, y: 12, className: "gc-kaxis" }, props.unit),
     ticks.map(function (t, i) {
       const y = T + (H - T - B) * (1 - t / max);
@@ -575,9 +613,12 @@ function StackBars(props) {
           base += v;
           return h("rect", { key: k, x: x, y: y1, width: bw, height: Math.max(1, y0 - y1), className: "gc-kbar gc-c-" + k });
         }),
-        i % every === 0 || i === n - 1
-          ? h("text", { x: x + bw / 2, y: H - 6, className: "gc-kaxis", textAnchor: "middle" }, b.label)
-          : null);
+        labelAt.indexOf(i) < 0
+          ? null
+          : h("text", {
+              x: i === 0 ? L : i === n - 1 ? W - R : x + bw / 2, y: H - 6, className: "gc-kaxis",
+              textAnchor: i === 0 ? "start" : i === n - 1 ? "end" : "middle",
+            }, b.label));
     }));
 }
 
@@ -734,7 +775,7 @@ function Overview(props) {
     h(KSection, { title: "运动概览", extra: h(KSeg, { label: "时间范围", value: range, onChange: setRange, options: KRANGES }) }),
     h("div", { className: "gc-kgrid" },
       h(KPanel, { title: "运动总览" },
-        h(KTiles, { items: tiles, active: tile, onPick: setTile }),
+        h(KTiles, { items: tiles, active: tile, onPick: setTile, cols: 4 }),
         loading || empty || h(Donut, { parts: parts, center: center, caption: caption, label: "按类型分布" })),
       h(KPanel, { title: "趋势分布", extra: h(KSeg, { label: "趋势指标", value: trend, onChange: setTrend, options: KMETRICS }) },
         loading || h("div", { className: "gc-ktrend" },
@@ -778,7 +819,8 @@ function recNum(v) { return typeof v === "number" && isFinite(v); }
 
 /** 恢复趋势折线 / 柱状混合图：有 load 画柱，其余画折线；高强度日用竖标记，缺失断线。 */
 function RecoveryChart(props) {
-  const W = 620, H = 240, L = 36, R = 8, T = 20, B = 40;
+  const [ref, cw] = useChartWidth(620);
+  const W = Math.max(280, cw), H = 240, L = 36, R = 12, T = 20, B = 40;
   const metric = props.metric;
   const days = props.days || [];
   const vals = days.map(function (d) { return d[metric]; });
@@ -802,7 +844,15 @@ function RecoveryChart(props) {
   const x = function (i) { return L + step * i + step / 2; };
   const y = function (v) { return T + (H - T - B) * (1 - (v - min) / span); };
   const ticks = [0, 0.5, 1].map(function (f) { return min + span * f; });
-  const every = Math.max(1, Math.ceil(n / 8));
+  // 日期标签：间距按像素兜底，图越窄取样越稀
+  const every = Math.max(1, Math.ceil(n / 8), Math.ceil(56 / step));
+  // 依次取样，末尾一定带上，和上一个挤在一起时替换掉它
+  const labelAt = [];
+  for (let k = 0; k < n; k++) if (k % every === 0) labelAt.push(k);
+  if (labelAt[labelAt.length - 1] !== n - 1) {
+    if (labelAt.length && (n - 1 - labelAt[labelAt.length - 1]) * step < 48) labelAt.pop();
+    labelAt.push(n - 1);
+  }
   const unit = metric === "load" ? "" : "";
   const fmt = function (v) { return num(v, metric === "effect" || metric === "body_battery" ? 1 : 0); };
 
@@ -815,7 +865,8 @@ function RecoveryChart(props) {
   });
   if (seg.length) segments.push(seg);
 
-  return h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-rec-chart", role: "img", "aria-label": props.label },
+  return h("svg", { ref: ref, viewBox: "0 0 " + W + " " + H, className: "gc-rec-chart", role: "img", "aria-label": props.label,
+    style: { height: H + "px" } },
     ticks.map(function (t, i) {
       const yy = y(t);
       return h("g", { key: i },
@@ -826,10 +877,14 @@ function RecoveryChart(props) {
     days.map(function (d, i) {
       const dow = parseLocal(d.date + " 00:00");
       const isMon = dow && dow.getDay() === 1;
+      // 首尾标签贴住绘图区两端，避免被裁
+      const edge = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
       return h("g", { key: d.date },
         isMon ? h("line", { x1: x(i) - step / 2, x2: x(i) - step / 2, y1: T, y2: H - B, className: "gc-rec-week" }) : null,
-        (i % every === 0 || i === n - 1)
-          ? h("text", { x: x(i), y: H - 20, className: "gc-kaxis", textAnchor: "middle" }, d.date.slice(5).replace("-", "/"))
+        labelAt.indexOf(i) >= 0
+          ? h("text", {
+              x: i === 0 ? L : i === n - 1 ? W - R : x(i), y: H - 20, className: "gc-kaxis", textAnchor: edge,
+            }, d.date.slice(5).replace("-", "/"))
           : null,
         d.High ? h("circle", { cx: x(i), cy: T + 3, r: 3, className: "gc-rec-high" }) : null,
         h("title", null, d.date + (recNum(vals[i]) ? "：" + fmt(vals[i]) + unit : "：无数据") + (d.High ? "（高强度）" : "")));
@@ -1176,7 +1231,8 @@ function StatsView() {
 }
 
 function BarChart(props) {
-  const W = 720, H = 220, padL = 44, padB = 26, padT = 18;
+  const [ref, cw] = useChartWidth(720);
+  const W = Math.max(280, cw), H = 220, padL = 44, padB = 26, padT = 18;
   const vals = props.items.map(function (x) { return metricValue(props.metric, x.b); });
   const max = Math.max.apply(null, vals.concat([0]));
   const n = props.items.length || 1;
@@ -1186,7 +1242,7 @@ function BarChart(props) {
   const ticks = [0, 0.5, 1].map(function (f) { return max * f; });
   const every = n > 12 ? 2 : 1;
   return h("figure", { className: "gc-chart" },
-    h("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "按周期的" + (METRICS.find(function (m) { return m[0] === props.metric; }) || [0, ""])[1] },
+    h("svg", { ref: ref, viewBox: "0 0 " + W + " " + H, role: "img", style: { height: H + "px" }, "aria-label": "按周期的" + (METRICS.find(function (m) { return m[0] === props.metric; }) || [0, ""])[1] },
       ticks.map(function (t, i) {
         return h("g", { key: "t" + i },
           h("line", { x1: padL, x2: W - 4, y1: y(t), y2: y(t), className: "gc-grid" }),
@@ -2228,7 +2284,9 @@ function pathFor(prep, vals, sx, sy) {
 /** 一张图：metrics 里一个（分开）或多个（叠加，各自归一化） */
 function ChartSvg(props) {
   const prep = props.prep, ms = props.metrics;
-  const W = isNarrow() ? 380 : 760, H = props.narrowHeight && isNarrow() ? props.narrowHeight : props.height;
+  const [ref, cw] = useChartWidth(isNarrow() ? 380 : 760);
+  const W = Math.max(240, cw);
+  const H = props.narrowHeight && isNarrow() ? props.narrowHeight : props.height;
   const padL = props.overlay ? 10 : 46, padR = 10, padT = 10, padB = 22;
   const xs = prep.x.filter(isNum);
   const xmin = xs[0], xmax = xs[xs.length - 1] || 1;
@@ -2242,7 +2300,6 @@ function ChartSvg(props) {
     };
   });
   const ranges = ms.map(function (m) { return yRange(m.vals); });
-  const ref = useRef(null);
   // 纵轴按 1%～99% 分位定范围，极端值（如补给站慢走）会超出：线裁在绘图区内
   const clipRef = useRef("gc-clip-" + Math.random().toString(36).slice(2, 9));
   const clipId = clipRef.current;
@@ -2270,7 +2327,7 @@ function ChartSvg(props) {
       h("title", null, (cls === "gc-pause" ? "暂停 " : "停下 ") + fmtDuration(b.dur)));
   };
   return h("svg", {
-    ref: ref, viewBox: "0 0 " + W + " " + H, className: "gc-chart-svg", role: "img",
+    ref: ref, viewBox: "0 0 " + W + " " + H, className: "gc-chart-svg", role: "img", style: { height: H + "px" },
     "aria-label": ms.map(function (m) { return m.def.label; }).join("、") + "曲线",
     onMouseMove: onMove, onMouseLeave: function () { props.setHover(null); },
     onTouchStart: function (e) { if (e.touches[0]) onMove(e.touches[0]); },
@@ -2474,7 +2531,8 @@ function LapBars(props) {
   const [hv, setHv] = useState(null);
   if (!views.length) return null;
   const narrow = isNarrow();
-  const W = narrow ? 380 : 760, H = 190, padL = 8, padR = 8, padT = 22, padB = 22;
+  const [ref, cw] = useChartWidth(narrow ? 380 : 760);
+  const W = Math.max(240, cw), H = 190, padL = 8, padR = 8, padT = 22, padB = 22;
   const total = views.reduce(function (t, v) { return t + (v.dur || 0); }, 0) || 1;
   const speeds = views.map(function (v) { return v.pace > 0 ? 1000 / v.pace : 0; });
   // 最快 / 最慢：不算不满 200 米的零头段和休息段
@@ -2522,7 +2580,7 @@ function LapBars(props) {
             lap.averageRunCadence ? h("span", { key: "c" }, "步频 " + num(lap.averageRunCadence)) : null,
           ]
         : h("span", { className: "pmw-plugin-hint" }, narrow ? "点柱子看这一段的数据" : "把鼠标移到柱子上看这一段的数据")),
-    h("svg", { viewBox: "0 0 " + W + " " + H, className: "gc-chart-svg", role: "img", "aria-label": "每段配速",
+    h("svg", { ref: ref, viewBox: "0 0 " + W + " " + H, className: "gc-chart-svg", role: "img", style: { height: H + "px" }, "aria-label": "每段配速",
       onMouseLeave: function () { setHv(null); } },
       bars.map(function (b) {
         const i = b.i, v = views[i];
@@ -4508,7 +4566,7 @@ function SettingsSection() {
           h(Seg, { label: "登录方式", value: mode, onChange: setMode,
             options: [["password", "账号密码"], ["personal", "个人 API Key（支持 MFA）"]] }),
           mode === "personal"
-            ? h("form", { onSubmit: loginPersonal },
+            ? h("form", { className: "gc-login-form", onSubmit: loginPersonal },
                 h("p", { className: "pmw-plugin-hint" },
                   "在 ", h("a", { href: keyPage, target: "_blank", rel: "noreferrer" }, "Garmin Connect 网页"),
                   " 生成个人 API Key（只显示一次），粘贴到下面。支持两步验证，权限只读（不能把编辑写回 Garmin）。"),
@@ -4520,7 +4578,7 @@ function SettingsSection() {
                     onChange: function (e) { setIsCN(e.target.checked); } }),
                   " 中国区账号（connect.garmin.cn）"),
                 h("button", { className: "pmw-plugin-button", type: "submit", disabled: busy }, busy ? "登录中…" : "用 API Key 登录"))
-            : h("form", { onSubmit: login },
+            : h("form", { className: "gc-login-form", onSubmit: login },
                 h("p", { className: "pmw-plugin-hint" },
                   "用 Garmin Connect 账号登录。密码只用来换取访问令牌，不会保存；令牌加密存在工作台的凭证保险箱里。开了 MFA 请改用个人 API Key。"),
                 h("label", { className: "gc-field" }, "邮箱",
