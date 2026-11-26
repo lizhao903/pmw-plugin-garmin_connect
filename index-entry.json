@@ -26,6 +26,38 @@
       ],
       "versions": [
         {
+          "version": "0.11.1",
+          "published_at": "2026-11-26T08:09:59Z",
+          "api": ">=2.0.0 <3.0.0",
+          "pmw": ">=0.3.0 <1.0.0",
+          "permissions": [
+            "network:any",
+            "secrets:garmin_connect",
+            "schedule",
+            "agent:run"
+          ],
+          "source": {
+            "type": "github-release",
+            "repository": "lizhao903/pmw-plugin-garmin_connect",
+            "tag": "v0.11.1",
+            "commit": "2054ab665846ee6736e4fc542094d9e8415ee90f",
+            "assets": {
+              "darwin-arm64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.11.1/garmin_connect-0.11.1-darwin-arm64.tar.gz",
+                "sha256": "0da0246041cea21ae9fa7e7bb00c9370c89d4c0f7651d4ceefdc0bc59c2e547d"
+              },
+              "linux-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.11.1/garmin_connect-0.11.1-linux-amd64.tar.gz",
+                "sha256": "6621eb11d1c9cb341dfcd501639a85b9e40dfc03bfbd119e929baf66f68402f6"
+              },
+              "windows-amd64": {
+                "url": "https://github.com/lizhao903/pmw-plugin-garmin_connect/releases/download/v0.11.1/garmin_connect-0.11.1-windows-amd64.tar.gz",
+                "sha256": "a554f15954b1595d9e61dafb3cbc5f4220845454ff3b41ba8fee0991a7f3cc53"
+              }
+            }
+          }
+        },
+        {
           "version": "0.11.0",
           "published_at": "2026-11-26T07:50:40Z",
           "api": ">=2.0.0 <3.0.0",
