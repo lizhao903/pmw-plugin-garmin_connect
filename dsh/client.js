@@ -3881,7 +3881,7 @@ window.__ModuleLoader__.load({
     }
 
     const INTENSITY_STATES = [["fast", "超强度", "gc-st-fast"], ["on", "强度达标", "gc-st-on"], ["slow", "强度不足", "gc-st-slow"]];
-    function intensityLabel(st) { const hit = INTENSITY_STATES.find(function (s) { return s[0] === st.level; }); return hit ? hit[1] : ""; }
+    function sessionIntensityLabel(st) { const hit = INTENSITY_STATES.find(function (s) { return s[0] === st.level; }); return hit ? hit[1] : ""; }
 
     /** 完成度短标签，格子和详情共用："完成 100%" / "部分 72%" / "未达 12%" / "未设目标" */
     function actLabel(st) {
@@ -3983,8 +3983,8 @@ window.__ModuleLoader__.load({
                   key: it.id,
                   className: "gc-cal-item gc-k-" + it.kind + " " + (ACT_STATES.find(function (s) { return s[0] === st.level; }) || [])[2],
                   title: it.title + "：" + actLabel(st) + (st.target.dist || st.target.dur ? "（" + actCompare(st) + "）" : "")
-                    + (ist.level !== "none" ? " · " + intensityLabel(ist) + "：" + ist.text : ""),
-                }, actLabel(st) + (ist.level !== "none" ? "/" + intensityLabel(ist) : "") + " · " + it.title);
+                    + (ist.level !== "none" ? " · " + sessionIntensityLabel(ist) + "：" + ist.text : ""),
+                }, actLabel(st) + (ist.level !== "none" ? "/" + sessionIntensityLabel(ist) : "") + " · " + it.title);
               }),
               info.items.length > 3 ? h("span", { className: "gc-cal-more" }, "还有 " + (info.items.length - 3) + " 项") : null,
               info.acts.map(function (a) {
@@ -4007,7 +4007,7 @@ window.__ModuleLoader__.load({
                 h("span", { className: "gc-plan-kind gc-k-" + it.kind }, KIND_NAMES[it.kind] || it.kind),
                 h("strong", null, it.title),
                 h("span", { className: "gc-tag " + state[2] }, actLabel(st)),
-                istState ? h("span", { className: "gc-tag " + istState[2] }, intensityLabel(ist)) : null,
+                istState ? h("span", { className: "gc-tag " + istState[2] }, sessionIntensityLabel(ist)) : null,
                 it.plan_name ? h("small", null, "来自计划「" + it.plan_name + "」") : null),
               st.level !== "none" && (st.target.dist || st.target.dur) ? h("p", { className: "gc-cal-compare" }, "计划 vs 实际：" + actCompare(st)) : null,
               ist.level !== "none" ? h("p", { className: "gc-cal-compare" }, "强度：" + ist.text) : null,

@@ -3,6 +3,11 @@
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.11.1] - 2026-11-26
+
+### Fixed
+- 修复 0.11.0 前端入口重复声明 `intensityLabel`，导致宿主加载插件失败（Identifier 'intensityLabel' has already been declared）。课表强度判定改名为 `sessionIntensityLabel`，与分段强度标签区分。
+
 ## [0.11.0] - 2026-11-26
 
 ### Added

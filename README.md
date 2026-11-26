@@ -3,7 +3,7 @@
 PMW（一人之下）外部插件，遵循 **PMW Plugin 2.0**（清单 `manifest_version: 2`，宿主插件 API `2.0.0`）。
 
 - 插件 id：`garmin_connect`
-- 版本：`0.11.0`
+- 版本：`0.11.1`
 - 作者：lizhao903
 - 许可证：MIT
 
