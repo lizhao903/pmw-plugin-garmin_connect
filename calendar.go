@@ -45,6 +45,11 @@ type calItem struct {
 	// 目标量（0.10.0）：距离单位米、时长单位秒；都填时达成率取低的一个。
 	TargetDistanceM float64 `json:"target_distance_m,omitempty"`
 	TargetDurationS int     `json:"target_duration_s,omitempty"`
+	// 目标强度（0.11.0）：配速区间秒/公里，lo 快 hi 慢；心率区间 1～5。
+	TargetPaceLoS  float64 `json:"target_pace_lo_s,omitempty"`
+	TargetPaceHiS  float64 `json:"target_pace_hi_s,omitempty"`
+	TargetHRZoneLo int     `json:"target_hr_zone_lo,omitempty"`
+	TargetHRZoneHi int     `json:"target_hr_zone_hi,omitempty"`
 }
 
 func (it *calItem) check() string {
@@ -68,6 +73,14 @@ func (it *calItem) check() string {
 		return "目标距离应在 0～1000 公里之间"
 	case it.TargetDurationS < 0 || it.TargetDurationS > 86400:
 		return "目标时长应在 0～24 小时之间"
+	case it.TargetPaceLoS < 0 || it.TargetPaceLoS > 3600 || it.TargetPaceHiS < 0 || it.TargetPaceHiS > 3600:
+		return "目标配速应在 0～60 分钟/公里之间"
+	case it.TargetPaceLoS > 0 && it.TargetPaceHiS > 0 && it.TargetPaceLoS > it.TargetPaceHiS:
+		return "目标配速的快端不能慢于慢端"
+	case it.TargetHRZoneLo < 0 || it.TargetHRZoneLo > 5 || it.TargetHRZoneHi < 0 || it.TargetHRZoneHi > 5:
+		return "目标心率区间应在 1～5 之间"
+	case it.TargetHRZoneLo > 0 && it.TargetHRZoneHi > 0 && it.TargetHRZoneLo > it.TargetHRZoneHi:
+		return "目标心率区间的下限不能高于上限"
 	}
 	return ""
 }
@@ -77,13 +90,16 @@ func (s *server) apiCalendar(ctx context.Context, from, to string) (int, any) {
 		return 400, map[string]any{"error": "from、to 应为 YYYY-MM-DD，且 from 不晚于 to"}
 	}
 	items, err := s.query(ctx, `SELECT id, date, kind, title, detail, video, target_distance_m, target_duration_s,
+		target_pace_lo_s, target_pace_hi_s, target_hr_zone_lo, target_hr_zone_hi,
 		plan_key, plan_name, plan_run, done, created_at, updated_at
 		FROM calendar_items WHERE date >= ? AND date <= ? ORDER BY date, created_at`, from, to)
 	if err != nil {
 		return 500, map[string]any{"error": "读取日历失败：" + err.Error()}
 	}
 	acts, err := s.query(ctx, `SELECT activity_id, start_time, activity_name, type_key,
-		COALESCE(corrected_distance_m, distance_m) AS distance_m, duration_s
+		COALESCE(corrected_distance_m, distance_m) AS distance_m, duration_s, avg_hr,
+		COALESCE(NULLIF(corrected_distance_m, 0), distance_m, 0) /
+			NULLIF(duration_s, 0) * 1000 AS pace_s_per_km
 		FROM runs WHERE substr(start_time, 1, 10) >= ? AND substr(start_time, 1, 10) <= ? ORDER BY start_time`, from, to)
 	if err != nil {
 		return 500, map[string]any{"error": "读取活动失败：" + err.Error()}
@@ -122,9 +138,12 @@ func (s *server) apiAddCalendar(ctx context.Context, body []byte) (int, any) {
 	ids := []string{}
 	for _, it := range in.Items {
 		id := newID("cal_")
-		if err := s.exec(ctx, `INSERT INTO calendar_items(id, date, kind, title, detail, video, target_distance_m, target_duration_s, plan_key, plan_name, plan_run, done, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-			id, it.Date, it.Kind, it.Title, it.Detail, it.Video, it.TargetDistanceM, it.TargetDurationS, strings.TrimSpace(in.PlanKey), strings.TrimSpace(in.PlanName), planRun, now, now); err != nil {
+		if err := s.exec(ctx, `INSERT INTO calendar_items(id, date, kind, title, detail, video, target_distance_m, target_duration_s,
+			target_pace_lo_s, target_pace_hi_s, target_hr_zone_lo, target_hr_zone_hi, plan_key, plan_name, plan_run, done, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+			id, it.Date, it.Kind, it.Title, it.Detail, it.Video, it.TargetDistanceM, it.TargetDurationS,
+			it.TargetPaceLoS, it.TargetPaceHiS, it.TargetHRZoneLo, it.TargetHRZoneHi,
+			strings.TrimSpace(in.PlanKey), strings.TrimSpace(in.PlanName), planRun, now, now); err != nil {
 			return 500, map[string]any{"error": "保存失败：" + err.Error(), "saved": ids}
 		}
 		ids = append(ids, id)
@@ -136,7 +155,9 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if !strings.HasPrefix(id, "cal_") || len(id) > 40 {
 		return 400, map[string]any{"error": "日历条目 id 不合法"}
 	}
-	rows, err := s.query(ctx, "SELECT date, kind, title, detail, video, target_distance_m, target_duration_s, done FROM calendar_items WHERE id = ?", id)
+	rows, err := s.query(ctx, `SELECT date, kind, title, detail, video, target_distance_m, target_duration_s,
+		target_pace_lo_s, target_pace_hi_s, target_hr_zone_lo, target_hr_zone_hi, done
+		FROM calendar_items WHERE id = ?`, id)
 	if err != nil || len(rows) == 0 {
 		return 404, map[string]any{"error": "找不到这条安排"}
 	}
@@ -148,6 +169,10 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	cur.Video, _ = rows[0]["video"].(string)
 	cur.TargetDistanceM = numField(rows[0], "target_distance_m")
 	cur.TargetDurationS = int(numField(rows[0], "target_duration_s"))
+	cur.TargetPaceLoS = numField(rows[0], "target_pace_lo_s")
+	cur.TargetPaceHiS = numField(rows[0], "target_pace_hi_s")
+	cur.TargetHRZoneLo = int(numField(rows[0], "target_hr_zone_lo"))
+	cur.TargetHRZoneHi = int(numField(rows[0], "target_hr_zone_hi"))
 	done := numField(rows[0], "done") != 0
 	var in struct {
 		Date            *string  `json:"date"`
@@ -157,6 +182,10 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 		Video           *string  `json:"video"`
 		TargetDistanceM *float64 `json:"target_distance_m"`
 		TargetDurationS *int     `json:"target_duration_s"`
+		TargetPaceLoS   *float64 `json:"target_pace_lo_s"`
+		TargetPaceHiS   *float64 `json:"target_pace_hi_s"`
+		TargetHRZoneLo  *int     `json:"target_hr_zone_lo"`
+		TargetHRZoneHi  *int     `json:"target_hr_zone_hi"`
 		Done            *bool    `json:"done"`
 	}
 	if err := json.Unmarshal(body, &in); err != nil {
@@ -183,6 +212,18 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if in.TargetDurationS != nil {
 		cur.TargetDurationS = *in.TargetDurationS
 	}
+	if in.TargetPaceLoS != nil {
+		cur.TargetPaceLoS = *in.TargetPaceLoS
+	}
+	if in.TargetPaceHiS != nil {
+		cur.TargetPaceHiS = *in.TargetPaceHiS
+	}
+	if in.TargetHRZoneLo != nil {
+		cur.TargetHRZoneLo = *in.TargetHRZoneLo
+	}
+	if in.TargetHRZoneHi != nil {
+		cur.TargetHRZoneHi = *in.TargetHRZoneHi
+	}
 	if in.Done != nil {
 		done = *in.Done
 	}
@@ -193,8 +234,10 @@ func (s *server) apiUpdateCalendar(ctx context.Context, id string, body []byte) 
 	if done {
 		d = 1
 	}
-	if err := s.exec(ctx, "UPDATE calendar_items SET date=?, kind=?, title=?, detail=?, video=?, target_distance_m=?, target_duration_s=?, done=?, updated_at=? WHERE id=?",
-		cur.Date, cur.Kind, cur.Title, cur.Detail, cur.Video, cur.TargetDistanceM, cur.TargetDurationS, d, time.Now().Format(time.RFC3339), id); err != nil {
+	if err := s.exec(ctx, `UPDATE calendar_items SET date=?, kind=?, title=?, detail=?, video=?, target_distance_m=?, target_duration_s=?,
+		target_pace_lo_s=?, target_pace_hi_s=?, target_hr_zone_lo=?, target_hr_zone_hi=?, done=?, updated_at=? WHERE id=?`,
+		cur.Date, cur.Kind, cur.Title, cur.Detail, cur.Video, cur.TargetDistanceM, cur.TargetDurationS,
+		cur.TargetPaceLoS, cur.TargetPaceHiS, cur.TargetHRZoneLo, cur.TargetHRZoneHi, d, time.Now().Format(time.RFC3339), id); err != nil {
 		return 500, map[string]any{"error": "保存失败：" + err.Error()}
 	}
 	return 200, map[string]any{"ok": true}

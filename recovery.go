@@ -136,6 +136,46 @@ func (s *server) storeMetrics(ctx context.Context, d *runDetail) {
 	}
 }
 
+// hasMetrics 判断活动是否已落训练指标，避免同步时重复拉取。
+func (s *server) hasMetrics(ctx context.Context, id string) bool {
+	rows, err := s.query(ctx, "SELECT 1 FROM activity_metrics WHERE activity_id = ? LIMIT 1", id)
+	return err == nil && len(rows) > 0
+}
+
+// fillMetricsAsync 后台只拉活动主接口补齐指标，带节流；同步主流程不等它。
+func (s *server) fillMetricsAsync(ctx context.Context, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	bg := ctx
+	if bg == nil {
+		bg = s.bgCtx
+	}
+	if bg == nil {
+		bg = context.Background()
+	}
+	go func() {
+		c, err := s.authed(bg)
+		if err != nil {
+			return
+		}
+		for _, id := range ids {
+			if s.hasMetrics(bg, id) {
+				continue
+			}
+			if d := s.cachedDetail(bg, id); d != nil {
+				s.storeMetrics(bg, d)
+				continue
+			}
+			d, err := s.fetchSummaryOnly(bg, c, id)
+			if err == nil && d != nil {
+				s.storeMetrics(bg, d)
+			}
+			time.Sleep(120 * time.Millisecond)
+		}
+	}()
+}
+
 // -------- 回填：最近 N 天没有指标的活动，优先读缓存，缓存没有只拉主接口（不拉分段/曲线） --------
 
 func (s *server) startRecoveryBackfill(ctx context.Context) bool {
@@ -173,7 +213,8 @@ func (s *server) setBackfillProgress(done int, err string) {
 }
 
 func (s *server) runRecoveryBackfill(ctx context.Context) {
-	from := time.Now().AddDate(0, 0, -28).Format("2006-01-02")
+	// 0.11.0：回填窗口从 28 天扩到 180 天，支撑跨月趋势；只补没有指标的活动。
+	from := time.Now().AddDate(0, 0, -180).Format("2006-01-02")
 	rows, err := s.query(ctx, `SELECT r.activity_id FROM runs r
 		LEFT JOIN activity_metrics m ON m.activity_id = r.activity_id
 		WHERE substr(r.start_time, 1, 10) >= ? AND m.activity_id IS NULL
@@ -315,8 +356,8 @@ func (s *server) apiRecovery(ctx context.Context, days int) (int, any) {
 	if days < 7 {
 		days = 7
 	}
-	if days > 90 {
-		days = 90
+	if days > 365 {
+		days = 365
 	}
 	today := time.Now()
 	from := today.AddDate(0, 0, -(days - 1)).Format("2006-01-02")
@@ -461,6 +502,13 @@ func (s *server) apiRecovery(ctx context.Context, days int) (int, any) {
 
 	loadBase := loadTotal / math.Max(1, float64(days)/7)
 	status := deriveRecoveryStatus(effectLabel, high7, daysSince, weekKm, baseline, load7, loadBase, len(metricRows))
+	// 主观状态交叉校验：睡眠差/疲劳高/酸痛重时把「上强度」结论降级。
+	if note, lower := s.wellbeingCrossCheck(ctx); lower {
+		if status.Level == "good" {
+			status.Level = "moderate"
+		}
+		status.Suggestion = note + " " + status.Suggestion
+	}
 
 	backfill := s.recoveryBackfillSnapshot()
 	// 有跑步记录、却一条指标都没有：自动回填一次（后台跑，不阻塞页面）

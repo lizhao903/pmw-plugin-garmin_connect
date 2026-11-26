@@ -1154,6 +1154,8 @@ func (s *server) syncOnce(ctx context.Context, full bool, progress func(pages, w
 	}
 	now := time.Now().Format(time.RFC3339)
 	written, seen := 0, 0
+	// 0.11.0：本次同步新写入、且还没训练指标的活动，同步结束后后台轻量补齐（只拉主接口）。
+	var metricIDs []string
 	for page := 0; page < maxPages; page++ {
 		list, err := s.fetchActivities(ctx, c, page*limit, limit)
 		if err != nil {
@@ -1169,6 +1171,13 @@ func (s *server) syncOnce(ctx context.Context, full bool, progress func(pages, w
 				continue
 			}
 			written++
+			// 有缓存详情直接落指标；没有的记下来，同步结束后后台只拉主接口补齐。
+			aid := strconv.FormatInt(a.ActivityID, 10)
+			if d := s.cachedDetail(ctx, aid); d != nil {
+				s.storeMetrics(ctx, d)
+			} else if !s.hasMetrics(ctx, aid) {
+				metricIDs = append(metricIDs, aid)
+			}
 			// Garmin 列表里的 eventTypeDTO=race 自动进「比赛」；手表计时作净计时。
 			if a.EventTypeDTO.TypeKey == "race" {
 				s.autoCollectRace(ctx, raceSeed{
@@ -1191,6 +1200,12 @@ func (s *server) syncOnce(ctx context.Context, full bool, progress func(pages, w
 	s.setState(ctx, "last_sync", now)
 	if full {
 		s.setState(ctx, "last_full_sync", now)
+	}
+	// 指标补齐在后台跑，不拖慢同步；长周期趋势依赖这些结构化数据。
+	s.fillMetricsAsync(ctx, metricIDs)
+	// 同步后跑一次预警规则（读已落库指标，不额外请求 Garmin）。
+	if a := s.evalAlerts(ctx); len(a) > 0 {
+		s.log.Info("生成训练预警", "count", len(a))
 	}
 	s.log.Info("同步完成", "full", full, "activities", seen, "runs", written)
 	return written, nil
@@ -2219,6 +2234,10 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 		status, payload = s.apiGetGoals(ctx)
 	case p.Method == "POST" && path == "/goals":
 		status, payload = s.apiSaveGoals(ctx, body)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/goals/"):
+		status, payload = s.apiDeleteGoal(ctx, strings.TrimPrefix(path, "/goals/"))
+	case p.Method == "GET" && path == "/goals/phase":
+		status, payload = s.apiPhase(ctx)
 	case p.Method == "GET" && path == "/hr-zones":
 		status, payload = s.apiGetHRZones(ctx)
 	case p.Method == "POST" && path == "/hr-zones":
@@ -2255,6 +2274,12 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 		status, payload = s.apiStats(ctx, query)
 	case p.Method == "GET" && path == "/recovery":
 		status, payload = s.apiRecovery(ctx, recoveryDaysParam(query.Get("days")))
+	case p.Method == "GET" && path == "/wellbeing":
+		status, payload = s.apiGetWellbeing(ctx, query.Get("from"), query.Get("to"))
+	case p.Method == "POST" && path == "/wellbeing":
+		status, payload = s.apiSaveWellbeing(ctx, body)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/wellbeing/"):
+		status, payload = s.apiDeleteWellbeing(ctx, strings.TrimPrefix(path, "/wellbeing/"))
 	case p.Method == "POST" && path == "/recovery/backfill":
 		if s.startRecoveryBackfill(ctx) {
 			status, payload = 202, map[string]any{"ok": true, "backfill": s.recoveryBackfillSnapshot()}
@@ -2263,6 +2288,18 @@ func (s *server) handleHTTPRequest(ctx context.Context, raw json.RawMessage) (an
 		}
 	case p.Method == "GET" && strings.HasPrefix(path, "/tiles/"):
 		status, payload = s.apiTile(ctx, strings.TrimPrefix(path, "/tiles/"))
+	case p.Method == "GET" && path == "/prediction":
+		status, payload = s.apiPrediction(ctx)
+	case p.Method == "GET" && path == "/effect":
+		status, payload = s.apiEffect(ctx, recoveryDaysParam(query.Get("days")))
+	case p.Method == "GET" && path == "/export":
+		status, payload = s.apiExport(ctx)
+	case p.Method == "POST" && path == "/import":
+		status, payload = s.apiImport(ctx, body)
+	case p.Method == "GET" && path == "/alerts":
+		status, payload = s.apiAlerts(ctx)
+	case p.Method == "DELETE" && strings.HasPrefix(path, "/alerts/"):
+		status, payload = s.apiDismissAlert(ctx, strings.TrimPrefix(path, "/alerts/"))
 	case p.Method == "GET" && path == "/status":
 		status, payload = s.apiStatus(ctx)
 	case p.Method == "POST" && path == "/login":

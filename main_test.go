@@ -210,9 +210,21 @@ func TestCalItemCheck(t *testing.T) {
 		"目标距离为负": {Date: "2026-11-30", Kind: "run", Title: "x", TargetDistanceM: -1},
 		"目标距离过大": {Date: "2026-11-30", Kind: "run", Title: "x", TargetDistanceM: 1000001},
 		"目标时长过大": {Date: "2026-11-30", Kind: "run", Title: "x", TargetDurationS: 86401},
+		"配速倒挂":   {Date: "2026-11-30", Kind: "run", Title: "x", TargetPaceLoS: 420, TargetPaceHiS: 360},
+		"配速过大":   {Date: "2026-11-30", Kind: "run", Title: "x", TargetPaceLoS: 3601},
+		"心率区间越界": {Date: "2026-11-30", Kind: "run", Title: "x", TargetHRZoneLo: 6},
+		"心率区间倒挂": {Date: "2026-11-30", Kind: "run", Title: "x", TargetHRZoneLo: 4, TargetHRZoneHi: 2},
 	} {
 		if it.check() == "" {
 			t.Errorf("%s 应拒绝", name)
+		}
+	}
+	for name, it := range map[string]calItem{
+		"配速区间": {Date: "2026-11-30", Kind: "run", Title: "x", TargetPaceLoS: 330, TargetPaceHiS: 390},
+		"心率区间": {Date: "2026-11-30", Kind: "run", Title: "x", TargetHRZoneLo: 2, TargetHRZoneHi: 3},
+	} {
+		if msg := it.check(); msg != "" {
+			t.Errorf("%s 应通过：%s", name, msg)
 		}
 	}
 }

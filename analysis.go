@@ -40,11 +40,12 @@ const analysisSystemRun = `你是一名有经验的跑步教练，也懂体能�
 ## 恢复与注意事项
 最后另起一段，输出一个 plan 代码块（不计入上面的字数），把「后续训练建议」里的每节课逐条列成 JSON 数组，供用户一键排进训练计划。格式：
 ` + "```plan" + `
-[{"day":1,"kind":"run","title":"轻松跑 6 km","detail":"配速 6:20～6:40，心率区间 2"}]
+[{"day":1,"kind":"run","title":"轻松跑 6 km","detail":"配速 6:20～6:40，心率区间 2","pace_lo_s":380,"pace_hi_s":400,"hr_zone_lo":2,"hr_zone_hi":2,"target_distance_m":6000,"target_duration_s":2340,"phase":"基础期"}]
 ` + "```" + `
 - day 是从开始执行那天算起的第几天（1～14），一天最多一节课，休息日不用列；
 - kind 只能是 run（跑步）、strength（力量）、other（拉伸、交叉训练等）；
 - title 不超过 20 个字，写清课的类型和量；detail 写配速、心率区间、组数次数等要点，不超过 80 个字；
+- 目标字段都要填能算出来的：pace_lo_s / pace_hi_s 是目标配速快端与慢端（秒/公里）；hr_zone_lo / hr_zone_hi 是目标心率区间（1～5）；target_distance_m（米）/ target_duration_s（秒）；phase 填当前训练阶段（基础期/强化期/专项期/减量期/比赛周）。只填已知的，没有就省略。
 - 代码块里只放 JSON 数组，不要注释；和正文的建议保持一致。`
 
 const analysisSystemStrength = `你是一名有经验的体能教练，熟悉跑者的力量训练。用户会给你一次 Garmin 力量训练记录（训练组、心率等）和最近几周的训练量，请分析这次训练并给出后续训练建议。
@@ -61,11 +62,12 @@ const analysisSystemStrength = `你是一名有经验的体能教练，熟悉跑
 ## 恢复与注意事项
 最后另起一段，输出一个 plan 代码块（不计入上面的字数），把「后续训练建议」里的每节课逐条列成 JSON 数组，供用户一键排进训练计划。格式：
 ` + "```plan" + `
-[{"day":1,"kind":"run","title":"轻松跑 6 km","detail":"配速 6:20～6:40，心率区间 2"}]
+[{"day":1,"kind":"run","title":"轻松跑 6 km","detail":"配速 6:20～6:40，心率区间 2","pace_lo_s":380,"pace_hi_s":400,"hr_zone_lo":2,"hr_zone_hi":2,"target_distance_m":6000,"target_duration_s":2340,"phase":"基础期"}]
 ` + "```" + `
 - day 是从开始执行那天算起的第几天（1～14），一天最多一节课，休息日不用列；
 - kind 只能是 run（跑步）、strength（力量）、other（拉伸、交叉训练等）；
 - title 不超过 20 个字，写清课的类型和量；detail 写配速、心率区间、组数次数等要点，不超过 80 个字；
+- 目标字段都要填能算出来的：pace_lo_s / pace_hi_s 是目标配速快端与慢端（秒/公里）；hr_zone_lo / hr_zone_hi 是目标心率区间（1～5）；target_distance_m（米）/ target_duration_s（秒）；phase 填当前训练阶段（基础期/强化期/专项期/减量期/比赛周）。只填已知的，没有就省略。
 - 代码块里只放 JSON 数组，不要注释；和正文的建议保持一致。`
 
 // paceUnitOf 兼容旧调用：不传单位时按 min/km。
@@ -294,31 +296,25 @@ func (s *server) recentLines(ctx context.Context, start string, id string, unit 
 func (s *server) goalLines(ctx context.Context, unit ...string) []string {
 	u := paceUnitOf(unit)
 	var out []string
-	rows, err := s.query(ctx, "SELECT race_name, category, date, target_s FROM training_goals WHERE id = 1")
-	if err == nil && len(rows) > 0 {
-		name, _ := rows[0]["race_name"].(string)
-		cat, _ := rows[0]["category"].(string)
-		date, _ := rows[0]["date"].(string)
-		target := numField(rows[0], "target_s")
-		if target > 0 {
-			line := "目标比赛"
-			if name != "" {
-				line += "：" + name
-			}
-			if cat != "" {
-				line += "（" + raceCategoryLabel(cat) + "）"
-			}
-			if date != "" {
-				line += "，日期 " + date
-			}
-			line += "，目标成绩 " + fmtDur(target)
-			if pace := goalPaceSec(cat, target); pace > 0 {
-				line += "，目标平均配速 " + fmtPaceUnit(pace, u)
-			}
-			out = append(out, line)
+	g := s.currentGoal(ctx)
+	if g.TargetS > 0 {
+		line := "目标比赛"
+		if g.RaceName != "" {
+			line += "：" + g.RaceName
 		}
+		if g.Category != "" {
+			line += "（" + raceCategoryLabel(g.Category) + "）"
+		}
+		if g.Date != "" {
+			line += "，日期 " + g.Date
+		}
+		line += "，目标成绩 " + fmtDur(g.TargetS)
+		if pace := goalPaceSec(g.Category, g.TargetS); pace > 0 {
+			line += "，目标平均配速 " + fmtPaceUnit(pace, u)
+		}
+		out = append(out, line)
 	}
-	rows, err = s.query(ctx, `SELECT name, category, date, COALESCE(net_s, official_s) AS t FROM races
+	rows, err := s.query(ctx, `SELECT name, category, date, COALESCE(net_s, official_s) AS t FROM races
 		WHERE status = 'finished' AND COALESCE(net_s, official_s) > 0`)
 	if err == nil {
 		best := map[string]map[string]any{}
@@ -411,6 +407,11 @@ func (s *server) buildAnalysisPrompt(ctx context.Context, d *runDetail, insights
 		for _, l := range lines {
 			b.WriteString(l + "\n")
 		}
+	}
+	if p := goalPhase(s.currentGoal(ctx), time.Now()); p != nil {
+		fmt.Fprintf(&b, "\n【训练阶段（按目标比赛日期倒推）】\n%s：距比赛还有 %v 天。%s。\n",
+			p["phase"], p["days_left"], p["focus"])
+		b.WriteString("后续训练建议要符合这个阶段：基础期别上大量强度，比赛周要减量，减量期保留目标配速刺激。\n")
 	}
 	sys := analysisSystemRun
 	if strength {
@@ -546,10 +547,17 @@ func asRPC(err error, target **rpcError) bool {
 
 // aiSession 是分析末尾 plan 代码块里的一节课：day 为从开始执行那天算起的第几天
 type aiSession struct {
-	Day    int    `json:"day"`
-	Kind   string `json:"kind"`
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
+	Day         int     `json:"day"`
+	Kind        string  `json:"kind"`
+	Title       string  `json:"title"`
+	Detail      string  `json:"detail"`
+	PaceLoS     float64 `json:"pace_lo_s,omitempty"`  // 目标配速快端，秒/公里
+	PaceHiS     float64 `json:"pace_hi_s,omitempty"`  // 目标配速慢端
+	HRZoneLo    int     `json:"hr_zone_lo,omitempty"` // 目标心率区间 1～5
+	HRZoneHi    int     `json:"hr_zone_hi,omitempty"`
+	TargetDistM float64 `json:"target_distance_m,omitempty"`
+	TargetDurS  int     `json:"target_duration_s,omitempty"`
+	Phase       string  `json:"phase,omitempty"` // 训练阶段标签
 }
 
 var planBlockRe = regexp.MustCompile("(?s)```(?:plan|json)[ \\t]*\\n(.*?)```")
@@ -586,6 +594,21 @@ func splitAnalysisPlan(content string) (string, []aiSession) {
 			x.Kind = "other"
 		}
 		x.Title, x.Detail = cut(x.Title, 60), cut(x.Detail, 500)
+		x.Phase = cut(x.Phase, 20)
+		if x.PaceLoS < 0 || x.PaceLoS > 3600 || x.PaceHiS < 0 || x.PaceHiS > 3600 ||
+			(x.PaceLoS > 0 && x.PaceHiS > 0 && x.PaceLoS > x.PaceHiS) {
+			x.PaceLoS, x.PaceHiS = 0, 0
+		}
+		if x.HRZoneLo < 0 || x.HRZoneLo > 5 || x.HRZoneHi < 0 || x.HRZoneHi > 5 ||
+			(x.HRZoneLo > 0 && x.HRZoneHi > 0 && x.HRZoneLo > x.HRZoneHi) {
+			x.HRZoneLo, x.HRZoneHi = 0, 0
+		}
+		if x.TargetDistM < 0 || x.TargetDistM > 1000000 {
+			x.TargetDistM = 0
+		}
+		if x.TargetDurS < 0 || x.TargetDurS > 86400 {
+			x.TargetDurS = 0
+		}
 		plan = append(plan, x)
 		if len(plan) >= 40 {
 			break
