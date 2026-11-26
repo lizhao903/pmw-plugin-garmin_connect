@@ -914,7 +914,7 @@ function EffectPanel(props) {
   const points = d.points || [];
   const weeks = d.weeks || [];
   const trends = d.trends || {};
-  const bands = [["1", "Z1 恢复", "#9ca3af"], ["2", "Z2 有氧", "#3b82f6"], ["3", "Z3 阈值", "#f59e0b"], ["4", "Z4 无氧", "#ef4444"], ["5", "Z5 极限", "#7c3aed"]];
+  const bands = [["1", "Z1 恢复"], ["2", "Z2 有氧"], ["3", "Z3 阈值"], ["4", "Z4 无氧"], ["5", "Z5 极限"]];
   const zoneRows = bands.map(function (b) {
     const t = trends[b[0]] || {};
     const n = t.count || 0;
@@ -922,7 +922,7 @@ function EffectPanel(props) {
     const improved = n >= 3 && slope < -0.05;
     const worse = n >= 3 && slope > 0.05;
     return h("div", { key: b[0], className: "gc-eff-row" },
-      h("span", { className: "gc-eff-zone", style: { color: b[2] } }, b[1]),
+      h("span", { className: "gc-eff-zone gc-eff-z" + b[0] }, b[1]),
       h("span", { className: "gc-eff-dim" }, n ? n + " 次 · 首次 " + fmtPace(t.pace_first) + " → 最近 " + fmtPace(t.pace_last) : "暂无数据"),
       n >= 3 ? h("span", { className: "gc-eff-tag" + (improved ? " good" : worse ? " bad" : "") },
         improved ? "同区间变快" : worse ? "同区间变慢" : "基本持平") : null);
@@ -942,7 +942,7 @@ function EffectPanel(props) {
             h("small", null, w.week.slice(5) + " · " + num(w.km, 1) + " km"),
             h("div", { className: "gc-eff-bar" }, bands.map(function (b) {
               const n = w.zones[b[0]] || 0;
-              return n ? h("i", { key: b[0], style: { width: (n / total * 100) + "%", background: b[2] }, title: b[1] + " " + n + " 次" }) : null;
+              return n ? h("i", { key: b[0], className: "gc-eff-z" + b[0], style: { width: (n / total * 100) + "%" }, title: b[1] + " " + n + " 次" }) : null;
             })));
         }))
       : h("p", { className: "pmw-plugin-hint" }, "这段时间没有带心率的训练记录。"),
@@ -983,9 +983,9 @@ function WellbeingCard() {
     h("div", { className: "gc-section-head" },
       h("h3", { className: "gc-sub" }, "今日主观状态"),
       h("input", { type: "date", value: day, "aria-label": "记录日期", onChange: function (e) { setDay(e.target.value); } })),
-    h("div", { className: "gc-controls" },
-      h("label", { className: "gc-field" }, "睡眠时长（小时）", h("input", { type: "number", min: "0", max: "24", step: "0.5", value: val.sleep_h || "", placeholder: "如：7.5", onChange: function (e) { set("sleep_h", Number(e.target.value) || 0); } })),
-      scale("sleep_quality", "睡眠质量"), scale("fatigue", "疲劳感（高=累）")),
+    h("div", { className: "gc-controls gc-wellbeing-input" },
+      h("label", { className: "gc-field" }, "睡眠时长（小时）", h("input", { type: "number", min: "0", max: "24", step: "0.5", value: val.sleep_h || "", placeholder: "如：7.5", onChange: function (e) { set("sleep_h", Number(e.target.value) || 0); } }))),
+    h("div", { className: "gc-controls" }, scale("sleep_quality", "睡眠质量"), scale("fatigue", "疲劳感（高=累）")),
     h("div", { className: "gc-controls" }, scale("soreness", "肌肉酸痛（高=酸）"), scale("mood", "整体状态（高=好）")),
     h("label", { className: "gc-field" }, "备注", h("input", { value: val.note || "", maxLength: 500, placeholder: "睡眠、身体感受…", onChange: function (e) { set("note", e.target.value); } })),
     h("p", { className: "pmw-plugin-hint" }, "5 分制：睡眠质量/整体状态分数越高越好，疲劳/酸痛分数越高越差；0 表示未填。睡眠少于 6.5 小时或疲劳、酸痛达 4 分以上会在恢复结论里提示别上强度。"),
@@ -3746,7 +3746,8 @@ function CalendarView(props) {
               className: "gc-cal-item gc-k-" + it.kind + " " + (ACT_STATES.find(function (s) { return s[0] === st.level; }) || [])[2],
               title: it.title + "：" + actLabel(st) + (st.target.dist || st.target.dur ? "（" + actCompare(st) + "）" : "")
                 + (ist.level !== "none" ? " · " + sessionIntensityLabel(ist) + "：" + ist.text : ""),
-            }, actLabel(st) + (ist.level !== "none" ? "/" + sessionIntensityLabel(ist) : "") + " · " + it.title);
+            }, ist.level !== "none" ? h("i", { className: "gc-cal-int gc-int-" + ist.level }, sessionIntensityLabel(ist)) : null,
+              actLabel(st) + " · " + it.title);
           }),
           info.items.length > 3 ? h("span", { className: "gc-cal-more" }, "还有 " + (info.items.length - 3) + " 项") : null,
           info.acts.map(function (a) {
@@ -3940,7 +3941,9 @@ function GoalCard(props) {
     h("div", { className: "gc-section-head" },
       h("h3", { className: "gc-sub" }, "目标比赛（" + goals.length + "）"),
       !editing ? h("button", { className: "pmw-plugin-button", type: "button", onClick: function () { setEditing(blank()); } }, "添加目标") : null),
-    phase ? h("p", { className: "gc-goal-phase" }, "当前阶段：" + phase.phase + " · 距 " + (phase.goal_name || "目标比赛") + " " + phase.days_left + " 天 · " + phase.focus) : null,
+    phase ? h("p", { className: "gc-goal-phase" },
+      h("b", null, "当前阶段：" + phase.phase),
+      h("span", null, "距 " + (phase.goal_name || "目标比赛") + " " + phase.days_left + " 天 · " + phase.focus)) : null,
     prediction ? h("div", { className: "gc-prediction" },
       h("h4", { className: "gc-sub" }, labelOf(RACE_CATS, prediction.category) + "完赛预测（近 4 周状态外推）"),
       h("div", { className: "gc-pred-grid" },
@@ -3956,7 +3959,7 @@ function GoalCard(props) {
       const pb = pbs[g.category];
       return h("div", { key: g.id || "new", className: "gc-goal-row" + (g.id === nextId(goals) ? " next" : "") },
         h("div", null,
-          h("strong", null, g.race_name || "未命名目标", g.id === nextId(goals) ? h("small", null, " · 最近目标") : null),
+          h("strong", null, g.race_name || "未命名目标", g.id === nextId(goals) ? h("small", { className: "gc-goal-badge" }, "最近目标") : null),
           h("small", { className: "pmw-plugin-hint" }, " · " + (RACE_CATS.find(function (c) { return c[0] === g.category; }) || [])[1] + (g.date ? " · " + g.date : "")),
           h("p", { className: "pmw-plugin-hint" }, g.target_s > 0 ? "目标 " + fmtDuration(g.target_s) + (pace ? " · 配速 " + pace : "") : "未填目标成绩",
             pb && RACE_DIST[pb.category] ? " · 这项 PB " + fmtDuration(raceTime(pb).s) : "")),
